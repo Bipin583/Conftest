@@ -1,7 +1,7 @@
 # ConfTest — Master Plan (Real Ground Truth Rebuild)
 
 > **This is the single reference document for the rest of the project.**
-> Last updated: 2026-09-02 · Status: Phase R starting
+> Last updated: 2026-09-02 · Status: Phase R — ground-truth pipeline built, harvest next
 
 ---
 
@@ -11,17 +11,22 @@
 
 | Area | State |
 |---|---|
-| Code | ✅ 70+ modules, 115/115 tests passing, well-architected |
+| Code | ✅ 70+ modules, 215/215 tests passing, well-architected |
 | Feature pipeline | ✅ 34 features (diff / AST / dependency-graph / history) |
 | ML + calibration | ✅ LightGBM, isotonic + Platt + temperature, ECE, reliability diagrams |
 | Abstention | ✅ Threshold policy, full-suite fallback, policy tuning |
 | Ensemble + SHAP | ✅ Built (beyond original plan) |
 | API + Dashboard | ✅ FastAPI (7 route modules), Streamlit (5 pages) |
 | Docs | ✅ 27 docs, IEEE paper, KTU LaTeX report, viva deck |
-| **Data / labels** | ❌ **100% fabricated — invalidates every reported number** |
+| Mutation harness | ✅ 6 operator families, 3807 mutants verified, real pytest labels |
+| Subject repos | ✅ **7 screened and accepted** (G0 met), 0 flaky, harvest = 2.5 h |
+| Fabrication guards | ✅ AST label guard in CI; every invented fallback now raises |
+| **Real dataset** | ⬜ **Next: C2 feature builder, then the harvest itself** |
+| Published numbers | ❌ **Still rest on fabricated labels until C5 re-runs them** |
 | LLM review layer | ⬜ Does not exist (optional, deprioritized) |
 
-**We are not behind. We have one fatal flaw to fix, then we re-run everything we already built.**
+**We are not behind. The machinery for real labels now exists and is tested; what remains is
+to run it, build the dataset, and re-run every experiment on top of it.**
 
 ---
 
@@ -409,19 +414,191 @@ Do not proceed past a gate until it is green.
 - [x] **C1a** `tests/unit/test_mutators.py` — 31 tests, all passing
 - [x] **C1b** `src/conftest/groundtruth/mutation_harness.py` — baseline screen, harvest loop, labelling, checkpointing
 - [x] **C1b** `tests/unit/test_mutation_harness.py` — 33 tests, all passing
-- [ ] **C0** `scripts/screen_repos.py` — screener + report
-- [ ] **C0** screen 12 candidates -> select 5
-- [ ] **C4.1** purge synthetic fallbacks from `real_repo_miner.py`
-- [ ] **C4.2** CI grep gate against `random` in label paths
-- [ ] **C4.3** fix Changed-File baseline
+- [x] **C0** `scripts/screen_repos.py` — two-stage screener + JSON report
+- [x] **C0** `tests/unit/test_repo_screener.py` — 21 tests, one per screener bug found
+- [x] **C0** screen 20 candidates -> **7 accepted** (target was 5)
+- [x] **C4.1** purge synthetic fallbacks from `real_repo_miner.py` — all randomness gone
+- [x] **C4.2** CI gate against fabricated labels — `scripts/check_no_fabricated_labels.py` (AST, not grep)
+- [x] **C4.2** `tests/unit/test_label_guard.py` — 14 tests, all passing
+- [x] **C4.3** fix Changed-File baseline — stem matching + mandatory `changed_file_path`
+- [x] **C4.7** stop faking ETR — measure it from real durations
 - [ ] **C2** `scripts/build_real_dataset.py`
 - [ ] **G1** first real dataset, gates verified
+- [ ] **C4.4** calibration selection must not pick a method on ECE alone (see log 2026-09-02b)
+- [ ] **C4.5** bootstrap confidence intervals on all headline numbers
+- [ ] **C4.6** relabel `synthetic_generator.py` as smoke-test-only, like `dataset_generator.py`
+- [ ] **C3** BugsInPy adapter *(P1)*
+- [ ] **C5** re-run every experiment on real data
 
 **Definition of done for this sprint:** `data/processed/real_features.csv` exists, every label traceable to a real pytest run, G0–G3 green.
 
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-02b · C0 + C4.1 + C4.2 + C4.3 landed
+
+**Test suite: 179 -> 215 passing** (36 new). No regressions. Label guard: PASSED, 104 files scanned.
+
+#### C0 — repo screening complete, G0 met
+
+Twenty candidates screened. Two stages: static (purity, layout, file counts), then
+dynamic (install into a fresh venv, size, speed, greenness, determinism over 3 runs).
+
+**7 repositories accepted — target was 5:**
+
+| Repo | Tests | Suite (s) | Source dirs | Flaky | Failing on clean |
+|---|---|---|---|---|---|
+| cachetools | 333 | 5.68 | `src` | 0 | 0 |
+| tabulate | 383 | 3.65 | `tabulate` | 0 | 0 |
+| inflection | 467 | 2.75 | `inflection` | 0 | 0 |
+| sqlparse | 509 | 7.20 | `sqlparse` | 0 | 0 |
+| sortedcontainers | 296 | 11.58 | `src` | 0 | 0 |
+| pathspec | 205 | 3.42 | `pathspec` | 0 | 0 |
+| parse | 98 | 1.30 | `parse` | 0 | 0 |
+
+Pinned commit SHAs live in `data/repos/screening_report.json`. **Gate G0 is met:**
+5+ repos pass every criterion, and all three baseline runs were identical for each.
+
+**Estimated harvest cost at 250 mutants/repo: 2.5 hours total, 0.6 hours per laptop across 4.**
+This is the number that makes the whole methodology affordable on the project budget.
+
+Genuine rejections, worth recording so nobody re-screens them:
+
+- **Over the 600-test ceiling:** pyparsing 2156, validators 895, humanize 798, deepdiff ~888, arrow ~708
+- **Under the 50-test floor:** toml 24
+- **Platform:** schedule calls `time.tzset()`, which does not exist on Windows
+- **Not pytest-discoverable:** python-slugify ships `test.py`; the default `python_files`
+  patterns (`test_*.py`, `*_test.py`) do not collect it, so the harness could not run it either
+- **Missing test-only plugins (fixable, not chased):** cerberus needs `pytest-benchmark`
+  for `@mark.benchmark` (247 tests otherwise, in range); funcy has 5 collection errors;
+  semver exits with a usage error
+- **Detector limitation, not chased:** pluggy keeps its suite in `testing/`
+
+#### Six screener bugs found while screening — each now has a test
+
+The screener decides what the harvest runs against, so a wrong verdict either burns
+hours of compute or silently drops a usable subject. Every bug below is pinned by a
+test in `tests/unit/test_repo_screener.py`.
+
+1. **Single-file test suites were rejected.** inflection and schedule ship one
+   top-level test module, not a `tests/` package. Requiring a directory threw away
+   three candidates. Now `test_*.py` / `*_test.py` at top level counts as a test
+   location — while a bare `test.py` correctly stays rejected.
+
+2. **Sample data read as a build input.** pyparsing was rejected
+   `builds_c_extensions` because of `examples/snmp_api.h` — a file it *parses* in a
+   demo. The C-source scan now skips `examples/`, `docs/`, and `tests/`.
+
+3. **Repo `addopts` aborted runs.** `parse` sets
+   `addopts = "--cov=parse --doctest-modules"`; without pytest-cov installed, pytest
+   exits before collecting anything, reporting zero tests for a healthy 98-test suite.
+   Fixed with `-o addopts=` — **and the same flag was added to `SafeTestExecutor`**,
+   because otherwise screening timings and collection counts do not describe what
+   the harvest actually runs. Coverage instrumentation across hundreds of mutant
+   executions is also pure waste.
+
+4. **An interrupted collection looked like a tiny suite.** pytest still writes a
+   partial JUnit file when collection aborts, so counting rows called a 2156-test
+   project a 1-test project. `run_suite` now returns pytest's exit code, mapped
+   through `PYTEST_EXIT_MEANING` (2 = interrupted, 5 = nothing collected,
+   4 = usage error, 124 = timeout). Exit 0 and 1 are deliberately absent: some
+   tests failing is a finding, not an invalid run.
+
+5. **`pip install -e .[test]` exits 0 for an extra that does not exist.** It only
+   warns. My extras loop broke on the first success, so `.[tests]` was never tried
+   and humanize screened at 2 tests instead of 798. All extras are now probed.
+   (798 is over the ceiling, so humanize is still rejected — but for the true reason.)
+
+6. **Installing `requirements-dev.txt` contaminated the venv.** It pulled an
+   incompatible pytest-flake8 and broke `schedule` with a `PluginValidationError`
+   that had nothing to do with the repo. Only test-specific requirement files are
+   installed now. A self-inflicted failure that looked exactly like a repo defect.
+
+Also added after the fact: a bare `collection_interrupted` verdict is the same
+opacity that let bug 4 hide, so rejections now carry the pytest `ERROR` lines that
+caused them. That is how cerberus was identified as merely missing a plugin.
+
+**Process note.** One diagnostic run of mine was itself wrong: I ran pytest from
+`data/repos` rather than inside each checkout, so it walked into a sibling clone and
+reported failures belonging to a different repository. Screening must always run
+with `cwd` set to the repo under test.
+
+#### C4.2 — the guard found a third fabrication site on its first run
+
+The manual audit found two. `scripts/check_no_fabricated_labels.py` immediately found
+a third: **`src/benchmark/dataset_generator.py`**, which feeds `experiment_runner.py`,
+`statistical_plots.py`, and `colab_trainer.py`. So the experiment runner and every
+statistical plot also rested on coin-flip labels. The guard earned its keep in one run.
+
+It is an **AST check, not a grep** — it flags an assignment whose target is a
+label-ish name and whose value contains a random draw, at any nesting depth. That
+distinction matters, because legitimate randomness must survive: mutant sampling,
+`np.random.permutation` shuffles, bootstrap resampling, and model seeds are all
+allowed. `tests/unit/test_label_guard.py` asserts both directions — six must-catch
+cases including the exact original defect, and five must-not-catch cases.
+
+Exemptions are explicit and few: the synthetic generators themselves, and the guard.
+Tests are not scanned; a fixture may fabricate freely.
+
+#### C4.1 — the contamination reached the features, not just the labels
+
+`real_repo_miner.py` fed every coin-flip label back through
+`self.history_miner.record_run(...)`. So `historical_failure_rate` was itself a
+smoothed function of past coin flips — **the feature was contaminated, not merely
+the target.** This is why the Historical baseline also landed at exactly 20%: it was
+reading a laundered version of the same noise.
+
+Every fallback in that file that invented data now raises instead:
+
+| Was | Now |
+|---|---|
+| `return [f"commit_{i:04d}" ...]` when git failed | `RuntimeError` |
+| `return [f"tests/test_module_{i:02d}.py" ...]` | `RuntimeError` |
+| `np.random.exponential(25)` churn for empty diffs | commit skipped, counted |
+| `label = 1 if np.random.rand() < 0.70 else 0` | removed, with a comment explaining the defect |
+| zero records produced | `RuntimeError` |
+
+The file now contains **no randomness at all**, and asserts that no forbidden label
+column ever appears in its output.
+
+`dataset_generator.py` is kept, but demoted: its docstring says
+SMOKE-TESTS-ONLY, its constructor refuses to run without
+`acknowledge_synthetic=True`, and every row it emits is stamped
+`data_origin = "SYNTHETIC_FABRICATED_LABELS"`. Fabricated data is allowed to exist
+only when it cannot be mistaken for real.
+
+#### C4.3 — the 0%-recall baseline was never the baseline's fault
+
+The Changed-File selector scored 0% failure recall, which looked like a weak
+heuristic. It was not in the selector at all: **`benchmark.py` defaulted
+`file_path` to `"src/module.py"` for all 30 commits**, because `features.csv` has no
+such column. Every commit claimed to touch the same imaginary file, so nothing ever
+matched. Same disease as the labels — fabricated input, silently defaulted.
+
+`changed_file_path` is now a **mandatory** column: absent, it raises `ValueError`
+rather than inventing a value. Multi-file commits are supported as `;`-separated
+values. The selector itself was rewritten to match stems properly
+(`src/auth.py` -> `tests/test_auth.py`), with empty stems filtered out — a blank
+stem substring-matches every test in the suite.
+
+#### C4.7 — a fourth fabricated metric
+
+`etr = trr * 0.98`, commented *"time reduction closely tracks test reduction with
+slight overhead"*. Execution-time reduction was **inferred from test-count
+reduction, not measured** — while `hist_avg_duration` sat unused in the same
+dataframe. It is now summed from real per-test durations, and reports
+`n/a (no durations)` rather than a number when durations are missing.
+
+#### Standing lesson from this session
+
+Four separate numbers in the results were not measurements: the labels, the
+historical-failure-rate feature, the changed-file input, and the time-reduction
+metric. Each one had a plausible-looking fallback that produced a plausible-looking
+result. **A fallback that invents data is worse than a crash**, because a crash gets
+fixed and a fallback gets published. Every one of them now raises.
+
+---
 
 ### 2026-09-02 · C1a + C1b landed
 

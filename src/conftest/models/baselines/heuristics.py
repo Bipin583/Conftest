@@ -70,10 +70,43 @@ class RandomKSelector(BaseSelector):
 
 
 class ChangedFileSelector(BaseSelector):
-    """Baseline 3: Selects tests directly associated with modified filenames."""
+    """
+    Baseline 3: file-level RTS by name correspondence (Ekstazi-style).
 
-    def __init__(self):
+    Selects every test whose module name corresponds to a changed source file.
+    This is a *natural operating point* technique, not a budgeted one: it
+    selects what the change touches and nothing more. Budget capping is
+    therefore opt-in, because forcing this baseline to a fixed budget makes it
+    look artificially weak when a change is genuinely broad.
+    """
+
+    def __init__(self, respect_budget: bool = False):
         super().__init__(name="3. Changed-File Selection")
+        self.respect_budget = respect_budget
+
+    @staticmethod
+    def _source_stem(file_path: str) -> str:
+        """Normalise a changed source file to its bare module name."""
+        return Path(file_path).stem.lower()
+
+    @staticmethod
+    def _test_stem(test_path: str) -> str:
+        """
+        Normalise a test module to the source module it is presumed to cover.
+
+        `tests/test_payment.py` -> `payment`. Handles IDs that carry no `.py`
+        suffix, which is how pytest reports tests collected via `classname`.
+        """
+        name = Path(test_path).name.lower()
+        for suffix in (".py",):
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+        name = name.split("::")[0]
+        if name.startswith("test_"):
+            name = name[len("test_") :]
+        if name.endswith("_test"):
+            name = name[: -len("_test")]
+        return name
 
     def select(
         self,
@@ -83,28 +116,39 @@ class ChangedFileSelector(BaseSelector):
         **kwargs: Any,
     ) -> SelectionResult:
         total = len(candidate_tests)
-        k = max(1, int(total * budget_ratio)) if total > 0 else 0
 
-        # Extract stems of changed source files
+        # A blank stem would substring-match every test, silently selecting the
+        # whole suite and disguising missing changed-file data as a 0% result.
         changed_stems = {
-            Path(f.get("file_path", "")).stem.lower().replace("test_", "").replace("_test", "")
-            for f in changed_files
-            if f.get("file_path")
+            stem
+            for stem in (
+                self._source_stem(f.get("file_path", "")) for f in changed_files
+            )
+            if stem
         }
 
-        matched_tests = []
-        unmatched_tests = []
-
+        matched: List[str] = []
         for t in candidate_tests:
-            t_path = t.get("test_path", t.get("test_id", "")).lower()
-            t_stem = Path(t_path).stem.replace("test_", "").replace("_test", "")
-            if t_stem in changed_stems or any(stem in t_path for stem in changed_stems):
-                matched_tests.append(t["test_id"])
-            else:
-                unmatched_tests.append(t["test_id"])
+            t_path = str(t.get("test_path") or t.get("test_id") or "").lower()
+            t_stem = self._test_stem(t_path)
+            if t_stem and t_stem in changed_stems:
+                matched.append(t["test_id"])
+            elif any(stem in t_path for stem in changed_stems):
+                matched.append(t["test_id"])
 
-        # Cap by budget
-        selected = matched_tests[:k] if len(matched_tests) >= k else matched_tests
+        selected = matched
+        reasons = [f"{len(matched)} of {total} tests correspond to {len(changed_stems)} changed file(s)."]
+
+        if self.respect_budget and total > 0:
+            k = max(1, int(total * budget_ratio))
+            if len(matched) > k:
+                selected = matched[:k]
+                reasons.append(f"Truncated to budget k={k}.")
+
+        if not changed_stems:
+            reasons.append("WARNING: no changed files supplied; selection is vacuous.")
+        elif not matched:
+            reasons.append("No name correspondence found; file-level RTS selects nothing.")
 
         return SelectionResult(
             strategy_name=self.name,
@@ -112,7 +156,7 @@ class ChangedFileSelector(BaseSelector):
             total_tests=total,
             abstained=False,
             mode="FAST_SELECTED",
-            reasons=[f"Selected {len(selected)} tests matching changed file patterns."],
+            reasons=reasons,
         )
 
 

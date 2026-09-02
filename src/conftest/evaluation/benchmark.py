@@ -70,6 +70,8 @@ class BaselineBenchmarkRunner:
                 "total_abstentions": 0,
                 "total_commits": 0,
                 "escaped_commits": 0,
+                "total_duration_available": 0.0,
+                "total_duration_selected": 0.0,
             }
             for s in self.selectors
         }
@@ -94,13 +96,53 @@ class BaselineBenchmarkRunner:
                     "uncertainty": float(row.get("uncertainty", 0.08 if len(failing_test_ids) <= 1 else 0.22)),
                 })
 
-            changed_files = [
-                {"file_path": str(row.get("file_path", "src/module.py")), "lines_added": int(row.get("diff_lines_added", 10)), "lines_deleted": int(row.get("diff_lines_deleted", 2))}
-                for _, row in group.head(1).iterrows()
-            ]
+            # The changed-file list must come from the dataset. Defaulting it to
+            # a placeholder path silently feeds every commit the same fake diff,
+            # which is what previously drove the Changed-File baseline to 0%
+            # recall across all 30 commits. Fail loudly instead.
+            if "changed_file_path" not in group.columns:
+                raise ValueError(
+                    "Dataset has no 'changed_file_path' column. The Changed-File "
+                    "and dependency baselines cannot be evaluated without real "
+                    "changed-file provenance. Rebuild the dataset with "
+                    "scripts/build_real_dataset.py, which records the mutated "
+                    "file for every sample."
+                )
+
+            changed_files = []
+            seen_paths = set()
+            for _, row in group.iterrows():
+                raw = row.get("changed_file_path")
+                if raw is None or str(raw).strip() in ("", "nan"):
+                    continue
+                for path in str(raw).split(";"):
+                    path = path.strip()
+                    if path and path not in seen_paths:
+                        seen_paths.add(path)
+                        changed_files.append({
+                            "file_path": path,
+                            "lines_added": int(row.get("diff_lines_added", 0) or 0),
+                            "lines_deleted": int(row.get("diff_lines_deleted", 0) or 0),
+                        })
+
+            if not changed_files:
+                raise ValueError(
+                    f"Commit {sha} has no changed files recorded. Every sample "
+                    "must carry the file that was modified."
+                )
 
             num_available_failures = len(failing_test_ids)
             total_tests = len(candidate_tests)
+
+            # Real per-test durations, so time reduction can be measured rather
+            # than inferred from test-count reduction. Selecting 25% of tests
+            # does not save 25% of wall-clock unless every test costs the same,
+            # and in practice durations are heavily skewed.
+            durations = {
+                t["test_id"]: float(t.get("features", {}).get("hist_avg_duration", 0.0) or 0.0)
+                for t in candidate_tests
+            }
+            suite_duration = sum(durations.values())
 
             for selector in self.selectors:
                 decision = selector.select(
@@ -119,6 +161,10 @@ class BaselineBenchmarkRunner:
                 r["total_failures_available"] += num_available_failures
                 r["total_failures_detected"] += detected
                 r["total_commits"] += 1
+                r["total_duration_available"] += suite_duration
+                r["total_duration_selected"] += sum(
+                    durations.get(tid, 0.0) for tid in selected_set
+                )
                 if decision.abstained:
                     r["total_abstentions"] += 1
                 if missed > 0 and not decision.abstained:
@@ -134,7 +180,18 @@ class BaselineBenchmarkRunner:
             tot_com = max(1, r["total_commits"])
 
             trr = (1.0 - (sel_tests / tot_tests)) * 100
-            etr = trr * 0.98  # Time reduction closely tracks test reduction with slight overhead
+
+            # Time reduction is MEASURED from per-test durations. It was
+            # previously computed as `trr * 0.98`, i.e. assumed to track test
+            # reduction with a flat 2% overhead -- a fabricated metric, since
+            # skipping many fast tests saves far less time than skipping a few
+            # slow ones. Reported as NaN when the dataset carries no durations,
+            # rather than silently substituting the test-count ratio.
+            tot_dur = r["total_duration_available"]
+            if tot_dur > 0:
+                etr = (1.0 - (r["total_duration_selected"] / tot_dur)) * 100
+            else:
+                etr = float("nan")
             fr = (det_fails / tot_fails) * 100
             mfr = 100.0 - fr
             ar = (r["total_abstentions"] / tot_com) * 100
@@ -142,7 +199,9 @@ class BaselineBenchmarkRunner:
             summary_rows.append({
                 "Strategy / Baseline": name,
                 "Test Reduction (TRR %)": f"{trr:.1f}%",
-                "Time Reduction (ETR %)": f"{etr:.1f}%",
+                "Time Reduction (ETR %)": (
+                    "n/a (no durations)" if etr != etr else f"{etr:.1f}%"
+                ),
                 "Failure Recall (FR %)": f"{fr:.1f}%",
                 "Missed-Failure (MFR %)": f"{mfr:.1f}%",
                 "Abstention Rate (AR %)": f"{ar:.1f}%",

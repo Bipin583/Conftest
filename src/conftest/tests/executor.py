@@ -184,6 +184,18 @@ class SafeTestExecutor:
             "pytest",
             f"--junitxml={xml_report_path}",
             "-v",
+            # Neutralise the target repo's own addopts. Many projects put
+            # `--cov=... --doctest-modules` there, which (a) aborts the run
+            # outright when the plugin is absent and (b) adds coverage
+            # instrumentation overhead to every one of the hundreds of suite
+            # executions a mutation harvest performs. Screening uses the same
+            # flags, so measured timings match harvest timings.
+            "-o",
+            "addopts=",
+            # Never write .pytest_cache into the repo under mutation; a cache
+            # surviving between runs would break byte-exact restore checks.
+            "-p",
+            "no:cacheprovider",
         ]
 
         if sanitized_targets:

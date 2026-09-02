@@ -31,6 +31,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # Fails the build if any label-ish variable is ever assigned from a
+      # random draw. This is the defect that invalidated every result in the
+      # first iteration of the project; it must never come back silently.
+      - name: 🚫 Reject Fabricated Failure Labels
+        run: python scripts/check_no_fabricated_labels.py
+
       - name: 🧠 Run ConfTest Selective RTS Engine
         id: select_tests
         run: |

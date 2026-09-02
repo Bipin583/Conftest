@@ -117,6 +117,9 @@ def test_baseline_benchmark_runner():
         {
             "commit_sha": "sha_1",
             "test_id": "tests/test_auth.py::test_login",
+            # Changed-file provenance is mandatory: the benchmark refuses to
+            # run without it rather than defaulting to a placeholder path.
+            "changed_file_path": "src/auth.py",
             "label_failed": 1,
             "dep_is_direct_import": 1.0,
             "hist_lifetime_failure_rate": 0.5,
@@ -127,6 +130,7 @@ def test_baseline_benchmark_runner():
         {
             "commit_sha": "sha_1",
             "test_id": "tests/test_other.py::test_other",
+            "changed_file_path": "src/auth.py",
             "label_failed": 0,
             "dep_is_direct_import": 0.0,
             "hist_lifetime_failure_rate": 0.0,
@@ -140,6 +144,47 @@ def test_baseline_benchmark_runner():
     summary_df = runner.evaluate_dataset(df)
 
     assert len(summary_df) == 8
+
+    # The Changed-File baseline must now actually select the matching test.
+    # It previously reported 0% recall on every commit because the harness fed
+    # it a hardcoded placeholder diff instead of real changed-file data.
+    changed_file_row = summary_df[
+        summary_df["Strategy / Baseline"].str.contains("Changed-File", na=False)
+    ]
+    assert not changed_file_row.empty, (
+        f"missing baseline in {list(summary_df['Strategy / Baseline'])}"
+    )
+    recall = float(changed_file_row.iloc[0]["Failure Recall (FR %)"].rstrip("%"))
+    assert recall > 0.0, (
+        "Changed-File baseline selected nothing despite src/auth.py matching "
+        "tests/test_auth.py -- the placeholder-diff bug has regressed"
+    )
+
     assert "Strategy / Baseline" in summary_df.columns
     assert "Test Reduction (TRR %)" in summary_df.columns
     assert "Failure Recall (FR %)" in summary_df.columns
+
+
+def test_benchmark_rejects_dataset_without_changed_file_provenance():
+    """
+    A dataset with no changed-file column must fail loudly.
+
+    Silently defaulting to a placeholder path is what made the Changed-File and
+    dependency baselines meaningless in the original evaluation.
+    """
+    df = pd.DataFrame([
+        {
+            "commit_sha": "sha_1",
+            "test_id": "tests/test_auth.py::test_login",
+            "label_failed": 1,
+            "dep_is_direct_import": 1.0,
+            "hist_lifetime_failure_rate": 0.5,
+            "raw_score": 0.9,
+            "calibrated_confidence": 0.9,
+            "uncertainty": 0.05,
+        },
+    ])
+
+    runner = BaselineBenchmarkRunner(budget_ratio=0.50)
+    with pytest.raises(ValueError, match="changed_file_path"):
+        runner.evaluate_dataset(df)

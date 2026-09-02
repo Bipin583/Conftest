@@ -37,8 +37,11 @@ class RealRepoMiner:
             hashes = [h.strip() for h in res.stdout.splitlines() if h.strip()]
             return hashes
         except Exception as e:
-            print(f"[RealRepoMiner] Note: Git log unavailable ({e}). Using generated commit history.")
-            return [f"commit_{i:04d}" for i in range(max_commits)]
+            raise RuntimeError(
+                f"git log failed in {self.repo_path!r}: {e}. Mining cannot "
+                "proceed without real commit history. Fabricating commit names "
+                "would stamp synthetic data as REAL_GIT_MINED."
+            ) from e
 
     def extract_commit_diff(self, commit_sha: str) -> str:
         """Extracts unified diff patch for a given commit."""
@@ -59,7 +62,12 @@ class RealRepoMiner:
                 if (f.startswith("test_") or f.endswith("_test.py")) and f.endswith(".py"):
                     rel_path = os.path.relpath(os.path.join(root, f), self.repo_path)
                     test_files.append(rel_path)
-        return sorted(test_files) if test_files else [f"tests/test_module_{i:02d}.py" for i in range(15)]
+        if not test_files:
+            raise RuntimeError(
+                f"No test files found under {self.repo_path!r}. Mining cannot "
+                "proceed against an invented test suite."
+            )
+        return sorted(test_files)
 
     def mine_and_build_dataset(self, max_commits: int = 250, output_csv: str = "data/real_repo_benchmark.csv") -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -71,22 +79,18 @@ class RealRepoMiner:
         print(f"[RealRepoMiner] Mining {len(commit_shas)} commits across {len(test_files)} test files in '{self.repo_path}'...")
 
         records: List[Dict[str, Any]] = []
+        skipped_empty = 0
 
         for idx, sha in enumerate(commit_shas):
             patch = self.extract_commit_diff(sha)
             if not patch:
-                # Synthetic realistic fallback if mining workspace without git history
-                patch_metrics = {
-                    "total_added_lines": int(np.random.exponential(25)) + 1,
-                    "total_deleted_lines": int(np.random.exponential(12)),
-                    "total_churn": 0,
-                    "modified_files_count": np.random.randint(1, 5),
-                    "modified_files": [f"src/module_{np.random.randint(1, 10)}.py"],
-                    "is_doc_only": False
-                }
-                patch_metrics["total_churn"] = patch_metrics["total_added_lines"] + patch_metrics["total_deleted_lines"]
-            else:
-                patch_metrics = self.ast_analyzer.parse_patch(patch)
+                # An empty diff is a real observation (merge commit, or a commit
+                # touching only binary files). Skip it rather than inventing
+                # plausible-looking churn numbers for it.
+                print(f"[RealRepoMiner] Skipping {sha}: empty diff (merge or binary-only commit)")
+                skipped_empty += 1
+                continue
+            patch_metrics = self.ast_analyzer.parse_patch(patch)
 
             is_ood = (patch_metrics["total_churn"] > 800 or patch_metrics["modified_files_count"] > 15)
             churn = patch_metrics["total_churn"]
@@ -100,19 +104,28 @@ class RealRepoMiner:
                 duration = self.history_miner.compute_average_duration(t_file)
                 flakiness = self.history_miner.compute_flakiness_score(t_file)
 
-                # Ground-truth failure label simulation based on real change impact
-                if patch_metrics["is_doc_only"]:
-                    label = 0
-                elif direct_match:
-                    label = 1 if np.random.rand() < 0.70 else 0
-                elif is_ood:
-                    label = 1 if np.random.rand() < 0.40 else 0
-                else:
-                    label = 1 if np.random.rand() < (hist_fail * 0.1) else 0
-
-                # Record outcome to history miner for next commits
-                outcome = "FAIL" if label == 1 else "PASS"
-                self.history_miner.record_run(t_file, outcome=outcome, duration=duration, age_days=(len(commit_shas) - idx))
+                # NO LABEL IS PRODUCED HERE, BY DESIGN.
+                #
+                # This class mines *features* from git history. It never executes
+                # the test suite, so it has no way to observe whether a test
+                # passes or fails. The previous implementation drew a coin flip
+                # (p=0.70 when the change touched a dependency, else p=0.40 or
+                # p=hist_fail*0.1) and wrote it to a `label` column while
+                # stamping the output "REAL_GIT_MINED".
+                #
+                # That made the whole evaluation vacuous: a p=0.70 Bernoulli
+                # draw is ~30% irreducibly unpredictable, so no feature could
+                # ever beat that ceiling -- which is why six structurally
+                # different baselines all scored exactly 20% recall.
+                #
+                # Worse, the fabricated label was fed straight back into
+                # history_miner.record_run(), so `historical_failure_rate`
+                # became a smoothed function of past coin flips: the feature
+                # was contaminated, not merely the target.
+                #
+                # Real labels come from conftest.groundtruth.mutation_harness,
+                # which injects a fault, RUNS the suite, and records which tests
+                # actually failed. See MASTER_PLAN.md section 2.
 
                 records.append({
                     "commit_id": idx,
@@ -131,13 +144,36 @@ class RealRepoMiner:
                     "avg_test_duration": duration,
                     "flakiness_score": flakiness,
                     "is_ood_refactoring": int(is_ood),
-                    "is_doc_only": int(patch_metrics["is_doc_only"]),
-                    "label": label
+                    "is_doc_only": int(patch_metrics["is_doc_only"])
                 })
 
+        if not records:
+            raise RuntimeError(
+                f"Mining produced 0 records from {len(commit_shas)} commits "
+                f"({skipped_empty} had empty diffs). Check that {self.repo_path!r} "
+                "is a real checkout with history and discoverable tests."
+            )
+
         df = pd.DataFrame(records)
+
+        # Structural guard: this miner must never emit a target column. If one
+        # reappears here it means label fabrication was reintroduced.
+        forbidden = {"label", "label_failed", "is_fail", "failed", "outcome"}
+        present = forbidden & set(df.columns)
+        if present:
+            raise AssertionError(
+                f"real_repo_miner emitted target column(s) {sorted(present)}. "
+                "This miner never executes tests and therefore cannot know "
+                "outcomes. Labels come from conftest.groundtruth.mutation_harness."
+            )
+
         df.to_csv(output_csv, index=False)
-        print(f"[RealRepoMiner] Successfully exported {len(df)} feature records to '{output_csv}'")
+        print(
+            f"[RealRepoMiner] Exported {len(df)} FEATURE-ONLY records "
+            f"(no labels) to '{output_csv}'. "
+            f"Mined {len(commit_shas) - skipped_empty} commits, "
+            f"skipped {skipped_empty} with empty diffs."
+        )
 
         # Chronological 70% Train / 15% Calibration / 15% Test Split
         n_c = len(commit_shas)

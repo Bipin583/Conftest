@@ -1,17 +1,53 @@
 """
-ConfTest Benchmark Dataset Generator
-Generates realistic multi-commit software engineering benchmarks with authentic feature distributions,
-bug injections, flakiness noise, and out-of-distribution refactorings with strict temporal splitting.
+ConfTest SYNTHETIC dataset generator -- PIPELINE SMOKE TESTS ONLY.
+
+WARNING: every label this module emits is a coin flip, not an observation.
+
+    label = 1 if np.random.rand() < fail_prob else 0
+
+Nothing here executes a test suite, so no row carries real ground truth. A
+p=0.75 Bernoulli draw is ~25% irreducibly unpredictable, which caps achievable
+recall no matter how good the model is. Results computed on this data measure
+the sampler, not the technique, and MUST NOT appear in the report.
+
+Legitimate uses: exercising the training/serving plumbing, shape-checking the
+feature matrix, and unit-test fixtures.
+
+For real ground truth use conftest.groundtruth.mutation_harness, which injects
+a fault into source, RUNS pytest, and records which tests actually failed.
+See MASTER_PLAN.md section 2.
 """
 import numpy as np
 import pandas as pd
 from typing import Tuple, Dict, Any, List
 
+SYNTHETIC_ORIGIN_TAG = "SYNTHETIC_FABRICATED_LABELS"
+
+
 class BenchmarkDatasetGenerator:
     """
-    Generates realistic commit histories and test execution logs across 500+ commits and 50+ test suites.
+    Fabricates commit histories with SAMPLED (not measured) test outcomes.
+
+    Construction requires `acknowledge_synthetic=True` so that this generator
+    can never be wired into an evaluation by accident. Every emitted row also
+    carries a `data_origin` column tagged SYNTHETIC_FABRICATED_LABELS.
     """
-    def __init__(self, n_commits: int = 500, n_tests: int = 50, random_seed: int = 42):
+
+    def __init__(
+        self,
+        n_commits: int = 500,
+        n_tests: int = 50,
+        random_seed: int = 42,
+        acknowledge_synthetic: bool = False,
+    ):
+        if not acknowledge_synthetic:
+            raise ValueError(
+                "BenchmarkDatasetGenerator fabricates test outcomes with "
+                "np.random.rand() and cannot produce valid results. Pass "
+                "acknowledge_synthetic=True if you genuinely only need to smoke-test "
+                "the pipeline plumbing. For real labels use "
+                "conftest.groundtruth.mutation_harness."
+            )
         self.n_commits = n_commits
         self.n_tests = n_tests
         self.random_seed = random_seed
@@ -97,6 +133,10 @@ class BenchmarkDatasetGenerator:
                 })
 
         df = pd.DataFrame(records)
+
+        # Travels with the data so downstream code and saved CSVs stay honest
+        # about provenance even when detached from this module.
+        df["data_origin"] = SYNTHETIC_ORIGIN_TAG
 
         split_train = int(self.n_commits * 0.70)
         split_cal = int(self.n_commits * 0.85)

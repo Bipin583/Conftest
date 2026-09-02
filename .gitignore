@@ -72,3 +72,9 @@ models/calibrated/*
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Screened subject repositories: full clones plus one virtualenv each.
+# Reproducibility comes from the pinned commit SHAs in screening_report.json,
+# which IS tracked -- re-run scripts/screen_repos.py to rebuild the checkouts.
+data/repos/*
+!data/repos/screening_report.json

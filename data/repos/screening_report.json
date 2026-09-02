@@ -1,0 +1,527 @@
+{
+  "candidates": {
+    "cachetools": {
+      "name": "cachetools",
+      "url": "https://github.com/tkem/cachetools",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "4500e3d04288738d25acbb4973eb3c3e1bf41db9",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 5,
+      "n_test_files": 13,
+      "installed": true,
+      "n_tests_collected": 333,
+      "suite_seconds": 5.68,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "notes": []
+    },
+    "tabulate": {
+      "name": "tabulate",
+      "url": "https://github.com/astanin/python-tabulate",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "268615a5c27dc40e5c22454c07b44d5c50410da0",
+      "pure_python": true,
+      "source_dirs": [
+        "tabulate"
+      ],
+      "test_dirs": [
+        "test"
+      ],
+      "n_source_files": 3,
+      "n_test_files": 8,
+      "installed": true,
+      "n_tests_collected": 383,
+      "suite_seconds": 3.65,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "notes": []
+    },
+    "python-slugify": {
+      "name": "python-slugify",
+      "url": "https://github.com/un33k/python-slugify",
+      "stage1_passed": false,
+      "stage2_passed": false,
+      "rejected_reason": "no_test_directory_found",
+      "cloned": true,
+      "commit_sha": "7b6d5d96c1995e6dccb39a19a13ba78d7d0a3ee4",
+      "pure_python": true,
+      "source_dirs": [
+        "slugify"
+      ],
+      "test_dirs": [],
+      "n_source_files": 0,
+      "n_test_files": 0,
+      "installed": null,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": []
+    },
+    "inflection": {
+      "name": "inflection",
+      "url": "https://github.com/jpvanhal/inflection",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "88eefaacf7d0caaa701af7c8ab2d0ab3f17086f1",
+      "pure_python": true,
+      "source_dirs": [
+        "inflection"
+      ],
+      "test_dirs": [
+        "test_inflection.py"
+      ],
+      "n_source_files": 1,
+      "n_test_files": 1,
+      "installed": true,
+      "n_tests_collected": 467,
+      "suite_seconds": 2.75,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "notes": []
+    },
+    "validators": {
+      "name": "validators",
+      "url": "https://github.com/python-validators/validators",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "too_many_tests_895_over_600",
+      "cloned": true,
+      "commit_sha": "70de324322def13a49a93d222f798ec1ab700885",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 33,
+      "n_test_files": 28,
+      "installed": true,
+      "n_tests_collected": 895,
+      "suite_seconds": 4.96,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": []
+    },
+    "schedule": {
+      "name": "schedule",
+      "url": "https://github.com/dbader/schedule",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "collection_interrupted",
+      "cloned": true,
+      "commit_sha": "82a43db1b938d8fdf60103bd41f329e06c8d3651",
+      "pure_python": true,
+      "source_dirs": [
+        "schedule"
+      ],
+      "test_dirs": [
+        "test_schedule.py"
+      ],
+      "n_source_files": 1,
+      "n_test_files": 1,
+      "installed": true,
+      "n_tests_collected": 1,
+      "suite_seconds": 1.17,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": [
+        "pytest exit 2 (collection_interrupted); 1 tests were in the partial report"
+      ]
+    },
+    "parse": {
+      "name": "parse",
+      "url": "https://github.com/r1chardj0n3s/parse",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": "collected_zero_tests",
+      "cloned": true,
+      "commit_sha": "8059e320eccf40d750843006dd2ef25197bbff74",
+      "pure_python": true,
+      "source_dirs": [
+        "parse"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 1,
+      "n_test_files": 7,
+      "installed": true,
+      "n_tests_collected": 98,
+      "suite_seconds": 1.3,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "notes": []
+    },
+    "humanize": {
+      "name": "humanize",
+      "url": "https://github.com/python-humanize/humanize",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "too_many_tests_798_over_600",
+      "cloned": true,
+      "commit_sha": "3201e702ed7eae506f793fad0aec204f387aeb4c",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 6,
+      "n_test_files": 6,
+      "installed": true,
+      "n_tests_collected": 798,
+      "suite_seconds": 11.07,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": []
+    },
+    "deepdiff": {
+      "name": "deepdiff",
+      "url": "https://github.com/seperman/deepdiff",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "79e4379278b1cfdd8e9e3dccac364956908e8989",
+      "pure_python": true,
+      "source_dirs": [
+        "deepdiff"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 18,
+      "n_test_files": 30,
+      "installed": null,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": []
+    },
+    "toml": {
+      "name": "toml",
+      "url": "https://github.com/uiri/toml",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "65bab7582ce14c55cdeec2244c65ea23039c9e6f",
+      "pure_python": true,
+      "source_dirs": [
+        "toml"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 5,
+      "n_test_files": 3,
+      "installed": null,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": []
+    },
+    "pyparsing": {
+      "name": "pyparsing",
+      "url": "https://github.com/pyparsing/pyparsing",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "collection_interrupted",
+      "cloned": true,
+      "commit_sha": "efd56db4e59f36b1673ce0eb0823e3afaa9d1201",
+      "pure_python": true,
+      "source_dirs": [
+        "pyparsing"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 17,
+      "n_test_files": 9,
+      "installed": true,
+      "n_tests_collected": 1,
+      "suite_seconds": 2.39,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": [
+        "pytest exit 2 (collection_interrupted); 1 tests were in the partial report"
+      ]
+    },
+    "arrow": {
+      "name": "arrow",
+      "url": "https://github.com/arrow-py/arrow",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "2224255c4acc594d734cef0bbc83360452a67983",
+      "pure_python": true,
+      "source_dirs": [
+        "arrow"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 10,
+      "n_test_files": 7,
+      "installed": null,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": []
+    },
+    "sqlparse": {
+      "name": "sqlparse",
+      "url": "https://github.com/andialbrecht/sqlparse",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "60cdc649726bf1bc4f1b336050560b336da715ec",
+      "pure_python": true,
+      "source_dirs": [
+        "sqlparse"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 21,
+      "n_test_files": 10,
+      "installed": true,
+      "n_tests_collected": 509,
+      "suite_seconds": 7.2,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "notes": []
+    },
+    "pathspec": {
+      "name": "pathspec",
+      "url": "https://github.com/cpburnz/python-pathspec",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "93e0179cb2d7a6d830050c62f3eab950b9263bf3",
+      "pure_python": true,
+      "source_dirs": [
+        "pathspec"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 31,
+      "n_test_files": 6,
+      "installed": true,
+      "n_tests_collected": 205,
+      "suite_seconds": 3.42,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "notes": []
+    },
+    "funcy": {
+      "name": "funcy",
+      "url": "https://github.com/Suor/funcy",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "collection_interrupted",
+      "cloned": true,
+      "commit_sha": "19e9617383cd48dfbc4074dab11df9157ece98b0",
+      "pure_python": true,
+      "source_dirs": [
+        "funcy"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 16,
+      "n_test_files": 14,
+      "installed": true,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": [
+        "pytest exit 2 (collection_interrupted); 5 tests were in the partial report"
+      ]
+    },
+    "cerberus": {
+      "name": "cerberus",
+      "url": "https://github.com/pyeve/cerberus",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "collection_interrupted",
+      "cloned": true,
+      "commit_sha": "65e977de08ab76d4b40ca981972f9ff68926ed63",
+      "pure_python": true,
+      "source_dirs": [
+        "cerberus"
+      ],
+      "test_dirs": [
+        "cerberus/tests"
+      ],
+      "n_source_files": 10,
+      "n_test_files": 9,
+      "installed": true,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": [
+        "pytest exit 2 (collection_interrupted); 2 tests were in the partial report"
+      ]
+    },
+    "sortedcontainers": {
+      "name": "sortedcontainers",
+      "url": "https://github.com/grantjenks/python-sortedcontainers",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "3ac358631f58c1347f1d6d2d92784117db0f38ed",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 4,
+      "n_test_files": 9,
+      "installed": true,
+      "n_tests_collected": 296,
+      "suite_seconds": 11.58,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "notes": []
+    },
+    "pluggy": {
+      "name": "pluggy",
+      "url": "https://github.com/pytest-dev/pluggy",
+      "stage1_passed": false,
+      "stage2_passed": false,
+      "rejected_reason": "no_test_directory_found",
+      "cloned": true,
+      "commit_sha": "4821148db2f4c6daa62ad8bdcae2918ecf27a731",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [],
+      "n_source_files": 0,
+      "n_test_files": 0,
+      "installed": null,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": []
+    },
+    "chardet": {
+      "name": "chardet",
+      "url": "https://github.com/chardet/chardet",
+      "stage1_passed": false,
+      "stage2_passed": false,
+      "rejected_reason": "builds_c_extensions",
+      "cloned": true,
+      "commit_sha": "e9603fad69cdc5d34d03616682650acd4891eb5d",
+      "pure_python": false,
+      "source_dirs": [],
+      "test_dirs": [],
+      "n_source_files": 0,
+      "n_test_files": 0,
+      "installed": null,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": []
+    },
+    "semver": {
+      "name": "semver",
+      "url": "https://github.com/python-semver/python-semver",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "pytest_usage_error",
+      "cloned": true,
+      "commit_sha": "0f18aa0b1e0cabba65ee1b506e637faabcdf5d05",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 7,
+      "n_test_files": 16,
+      "installed": true,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "notes": [
+        "pytest exit 4 (pytest_usage_error); 0 tests were in the partial report"
+      ]
+    }
+  },
+  "screened_at": "2026-09-02T20:06:45"
+}
