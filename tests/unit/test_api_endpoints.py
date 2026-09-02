@@ -2,6 +2,8 @@
 Comprehensive Integration and Unit tests for FastAPI REST Endpoints.
 """
 
+import json
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -105,15 +107,24 @@ def test_explain_endpoint_shap_and_rules(client: TestClient):
 
 
 def test_calibration_endpoint(client: TestClient):
-    """Verify GET /api/v1/calibration returns ECE and Brier diagnostics."""
+    """
+    Verify GET /api/v1/calibration returns ECE and Brier diagnostics.
+
+    Reads whatever report the repo currently carries, so the assertion has to hold
+    for either outcome: a method was chosen, or none beat the noise. This
+    previously required `data["calibrated"]["ece"]` unconditionally, which made
+    declining to calibrate look like an endpoint failure.
+    """
     resp = client.get("/api/v1/calibration")
     assert resp.status_code == 200
     data = resp.json()
 
     assert "best_method" in data
-    assert "uncalibrated" in data
-    assert "calibrated" in data
-    assert "ece" in data["calibrated"]
+    assert "ece" in data["uncalibrated"], "the baseline row is always measured"
+    if data["best_method"] == "uncalibrated":
+        assert data["calibrated"] is None
+    else:
+        assert "ece" in data["calibrated"]
 
 
 def test_analytics_endpoint(client: TestClient):
@@ -126,3 +137,147 @@ def test_analytics_endpoint(client: TestClient):
     assert "total_decisions" in data
     assert "average_test_reduction_pct" in data
     assert "recent_decisions" in data
+
+
+# --------------------------------------------------------------------------
+# The calibration endpoint reports measurements, or nothing
+# --------------------------------------------------------------------------
+
+
+def _report(best_method: str, **extra) -> dict:
+    """A calibration report of the shape scripts/calibrate_model.py writes."""
+    def block(method, ece, mce, brier, **rest):
+        return {"method": method, "ece": ece, "mce": mce, "brier_score": brier, **rest}
+
+    return {
+        "best_method": best_method,
+        "fitted_temperature": 1.1834,
+        "selection": {
+            "basis": "bootstrap",
+            "reason": "chose uncalibrated: no candidate improved ECE measurably",
+            "resampling_unit": "mutant",
+        },
+        "test_metrics": {
+            "resampling_unit": "mutant",
+            "uncalibrated": block("uncalibrated", 0.0258, 0.2222, 0.0449),
+            "temperature_scaling": block(
+                "temperature_scaling", 0.0192, 0.8943, 0.0449,
+                ece_reduction_pct=25.47,
+                ece_vs_uncalibrated={
+                    "point": -0.00657, "ci_lower": -0.01118,
+                    "ci_upper": 0.01099, "excludes_zero": False,
+                },
+            ),
+        },
+        "reliability_diagram_bins": {"temperature_scaling": [{"bin": 1}]},
+        **extra,
+    }
+
+
+@pytest.fixture
+def report_at(tmp_path, monkeypatch):
+    """Point the route at a report this test controls, or at a missing path."""
+    from conftest.api.routes import calibration as route
+
+    def place(payload):
+        path = tmp_path / "calibration_report.json"
+        if payload is not None:
+            path.write_text(json.dumps(payload), encoding="utf-8")
+        monkeypatch.setattr(route, "REPORT_PATH", path)
+        return path
+
+    return place
+
+
+def test_a_missing_report_is_503_and_not_a_set_of_defaults(client: TestClient, report_at):
+    """
+    The endpoint invented a complete calibration result when no report existed.
+
+    It served ECE 0.0192, MCE 0.8943, a 25.47% ECE reduction and T=0.9275 as
+    literals, indistinguishable from measurement, and asserted a gain that the
+    paired interval over resampled mutants does not support. Absent measurement is
+    503; there is nothing to fall back to.
+    """
+    report_at(None)
+    resp = client.get("/api/v1/calibration")
+
+    assert resp.status_code == 503
+    detail = resp.json()["detail"]
+    assert "calibrate_model.py" in detail
+    assert "0.0192" not in detail and "25.47" not in detail
+
+
+def test_declining_to_calibrate_is_reported_as_no_calibrated_model(
+    client: TestClient, report_at
+):
+    """
+    `best_method: uncalibrated` must not come back as a calibrated model.
+
+    `test_metrics["uncalibrated"]` exists, so the old lookup found it and returned
+    it in the `calibrated` field -- reporting a calibrated model for a run that
+    decided against calibrating. That decision is now the expected outcome
+    whenever no candidate's ECE gain clears the noise.
+    """
+    report_at(_report("uncalibrated"))
+    data = client.get("/api/v1/calibration").json()
+
+    assert data["best_method"] == "uncalibrated"
+    assert data["calibrated"] is None
+    assert data["temperature"] is None
+    assert "no candidate improved ECE" in data["selection_reason"]
+    assert data["selection_basis"] == "bootstrap"
+
+
+def test_the_served_temperature_is_the_one_that_was_fitted(client: TestClient, report_at):
+    """
+    The route returned a hardcoded 0.9275 for every temperature-scaled run.
+
+    A rerun that fits a different T -- which any change to the validation split
+    produces -- was reported under the old constant.
+    """
+    report_at(_report("temperature_scaling"))
+    data = client.get("/api/v1/calibration").json()
+
+    assert data["temperature"] == pytest.approx(1.1834)
+    assert data["calibrated"]["method"] == "temperature_scaling"
+    assert data["reliability_diagram_bins"] == [{"bin": 1}]
+
+
+def test_the_interval_travels_with_the_metric(client: TestClient, report_at):
+    """
+    A client shown three bare ECE values will read the smallest as the winner.
+
+    Here the chosen method's ECE is 25% lower and its paired difference spans
+    zero, so the interval is the only part of the payload that says the gain is
+    not established.
+    """
+    report_at(_report("temperature_scaling"))
+    cal = client.get("/api/v1/calibration").json()["calibrated"]
+
+    assert cal["ece_reduction_pct"] == 25.47
+    assert cal["ece_vs_uncalibrated"]["excludes_zero"] is False
+    assert cal["ece_vs_uncalibrated"]["ci_upper"] > 0.0
+    assert cal["mce_vs_uncalibrated"] is None, "absent in the report, absent here"
+
+
+def test_a_report_without_intervals_still_serves_its_point_estimates(
+    client: TestClient, report_at
+):
+    """
+    Reports predating the bootstrap path, and any built without cluster labels.
+
+    `selection_basis` is what tells a client which standard the choice was made
+    on, so the metrics stay readable without it while the missing evidence shows.
+    """
+    stale = _report("temperature_scaling")
+    del stale["selection"]
+    del stale["fitted_temperature"]
+    del stale["test_metrics"]["temperature_scaling"]["ece_vs_uncalibrated"]
+
+    report_at(stale)
+    data = client.get("/api/v1/calibration").json()
+
+    assert data["calibrated"]["ece"] == 0.0192
+    assert data["calibrated"]["ece_vs_uncalibrated"] is None
+    assert data["selection_basis"] is None
+    assert data["temperature"] is None

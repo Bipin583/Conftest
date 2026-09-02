@@ -421,6 +421,7 @@ Do not proceed past a gate until it is green.
 - [x] **C4.1** purge synthetic fallbacks from `real_repo_miner.py` — all randomness gone
 - [x] **C4.2** CI gate against fabricated labels — `scripts/check_no_fabricated_labels.py` (AST, not grep)
 - [x] **C4.2** `tests/unit/test_label_guard.py` — 14 tests, all passing
+- [x] **C4.1b** the reporting layer had its own fabricator: `GET /api/v1/calibration` served hand-typed ECE/MCE/Brier/temperature constants when no report existed, asserting a 25% ECE gain that is `[-0.0112, +0.0110]`. Now 503, and every served metric carries its interval (see log 2026-09-03c)
 - [x] **C4.3** fix Changed-File baseline — stem matching + mandatory `changed_file_path`
 - [x] **C4.7** stop faking ETR — measure it from real durations
 - [x] **C2** `scripts/build_real_dataset.py` — resolver validated against 1138 real testcases
@@ -444,6 +445,34 @@ Do not proceed past a gate until it is green.
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-03c · the calibration endpoint was serving its own set of literals
+
+**Test suite: 366 -> 371 passing** (5 new in `tests/unit/test_api_endpoints.py`).
+
+C4.1 and C4.6 named the two fabricators in the label-producing paths. `GET /api/v1/calibration` was a third route to the same outcome, in the reporting layer, where the guard does not look: when `reports/calibration_report.json` was absent it returned a complete, plausible calibration result built from hand-typed constants.
+
+```python
+return CalibrationResponseSchema(
+    best_method="temperature_scaling",
+    uncalibrated=CalibrationMetricItem(ece=0.0258, mce=0.2222, brier_score=0.0449),
+    calibrated=CalibrationMetricItem(ece=0.0192, mce=0.8943, brier_score=0.0449, ece_reduction_pct=25.47),
+    temperature=0.9275,
+)
+```
+
+Nothing in the response distinguished this from a measurement. It asserted the 25.47% ECE reduction that log 2026-09-03b shows is `-0.0066 [-0.0112, +0.0110]` — indistinguishable from zero — and it named temperature scaling the best method while carrying that method's own MCE of 0.8943, four times worse than leaving the model alone. It is now **503** with a message naming the script to run. An endpoint that reports measurements has no defaults to serve.
+
+**Three smaller faults in the same 40 lines:**
+
+1. **`temperature=0.9275` was a literal on the loaded path too**, not read from the report — because the report never recorded the fitted temperature. Any rerun that fit a different T was reported under the old constant. `calibrate_model.py` now writes `fitted_temperature` and the route reads it.
+
+2. **`best_method: "uncalibrated"` was reported as a calibrated model.** The lookup fell back to `test_metrics[best_method]`, which for a declined run finds the uncalibrated row and returns it in the `calibrated` field — stating the opposite of the decision. `calibrated` is now `Optional` and is `None` when no method was chosen, which is the outcome the interval-based selection produces whenever no ECE gain clears the noise.
+
+3. **The intervals stopped at the JSON boundary.** `CalibrationMetricItem` carried three bare floats, so an API client saw what `score_record` exists to stop a reader seeing: three ECE values with no way to tell that the smallest won nothing. Each metric now carries its optional `*_vs_uncalibrated` block, and the response carries `selection_basis` and `selection_reason`.
+
+**Two artifacts changed as a consequence.** `reports/calibration_report.json` was regenerated and now records `best_method: "uncalibrated"` with `basis: "bootstrap"` — the old file was written on 2026-08-26 and still claimed temperature scaling won. `models/calibrator.joblib` is deleted, because the run declined to fit one; `ConfTestEngine` already handles that by falling back to identity calibration and warning, and `tests/unit/test_dashboard.py` no longer asserts the artifact's existence as though it were a property of the engine. Both files are derived from the fabricated splits and will be regenerated again by C5.
+
 
 ### 2026-09-03b · C4.4 completed · the calibration decision now rests on intervals, and the split no longer leaks
 

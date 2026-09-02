@@ -91,18 +91,39 @@ class ExplainResponseSchema(BaseModel):
 # Calibration Schemas
 # ==============================================================================
 
+class CalibrationDifferenceItem(BaseModel):
+    """A paired difference against the uncalibrated model, with its interval."""
+    point: float
+    ci_lower: float
+    ci_upper: float
+    excludes_zero: bool
+
+
 class CalibrationMetricItem(BaseModel):
+    method: Optional[str] = None
     ece: float
     mce: float
     brier_score: float
     ece_reduction_pct: Optional[float] = None
+    # A client shown three bare ECE values will assume the smallest one won
+    # something. On this project's own splits the best ECE belonged to a method
+    # whose paired difference spanned zero, so the interval is what decides.
+    ece_vs_uncalibrated: Optional[CalibrationDifferenceItem] = None
+    mce_vs_uncalibrated: Optional[CalibrationDifferenceItem] = None
+    brier_score_vs_uncalibrated: Optional[CalibrationDifferenceItem] = None
 
 
 class CalibrationResponseSchema(BaseModel):
     best_method: str
     uncalibrated: CalibrationMetricItem
-    calibrated: CalibrationMetricItem
+    # None when no method beat noise. Declining to calibrate is an outcome the
+    # response has to be able to state; duplicating the uncalibrated numbers into
+    # a 'calibrated' field would report the opposite of what was decided.
+    calibrated: Optional[CalibrationMetricItem] = None
     temperature: Optional[float] = None
+    selection_basis: Optional[str] = None
+    selection_reason: Optional[str] = None
+    resampling_unit: Optional[str] = None
     reliability_diagram_bins: List[Dict[str, Any]] = Field(default_factory=list)
 
 

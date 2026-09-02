@@ -276,6 +276,10 @@ def main():
 
     report = {
         "best_method": best_method,
+        # The fitted temperature belongs with the numbers it produced. The API
+        # previously served a literal 0.9275 regardless of what was fitted, so a
+        # rerun that landed on a different T went unreported.
+        "fitted_temperature": round(float(temp_cal.calibrator.temperature), 4),
         "selection": {
             "chosen_on": "validation holdout",
             "reason": outcome.reason,

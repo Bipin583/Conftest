@@ -1,21 +1,130 @@
 {
-  "best_method": "temperature_scaling",
+  "best_method": "uncalibrated",
+  "fitted_temperature": 0.9275,
+  "selection": {
+    "chosen_on": "validation holdout",
+    "reason": "no candidate improved ECE without degrading worst-case calibration or the proper score; reporting the model uncalibrated",
+    "disqualified": {
+      "isotonic": "worst-case miscalibration is measurably worse: MCE 0.3129, paired difference +0.2091 [0.0584, 0.2091] excludes zero",
+      "temperature_scaling": "no measurable calibration gain: ECE 0.0341, paired difference +0.0172 [-0.0279, 0.0173] does not exclude zero"
+    },
+    "basis": "bootstrap",
+    "resampling_unit": "mutant",
+    "num_bootstraps": 2000,
+    "validation_scores": [
+      {
+        "method": "uncalibrated",
+        "ece": 0.0169,
+        "mce": 0.1039,
+        "brier_score": 0.0683
+      },
+      {
+        "method": "isotonic",
+        "ece": 0.0512,
+        "mce": 0.3129,
+        "brier_score": 0.069,
+        "ece_vs_uncalibrated": {
+          "point": 0.03432,
+          "ci_lower": -0.03475,
+          "ci_upper": 0.03432,
+          "excludes_zero": false
+        },
+        "mce_vs_uncalibrated": {
+          "point": 0.20905,
+          "ci_lower": 0.05837,
+          "ci_upper": 0.20905,
+          "excludes_zero": true
+        },
+        "brier_score_vs_uncalibrated": {
+          "point": 0.00066,
+          "ci_lower": -0.00082,
+          "ci_upper": 0.00214,
+          "excludes_zero": false
+        }
+      },
+      {
+        "method": "temperature_scaling",
+        "ece": 0.0341,
+        "mce": 0.0341,
+        "brier_score": 0.0696,
+        "ece_vs_uncalibrated": {
+          "point": 0.01722,
+          "ci_lower": -0.02786,
+          "ci_upper": 0.01735,
+          "excludes_zero": false
+        },
+        "mce_vs_uncalibrated": {
+          "point": -0.06977,
+          "ci_lower": -0.06977,
+          "ci_upper": 0.00934,
+          "excludes_zero": false
+        },
+        "brier_score_vs_uncalibrated": {
+          "point": 0.00133,
+          "ci_lower": -0.00322,
+          "ci_upper": 0.00588,
+          "excludes_zero": false
+        }
+      }
+    ]
+  },
   "test_metrics": {
+    "resampling_unit": "mutant",
+    "num_bootstraps": 2000,
     "uncalibrated": {
+      "method": "uncalibrated",
       "ece": 0.0258,
       "mce": 0.2222,
       "brier_score": 0.0449
     },
     "isotonic_calibration": {
+      "method": "isotonic",
       "ece": 0.0251,
       "mce": 0.5,
       "brier_score": 0.0368,
+      "ece_vs_uncalibrated": {
+        "point": -0.00063,
+        "ci_lower": -0.03512,
+        "ci_upper": 0.0425,
+        "excludes_zero": false
+      },
+      "mce_vs_uncalibrated": {
+        "point": 0.27778,
+        "ci_lower": -0.37876,
+        "ci_upper": 0.40672,
+        "excludes_zero": false
+      },
+      "brier_score_vs_uncalibrated": {
+        "point": -0.00803,
+        "ci_lower": -0.01881,
+        "ci_upper": 0.0012,
+        "excludes_zero": false
+      },
       "ece_reduction_pct": 2.44
     },
     "temperature_scaling": {
+      "method": "temperature_scaling",
       "ece": 0.0192,
       "mce": 0.8943,
       "brier_score": 0.0449,
+      "ece_vs_uncalibrated": {
+        "point": -0.00657,
+        "ci_lower": -0.01119,
+        "ci_upper": 0.01102,
+        "excludes_zero": false
+      },
+      "mce_vs_uncalibrated": {
+        "point": 0.6721,
+        "ci_lower": -0.10507,
+        "ci_upper": 0.75861,
+        "excludes_zero": false
+      },
+      "brier_score_vs_uncalibrated": {
+        "point": 6e-05,
+        "ci_lower": -0.00074,
+        "ci_upper": 0.00081,
+        "excludes_zero": false
+      },
       "ece_reduction_pct": 25.47
     }
   },

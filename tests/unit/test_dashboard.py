@@ -45,7 +45,17 @@ def test_load_shap_report_structure():
 
 
 def test_get_cached_engine_initialization():
-    """Verify get_cached_engine returns functional ConfTestEngine."""
+    """
+    Verify get_cached_engine returns functional ConfTestEngine.
+
+    The engine must come up whether or not a calibrator was fitted. This
+    previously asserted `engine.calibrator is not None`, which pinned the presence
+    of `models/calibrator.joblib` rather than anything about the engine -- and the
+    calibration selection now declines to fit one whenever no method's ECE gain
+    clears the noise in the measurement, which is a legitimate outcome the engine
+    handles by falling back to identity calibration.
+    """
     engine = get_cached_engine()
     assert engine is not None
-    assert engine.calibrator is not None
+    assert engine.ensemble is not None, "the ensemble is what the engine cannot do without"
+    assert engine.policy is not None, "and the abstention policy, which reads confidence"
