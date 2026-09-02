@@ -2,10 +2,14 @@
 Unit tests for Pytest Discovery, Safe Isolated Execution, and Timeout Protection.
 """
 
+import sys
 from pathlib import Path
+
+import pytest
 from sqlalchemy.orm import Session
 
 from conftest.tests.discovery import validate_test_node_id, PytestDiscovery
+from conftest.tests import executor as executor_module
 from conftest.tests.executor import SafeTestExecutor
 from conftest.tests.runner_service import TestRunnerService
 from conftest.db import crud
@@ -89,3 +93,57 @@ def test_runner_service_end_to_end(db_session: Session):
     runs = crud.get_test_runs_for_commit(db_session, commit.id)
     assert len(runs) >= 1
     assert runs[0].status == "PASSED"
+
+
+# --------------------------------------------------------------------------
+# Interpreter selection
+#
+# The executor is the single place pytest is invoked, so it is the single place
+# that decides which environment a suite runs in. For mutation harvesting that
+# decision is not a preference: a suite run under an interpreter that imports a
+# released copy of the package cannot observe a mutation in the checkout, and
+# labels every mutant harmless without raising anything.
+# --------------------------------------------------------------------------
+
+def test_executor_defaults_to_the_running_interpreter(tmp_path):
+    assert SafeTestExecutor(str(tmp_path)).python_executable == sys.executable
+
+
+def test_executor_uses_an_explicit_interpreter(tmp_path):
+    executor = SafeTestExecutor(str(tmp_path), python_executable=sys.executable)
+
+    assert executor.python_executable == str(Path(sys.executable).resolve())
+
+
+def test_executor_refuses_a_missing_interpreter(tmp_path):
+    """
+    Fatal rather than a fallback.
+
+    Falling back to sys.executable when the requested environment is absent
+    would reintroduce precisely the failure the argument exists to prevent, and
+    would do it silently at the point where hours of compute begin.
+    """
+    missing = tmp_path / "no_such_venv" / "Scripts" / "python.exe"
+
+    with pytest.raises(FileNotFoundError, match="python_executable does not exist"):
+        SafeTestExecutor(str(tmp_path), python_executable=str(missing))
+
+
+def test_executor_invokes_the_chosen_interpreter(tmp_path, monkeypatch):
+    captured = {}
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return FakeCompleted()
+
+    monkeypatch.setattr(executor_module.subprocess, "run", fake_run)
+    executor = SafeTestExecutor(str(tmp_path), python_executable=sys.executable)
+    executor.run_tests(test_dir="tests")
+
+    assert captured["cmd"][0] == str(Path(sys.executable).resolve())
+    assert captured["cmd"][1:3] == ["-m", "pytest"]

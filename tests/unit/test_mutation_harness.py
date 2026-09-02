@@ -9,9 +9,11 @@ Focus is on the safety-critical invariants rather than on pytest itself:
 * an interrupted harvest resumes without repeating or losing work
 * test files are never mutated
 * CRLF line endings survive a mutate/restore cycle
+* the interpreter that runs the suite imports the checkout being mutated
 """
 
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -22,6 +24,7 @@ from conftest.groundtruth.mutation_harness import (
     BaselineProfile,
     MutationHarness,
     discover_source_files,
+    import_roots,
     read_source,
     write_source,
 )
@@ -625,3 +628,152 @@ def test_baseline_profile_round_trips():
     assert restored.excluded == profile.excluded
     assert restored.n_runs == 3
     assert restored.universe_size == 2
+
+
+# --------------------------------------------------------------------------
+# Import roots
+# --------------------------------------------------------------------------
+
+def _make_package(root: Path, package: str, container: str = "") -> Path:
+    """Create <root>/[container/]<package>/ with two mutable modules."""
+    base = root / container if container else root
+    (base / package).mkdir(parents=True)
+    (base / package / "__init__.py").write_text("VALUE = 1")
+    (base / package / "core.py").write_text(
+        """
+def add(a, b):
+    return a + b
+"""
+    )
+    return root
+
+
+def test_import_roots_for_a_root_layout_package(tmp_path):
+    repo = _make_repo(tmp_path)
+    assert import_roots(repo, ["pkg"]) == ["pkg"]
+
+
+def test_import_roots_strips_the_container_directory(tmp_path):
+    """
+    A src-layout checkout is importable as its inner package, never as `src`.
+
+    This is the validators case. That project ships a tracked, docstring-only
+    ``src/__init__.py``, so `src` looks like a package on disk while the
+    installed distribution exposes only ``validators``. Deriving the root from
+    the directory name demanded that ``import src`` succeed, which it never
+    does, and the provenance guard rejected a perfectly good environment.
+    """
+    repo = _make_package(tmp_path / "repo", "widget", container="src")
+    (repo / "src" / "__init__.py").write_text('"""Docstring only, as upstream ships it."""')
+
+    assert import_roots(repo, ["src"]) == ["widget"]
+
+
+def test_import_roots_for_a_single_module_repository(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "parse.py").write_text("VALUE = 1")
+
+    assert import_roots(repo, ["."]) == ["parse"]
+
+
+def test_import_roots_are_deduplicated(tmp_path):
+    repo = _make_repo(tmp_path)
+    (repo / "pkg" / "extra.py").write_text("VALUE = 2")
+
+    assert import_roots(repo, ["pkg"]) == ["pkg"]
+
+
+def test_import_roots_ignores_a_bare_package_marker(tmp_path):
+    """An __init__.py alone names no importable module of its own."""
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "__init__.py").write_text("")
+
+    assert import_roots(repo, ["src"]) == []
+
+
+# --------------------------------------------------------------------------
+# Import provenance -- the guard against labelling an uninstalled checkout
+# --------------------------------------------------------------------------
+
+def test_provenance_accepts_an_interpreter_that_imports_the_checkout(tmp_path, monkeypatch):
+    repo = _make_repo(tmp_path)
+    monkeypatch.setenv("PYTHONPATH", str(repo))
+
+    record = _make_harness(repo, tmp_path).verify_import_provenance()
+
+    assert record["verified"] is True
+    assert str(repo) in record["modules"]["pkg"]
+
+
+def test_provenance_rejects_an_interpreter_that_cannot_import_the_package(tmp_path, monkeypatch):
+    repo = _make_package(tmp_path / "repo", "conftest_probe_absent")
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+
+    harness = MutationHarness(
+        repo_root=str(repo),
+        repo_name="absent",
+        source_dirs=["conftest_probe_absent"],
+        output_dir=str(tmp_path / "out"),
+    )
+
+    with pytest.raises(RuntimeError, match="not importable"):
+        harness.verify_import_provenance()
+
+
+def test_provenance_rejects_a_package_resolved_outside_the_checkout(tmp_path, monkeypatch):
+    """
+    The failure this guard exists for, and the one that nearly happened.
+
+    `sqlparse` is installed in this project's own ambient environment, so
+    harvesting it under the default interpreter would have imported the
+    released package while mutating the clone: every mutant harmless, every
+    label 0, a clean-looking dataset that measures nothing. No exception is
+    raised by that arrangement on its own -- which is exactly why it has to be
+    checked before compute is spent.
+    """
+    name = "conftest_probe_shadowed"
+    repo = _make_package(tmp_path / "repo", name)
+    _make_package(tmp_path / "site", name)
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "site"))
+
+    harness = MutationHarness(
+        repo_root=str(repo),
+        repo_name="shadowed",
+        source_dirs=[name],
+        output_dir=str(tmp_path / "out"),
+    )
+
+    with pytest.raises(RuntimeError, match="OUTSIDE the checkout"):
+        harness.verify_import_provenance()
+
+
+def test_provenance_reports_unverified_when_no_root_can_be_derived(tmp_path):
+    """
+    An unverifiable configuration must say so rather than claim a pass.
+
+    Nothing is mutable in this case either, so the harvest fails on its own
+    later; the record exists so the manifest never carries a silent True.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    harness = MutationHarness(
+        repo_root=str(repo),
+        repo_name="empty",
+        source_dirs=["does_not_exist"],
+        output_dir=str(tmp_path / "out"),
+    )
+    record = harness.verify_import_provenance()
+
+    assert record["verified"] is False
+    assert record["reason"] == "no_import_root_derived"
+
+
+def test_harness_passes_its_interpreter_to_the_executor(tmp_path):
+    repo = _make_repo(tmp_path)
+    harness = _make_harness(repo, tmp_path, python_executable=sys.executable)
+
+    assert harness.python_executable == sys.executable
+    assert harness.executor.python_executable == str(Path(sys.executable).resolve())

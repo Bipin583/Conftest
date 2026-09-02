@@ -78,3 +78,16 @@ Thumbs.db
 # which IS tracked -- re-run scripts/screen_repos.py to rebuild the checkouts.
 data/repos/*
 !data/repos/screening_report.json
+
+# Scratch: probe output from validating the test-ID resolver, and screener logs.
+.tmp_junit/
+.tmp_*.log
+.tmp_*.py
+.tmp_*.md
+
+# Throwaway 10-mutant smoke probe. The real harvest at data/harvest/ IS tracked:
+# it is the ground truth, ~11 MB for ~2.5 h of compute, and a reviewer has to be
+# able to inspect the recorded pytest outcomes behind every label.
+data/harvest_smoke/
+
+.claude/

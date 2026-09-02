@@ -11,17 +11,18 @@
 
 | Area | State |
 |---|---|
-| Code | ✅ 70+ modules, 215/215 tests passing, well-architected |
+| Code | ✅ 70+ modules, 277/277 tests passing, well-architected |
 | Feature pipeline | ✅ 34 features (diff / AST / dependency-graph / history) |
 | ML + calibration | ✅ LightGBM, isotonic + Platt + temperature, ECE, reliability diagrams |
 | Abstention | ✅ Threshold policy, full-suite fallback, policy tuning |
 | Ensemble + SHAP | ✅ Built (beyond original plan) |
 | API + Dashboard | ✅ FastAPI (7 route modules), Streamlit (5 pages) |
 | Docs | ✅ 27 docs, IEEE paper, KTU LaTeX report, viva deck |
-| Mutation harness | ✅ 6 operator families, 3807 mutants verified, real pytest labels |
+| Mutation harness | ✅ 6 operator families, real pytest labels, **run end to end** (776 labelled rows from a 10-mutant smoke harvest) |
 | Subject repos | ✅ **7 screened and accepted** (G0 met), 0 flaky, harvest = 2.5 h |
 | Fabrication guards | ✅ AST label guard in CI; every invented fallback now raises |
-| **Real dataset** | ⬜ **Next: C2 feature builder, then the harvest itself** |
+| Feature builder | ✅ **C2 done** — test-ID resolver validated on 1138 real testcases, causal history, 32 features |
+| **Real dataset** | ⬜ **Next: the harvest itself, then G1** |
 | Published numbers | ❌ **Still rest on fabricated labels until C5 re-runs them** |
 | LLM review layer | ⬜ Does not exist (optional, deprioritized) |
 
@@ -422,9 +423,16 @@ Do not proceed past a gate until it is green.
 - [x] **C4.2** `tests/unit/test_label_guard.py` — 14 tests, all passing
 - [x] **C4.3** fix Changed-File baseline — stem matching + mandatory `changed_file_path`
 - [x] **C4.7** stop faking ETR — measure it from real durations
-- [ ] **C2** `scripts/build_real_dataset.py`
+- [x] **C2** `scripts/build_real_dataset.py` — resolver validated against 1138 real testcases
+- [x] **C2** `scripts/harvest_mutations.py` — the CLI driver that was missing
+- [x] **C2** `tests/unit/test_build_real_dataset.py` — 40 tests, all passing
+- [x] **C0.2** stage 3 structural screen — dependency-feature variance (see log 2026-09-02c)
+- [x] **C0.2** cost gate recalibrated from test count to measured harvest hours
+- [x] **C0.3** re-screen the widened pool to restore G0 — **5 stage-3 survivors** (see log 2026-09-02d)
+- [x] **C0.4** every subject suite runs under its own screened venv, enforced by an import-provenance guard (see log 2026-09-02d)
+- [x] **C0.5** install declared functional extras — pyjwt ran 221 of 369 tests without them (see log 2026-09-02d)
 - [ ] **G1** first real dataset, gates verified
-- [ ] **C4.4** calibration selection must not pick a method on ECE alone (see log 2026-09-02b)
+- [x] **C4.4** calibration selection must not pick a method on ECE alone — `src/conftest/models/calibrator_selection.py`, chosen on a validation half-split
 - [ ] **C4.5** bootstrap confidence intervals on all headline numbers
 - [ ] **C4.6** relabel `synthetic_generator.py` as smoke-test-only, like `dataset_generator.py`
 - [ ] **C3** BugsInPy adapter *(P1)*
@@ -435,6 +443,239 @@ Do not proceed past a gate until it is green.
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-02d · C0.3 + C4.4 landed · the harvest would have labelled the wrong package
+
+**Test suite: 290 -> 321 passing** (31 new: 10 harness, 4 executor, 7 harvest driver, 10 screener).
+
+**G0 restored: 5 stage-3 survivors** — pathspec, pyjwt, sqlparse, tabulate, validators.
+Estimated full harvest at 250 mutants/repo: **1.2h**.
+
+#### The bug that would have produced a clean-looking dataset of zeros
+
+`MutationHarness` ran the subject suite under `sys.executable` — this project's own
+interpreter — while the screener had built a dedicated venv per repository with
+`pip install -e .`. Nothing about that arrangement raises. The suite runs, tests pass,
+mutants get labelled; they are simply labelled against **a different copy of the
+package** than the one being mutated. Every mutant looks harmless, every label comes
+out 0, and no random number is involved anywhere. It is the same class of failure as
+the fabricated data this sprint exists to remove, arrived at by a different route.
+
+Not hypothetical. Measured, on the accepted set:
+
+| repo | ambient interpreter | screened venv |
+|---|---|---|
+| sqlparse | imports `site-packages/sqlparse` | imports the checkout |
+| pyjwt | 365 passed, 4 skipped | 221 passed, 148 skipped |
+| tabulate | 356 passed, 10 skipped | 306 passed, 60 skipped |
+| pathspec | not importable at all | imports the checkout |
+
+`sqlparse` is installed in this project's ambient environment, so harvesting it would
+have mutated `data/repos/sqlparse/sqlparse/*.py` and measured the released package.
+The flat-layout repos only appeared to work by accident: `python -m pytest` puts the
+working directory on `sys.path`, which makes a root-layout checkout importable without
+being installed. A src-layout repo has no such accident available.
+
+Three fixes, one per layer:
+
+1. `SafeTestExecutor` takes `python_executable`. A path that does not exist is fatal —
+   falling back to `sys.executable` is precisely the failure the argument prevents, and
+   it would happen silently at the point where hours of compute begin.
+2. `MutationHarness.verify_import_provenance()` runs before the baseline. It imports
+   each root under the candidate interpreter, from a temporary directory outside the
+   repository, and requires every `__file__` to resolve inside `repo_root`. Namespace
+   packages and unimportable names are rejected too. The record goes into the harvest
+   manifest, so a dataset can be traced to the interpreter that produced it.
+3. `harvest_mutations.py` resolves `data/repos/.venv_<name>` for every repository
+   before starting any of them, and imports the screener's own `venv_python` rather
+   than re-deriving the path — if the screener renames a venv, the driver follows
+   instead of pointing at nothing.
+
+#### `import_roots` read the directory, not the package
+
+The first version of the guard rejected `validators`, which is correctly installed.
+Its source lives in `src/validators/`, and upstream ships a tracked docstring-only
+`src/__init__.py` (commit 70de324), so reading the directory name as the import root
+demanded that `import src` succeed. It never does; the installed distribution exposes
+`validators`. Roots are now derived from the discovered source *files*, with a leading
+container directory (`src`, `lib`, `sources`) stripped and a bare `__init__.py`
+ignored. All three layouts now resolve: `sqlparse/sql.py -> sqlparse`,
+`src/validators/uri.py -> validators`, `parse.py -> parse`.
+
+#### A skipped test is not a failed test, so a missing extra shrinks the dataset silently
+
+Chasing the interpreter differences above found the reason for them: the screener
+installed the repository plus pytest, and nothing a repository declared as an *extra*.
+An absent optional dependency does not fail a test — it skips it, and a skipped test
+never enters the baseline universe. So the cost was invisible:
+
+* **pyjwt** ran **221 of its 369 tests**. Its `crypto` extra (cryptography) unlocks the
+  other 148 — 40% of the suite, absent from the labels with nothing reported anywhere.
+* **validators** had 17 tests failing on a clean checkout. All 17 were the eth-address
+  tests wanting `crypto-eth-addresses`; installing it takes the repo to **895 stable,
+  0 failing**, and the suite gets *faster* (1.82s -> 1.44s) because a traceback costs
+  more than a pass.
+* **tabulate** gained its `widechars` tests (3.42s -> 4.23s).
+
+The screener now installs every declared extra except tooling, from both metadata homes
+(`project.optional-dependencies` and `[options.extras_require]`), plus PEP 735
+`dependency-groups` named test/tests/testing — pyjwt keeps its test requirements in one
+of those, which `.[name]` cannot reach at all. Tooling is judged by the name's leading
+word, so `crypto-eth-addresses` is installed while `dev-docs` and `type_checking` are
+not. The deny-list exists for the reason `requirements-dev.txt` is still skipped: a
+stale `pytest-flake8` registers a collect hook and aborts the whole run.
+
+Failures are non-fatal by design — pathspec declares `hyperscan` and `re2`, which have
+no wheels on every platform — and what was installed is recorded per repo in the
+report.
+
+**Cost effect:** pyjwt's suite went 1.94s -> 8.42s, or 0.58h of the 1.0h per-repo
+budget. Still inside the gate, but the margin is now worth watching, so a test asserts
+the committed report satisfies every gate it claims to pass.
+
+#### A note that outlived its fact
+
+Report entries carry forward whole, so after the extras change `validators` still
+advertised `failing_on_clean: [...17 eth tests...]` beside `n_failing_on_clean: 0`.
+Stage-2 notes are now tagged and dropped when stage 2 re-runs. A note contradicting the
+field next to it is worse than no note.
+
+#### Standing lesson from this session
+
+Two things about a pipeline can be true at once: every number in it was measured, and
+every number in it is wrong. `verify_import_provenance` is the only check here that
+would have caught this one, and it had to be written before the compute was spent —
+after the fact, a dataset of honest zeros is indistinguishable from a dataset of
+fabricated ones.
+
+
+### 2026-09-02c · C2 landed · the ground-truth pipeline runs end to end · stage 3 added
+
+**Test suite: 215 -> 272 passing** (57 new: 39 for C2, 17 for the screener, 1 stage guard).
+
+#### C2 — `scripts/build_real_dataset.py` + `scripts/harvest_mutations.py`
+
+The harvest produces `(mutant, test, killed?)` triples keyed by pytest test ID. The
+feature builder turns those into rows: it resolves each test ID to a file path, walks
+mutants in a fixed order accumulating causal history, and emits the 32 features plus
+the measured label. `harvest_mutations.py` is the CLI driver that was missing — it
+reads the screener verdict, refuses anything the screener did not accept, prints the
+cost estimate before spending it, and resumes from the per-mutant checkpoint.
+
+**First end-to-end run (smoke, `parse`, 10 mutants):** 883 mutation candidates
+generated, 8 harvested + 2 broke_suite, **394 measured kills** -> 776 rows with 216
+real failures. Every label in that file is a recorded pytest outcome. This is the
+first time the project has produced a labelled row that was not invented.
+
+#### The resolver bug that a unit test would never have found
+
+`resolve_test_id` split the test ID on the *last* `::`. Validating it against the
+1138 real testcases in the harvest found **45 of sqlparse's 509 tests unresolvable**:
+
+    test_grouping::test_group_identifier_list[sum(a)::integer, b]
+
+A parametrized ID carries the parameter repr verbatim, and SQL casts contain `::`
+themselves, so `rpartition` split inside the brackets. The module path is a
+filesystem path with dots for separators and can never contain a colon, so the
+*first* `::` is always the real boundary. After the fix: **1138/1138 resolved, 0 label
+collisions, 0 nonexistent paths.**
+
+The lesson is the validation, not the fix. The function had tests and passed them;
+the shape that broke it only exists in real data.
+
+#### Stage 3 — is test selection even a task in this repository?
+
+The smoke run's rows were unusable for a different reason: **27.84% failure rate**
+(G1 band is 1–15%) and **21 of 32 features inert**. `parse` is a single-module
+library. One changeable source file means exactly one dependency relationship,
+repeated for every row, so a model cannot learn selection — only a per-test
+fragility prior. The failure rate is high for the same reason: any mutation to the
+one module is reachable from most of the suite.
+
+Rather than proxy this with a file count, the screener now **measures the dependency
+features themselves** across every (test file x source file) pair — static analysis,
+seconds to run, no install:
+
+| repo | src files | distinct dep vectors | varying dep features |
+|---|---|---|---|
+| sqlparse | 21 | 84 | 6/6 |
+| pathspec | 31 | 86 | 5/6 |
+| tabulate | 4 | 12 | 6/6 |
+| cachetools | 5 | 6 | 2/6 |
+| sortedcontainers | 4 | 4 | 1/6 |
+| parse | 1 | 1 | 0/6 |
+| inflection | 1 | 1 | 0/6 |
+
+**File count does not predict the outcome** — tabulate varies more with 4 files than
+cachetools does with 5. That is precisely why the gate measures the features instead
+of guessing at them. `MIN_VARYING_DEP_FEATURES = 3`.
+
+Applied to the existing seven, stage 3 cut **7 -> 3**, below the G0 target of 5. Two
+of the rejections turned out to indict the *other* gates, which is why the pool was
+re-screened rather than simply widened.
+
+#### The cost gate was measuring the wrong quantity
+
+`MAX_TESTS = 600` bounded test count. But the screener already measures what
+actually costs money — one full suite run per mutant:
+
+- validators: 895 tests, **4.96 s** -> 0.34 h at 250 mutants — **rejected**
+- sortedcontainers: 296 tests, **11.58 s** -> 0.80 h — **accepted**
+
+Meanwhile `MAX_SUITE_SECONDS = 90` would have let a single repository consume
+**6.25 h**. Both replaced with one bound on the measured quantity:
+
+    MAX_HARVEST_HOURS_PER_REPO = 1.0
+    MAX_SUITE_SECONDS = MAX_HARVEST_HOURS_PER_REPO * 3600 / PLANNED_MUTANTS_PER_REPO  # 14.4s
+
+`MAX_TESTS` survives at 1200, but now with an honest job: it bounds **rows**
+(mutants x universe), not cost.
+
+#### Two recoverable rejections
+
+- **cerberus** lost 247 good tests because one benchmark module imports
+  `pytest-benchmark`, which no extra declares. `COMMON_TEST_PLUGINS` now installs
+  five ubiquitous plugins unconditionally. All five are additive: none registers a
+  `pytest_collect_file` hook, which is why `requirements-dev.txt` is still
+  deliberately skipped (a stale `pytest-flake8` there aborts collection outright).
+- **pluggy** was recorded as having no tests. Its suite lives in `testing/`.
+
+#### Two more layout bugs, both found by looking at what the screener actually chose
+
+- **jsonschema** was recorded as having no tests. The fallback took the first
+  `rglob("tests")` hit, and jsonschema vendors the JSON-Schema-Test-Suite at
+  `json/tests/` — thousands of `.json` fixtures, zero `.py` files. The real suite
+  sits at `jsonschema/tests/` (9 modules). A directory *named* tests is not a
+  suite; the screener now requires content matching pytest's `python_files`
+  patterns and prefers the shallowest candidate that has it.
+- **packaging** was going to be mutated in `tasks/` — release automation
+  (`licenses.py`, `select_pypi_dist.py`) that carries an `__init__.py` and that
+  nothing in the suite imports. Every mutant placed there is guaranteed to kill
+  nothing, so the budget buys all-negative rows for a reason unrelated to
+  selection. A project that declares `src/` has already said where its library
+  is, so sibling top-level packages are no longer treated as mutable source.
+
+Neither repo would have failed loudly. jsonschema would have silently vanished
+from the pool; packaging would have produced quietly worse data.
+
+#### Two package names collide in this repo
+
+`tests/unit/test_dashboard.py` failed to collect in a full-suite run but passed
+alone. There are two packages named `dashboard`: the live Streamlit app at
+`./dashboard` (with `utils.py`) and a legacy FastAPI stub at `./src/dashboard`
+(without). `pyproject` sets `pythonpath = ["src"]`, so `src` precedes the repo root
+for the whole session and `import dashboard` resolves to the stub. The test's
+`if str(PROJECT_ROOT) not in sys.path` guard could not help: the root **is** present,
+just too late. Fixed by forcing precedence. The duplicate package name is still a
+latent trap for anything that imports `dashboard`.
+
+#### Deferred deliberately
+
+`BROKE_SUITE_KILL_RATIO = 0.80` let a mutant that killed 61/97 (63%) of `parse`'s
+suite through as a legitimate harvest. A high kill ratio is *inherent* to a
+single-module library, so tuning the threshold on `parse` would be tuning on a
+degenerate subject. Re-measure after the first multi-module harvest.
+
 
 ### 2026-09-02b · C0 + C4.1 + C4.2 + C4.3 landed
 

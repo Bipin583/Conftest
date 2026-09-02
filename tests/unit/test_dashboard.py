@@ -1,10 +1,17 @@
 import sys
 from pathlib import Path
 
-# Add project root to sys.path
+# Two packages in this repo are named `dashboard`: the live Streamlit app at
+# ./dashboard (app.py, pages/, utils.py) and a legacy FastAPI stub at
+# ./src/dashboard that has no utils module. pyproject sets pythonpath = ["src"],
+# so `src` sits ahead of the repo root for the whole session and `import
+# dashboard` resolves to the stub -- ModuleNotFoundError on dashboard.utils.
+# A `not in sys.path` guard is not enough: the root IS present, just too late.
+# Force it in front, so the resolution does not depend on which test ran first.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+while str(PROJECT_ROOT) in sys.path:
+    sys.path.remove(str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from dashboard.utils import load_baseline_data, load_calibration_data, load_shap_report, get_cached_engine
 

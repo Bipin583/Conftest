@@ -75,16 +75,46 @@ class SafeTestExecutor:
 
     __test__ = False
 
-    def __init__(self, repo_root: str, default_timeout: int = 60):
+    def __init__(
+        self,
+        repo_root: str,
+        default_timeout: int = 60,
+        python_executable: Optional[str] = None,
+    ):
         """
         Initialize the executor.
 
         Args:
             repo_root: Root directory of the repository containing tests.
             default_timeout: Subprocess execution timeout in seconds.
+            python_executable: Interpreter that runs pytest. Defaults to the
+                current one, which is right when the suite under test belongs to
+                this project. It is wrong for a foreign checkout: that suite
+                must run in the environment where the checkout is installed, or
+                `import <package>` resolves to whatever copy the ambient
+                interpreter happens to have. Measured on this project's own
+                machine: `sqlparse` is present in the ambient site-packages, so
+                a mutation harvest that ran there could have imported the
+                unmutated release copy and recorded every test as passing --
+                fabricated labels by a route no grep for `random` would find.
         """
         self.repo_root = Path(repo_root).resolve()
         self.default_timeout = default_timeout
+
+        if python_executable is None:
+            self.python_executable = sys.executable
+        else:
+            candidate = Path(python_executable)
+            if not candidate.is_file():
+                # Silently falling back to sys.executable is the failure mode
+                # this argument exists to prevent, so a bad path is fatal.
+                raise FileNotFoundError(
+                    f"python_executable does not exist: {candidate}. "
+                    f"Create the environment first (scripts/screen_repos.py builds "
+                    f"one per subject repository) rather than running the suite "
+                    f"under an interpreter that may not have it installed."
+                )
+            self.python_executable = str(candidate.resolve())
 
     def _parse_junit_xml(self, xml_path: str) -> List[Dict[str, Any]]:
         """Parse JUnit XML report to extract per-test execution status and durations."""
@@ -179,7 +209,7 @@ class SafeTestExecutor:
             xml_report_path = tmp_file.name
 
         cmd = [
-            sys.executable,
+            self.python_executable,
             "-m",
             "pytest",
             f"--junitxml={xml_report_path}",

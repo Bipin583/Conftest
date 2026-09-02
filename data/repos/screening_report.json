@@ -5,7 +5,7 @@
       "url": "https://github.com/tkem/cachetools",
       "stage1_passed": true,
       "stage2_passed": true,
-      "rejected_reason": null,
+      "rejected_reason": "only_2_of_6_dependency_features_vary_(need_3);_test_selection_is_vacuous_here",
       "cloned": true,
       "commit_sha": "4500e3d04288738d25acbb4973eb3c3e1bf41db9",
       "pure_python": true,
@@ -19,11 +19,18 @@
       "n_test_files": 13,
       "installed": true,
       "n_tests_collected": 333,
-      "suite_seconds": 5.68,
+      "suite_seconds": 5.69,
       "all_green": true,
       "deterministic": true,
       "n_flaky": 0,
       "n_failing_on_clean": 0,
+      "stage3_passed": false,
+      "n_varying_dep_features": 2,
+      "n_distinct_dep_vectors": 6,
+      "varying_dep_features": [
+        "dep_name_heuristic_coupled",
+        "dep_max_reverse_dependencies"
+      ],
       "notes": []
     },
     "tabulate": {
@@ -41,15 +48,29 @@
       "test_dirs": [
         "test"
       ],
-      "n_source_files": 3,
+      "n_source_files": 4,
       "n_test_files": 8,
       "installed": true,
-      "n_tests_collected": 383,
-      "suite_seconds": 3.65,
+      "n_tests_collected": 366,
+      "suite_seconds": 4.23,
       "all_green": true,
       "deterministic": true,
       "n_flaky": 0,
       "n_failing_on_clean": 0,
+      "installed_extras": [
+        "widechars"
+      ],
+      "stage3_passed": true,
+      "n_varying_dep_features": 6,
+      "n_distinct_dep_vectors": 12,
+      "varying_dep_features": [
+        "dep_is_direct_import",
+        "dep_name_heuristic_coupled",
+        "dep_shortest_path_depth",
+        "dep_is_reachable",
+        "dep_max_reverse_dependencies",
+        "dep_test_total_out_degree"
+      ],
       "notes": []
     },
     "python-slugify": {
@@ -74,6 +95,10 @@
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
       "notes": []
     },
     "inflection": {
@@ -81,7 +106,7 @@
       "url": "https://github.com/jpvanhal/inflection",
       "stage1_passed": true,
       "stage2_passed": true,
-      "rejected_reason": null,
+      "rejected_reason": "only_0_of_6_dependency_features_vary_(need_3);_test_selection_is_vacuous_here",
       "cloned": true,
       "commit_sha": "88eefaacf7d0caaa701af7c8ab2d0ab3f17086f1",
       "pure_python": true,
@@ -94,20 +119,24 @@
       "n_source_files": 1,
       "n_test_files": 1,
       "installed": true,
-      "n_tests_collected": 467,
-      "suite_seconds": 2.75,
+      "n_tests_collected": 455,
+      "suite_seconds": 1.36,
       "all_green": true,
       "deterministic": true,
       "n_flaky": 0,
       "n_failing_on_clean": 0,
+      "stage3_passed": false,
+      "n_varying_dep_features": 0,
+      "n_distinct_dep_vectors": 1,
+      "varying_dep_features": [],
       "notes": []
     },
     "validators": {
       "name": "validators",
       "url": "https://github.com/python-validators/validators",
       "stage1_passed": true,
-      "stage2_passed": false,
-      "rejected_reason": "too_many_tests_895_over_600",
+      "stage2_passed": true,
+      "rejected_reason": null,
       "cloned": true,
       "commit_sha": "70de324322def13a49a93d222f798ec1ab700885",
       "pure_python": true,
@@ -121,11 +150,25 @@
       "n_test_files": 28,
       "installed": true,
       "n_tests_collected": 895,
-      "suite_seconds": 4.96,
-      "all_green": null,
-      "deterministic": null,
-      "n_flaky": null,
-      "n_failing_on_clean": null,
+      "suite_seconds": 1.36,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "installed_extras": [
+        "crypto-eth-addresses"
+      ],
+      "stage3_passed": true,
+      "n_varying_dep_features": 6,
+      "n_distinct_dep_vectors": 14,
+      "varying_dep_features": [
+        "dep_is_direct_import",
+        "dep_name_heuristic_coupled",
+        "dep_shortest_path_depth",
+        "dep_is_reachable",
+        "dep_max_reverse_dependencies",
+        "dep_test_total_out_degree"
+      ],
       "notes": []
     },
     "schedule": {
@@ -146,14 +189,19 @@
       "n_source_files": 1,
       "n_test_files": 1,
       "installed": true,
-      "n_tests_collected": 1,
-      "suite_seconds": 1.17,
+      "n_tests_collected": null,
+      "suite_seconds": null,
       "all_green": null,
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
       "notes": [
-        "pytest exit 2 (collection_interrupted); 1 tests were in the partial report"
+        "pytest exit 2 (collection_interrupted); 1 tests were in the partial report",
+        "pytest said: E   AttributeError: module 'time' has no attribute 'tzset' | ERROR test_schedule.py - AttributeError: module 'time' has no attribute 'tzset' | !!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!"
       ]
     },
     "parse": {
@@ -161,7 +209,7 @@
       "url": "https://github.com/r1chardj0n3s/parse",
       "stage1_passed": true,
       "stage2_passed": true,
-      "rejected_reason": "collected_zero_tests",
+      "rejected_reason": "only_0_of_6_dependency_features_vary_(need_3);_test_selection_is_vacuous_here",
       "cloned": true,
       "commit_sha": "8059e320eccf40d750843006dd2ef25197bbff74",
       "pure_python": true,
@@ -175,19 +223,23 @@
       "n_test_files": 7,
       "installed": true,
       "n_tests_collected": 98,
-      "suite_seconds": 1.3,
+      "suite_seconds": 1.19,
       "all_green": true,
       "deterministic": true,
       "n_flaky": 0,
       "n_failing_on_clean": 0,
+      "stage3_passed": false,
+      "n_varying_dep_features": 0,
+      "n_distinct_dep_vectors": 1,
+      "varying_dep_features": [],
       "notes": []
     },
     "humanize": {
       "name": "humanize",
       "url": "https://github.com/python-humanize/humanize",
       "stage1_passed": true,
-      "stage2_passed": false,
-      "rejected_reason": "too_many_tests_798_over_600",
+      "stage2_passed": true,
+      "rejected_reason": "only_2_of_6_dependency_features_vary_(need_3);_test_selection_is_vacuous_here",
       "cloned": true,
       "commit_sha": "3201e702ed7eae506f793fad0aec204f387aeb4c",
       "pure_python": true,
@@ -197,15 +249,22 @@
       "test_dirs": [
         "tests"
       ],
-      "n_source_files": 6,
+      "n_source_files": 7,
       "n_test_files": 6,
       "installed": true,
       "n_tests_collected": 798,
-      "suite_seconds": 11.07,
-      "all_green": null,
-      "deterministic": null,
-      "n_flaky": null,
-      "n_failing_on_clean": null,
+      "suite_seconds": 9.11,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "stage3_passed": false,
+      "n_varying_dep_features": 2,
+      "n_distinct_dep_vectors": 6,
+      "varying_dep_features": [
+        "dep_name_heuristic_coupled",
+        "dep_max_reverse_dependencies"
+      ],
       "notes": []
     },
     "deepdiff": {
@@ -213,7 +272,7 @@
       "url": "https://github.com/seperman/deepdiff",
       "stage1_passed": true,
       "stage2_passed": false,
-      "rejected_reason": null,
+      "rejected_reason": "collection_interrupted",
       "cloned": true,
       "commit_sha": "79e4379278b1cfdd8e9e3dccac364956908e8989",
       "pure_python": true,
@@ -225,21 +284,28 @@
       ],
       "n_source_files": 18,
       "n_test_files": 30,
-      "installed": null,
+      "installed": true,
       "n_tests_collected": null,
       "suite_seconds": null,
       "all_green": null,
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
-      "notes": []
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": [
+        "pytest exit 2 (collection_interrupted); 9 tests were in the partial report",
+        "pytest said: ERROR tests/test_diff_text.py - TypeError: np_type() takes no arguments | ERROR tests/test_distance.py - AttributeError: 'NoneType' object has no attri... | ERROR tests/test_hash.py | ERROR tests/test_helper.py | ERROR tests/test_serialization.py | !!!!!!!!!!!!!!!!!!! Interrupted: 9 errors during collection !!!!!!!!!!!!!!!!!!!"
+      ]
     },
     "toml": {
       "name": "toml",
       "url": "https://github.com/uiri/toml",
       "stage1_passed": true,
       "stage2_passed": false,
-      "rejected_reason": null,
+      "rejected_reason": "collection_interrupted",
       "cloned": true,
       "commit_sha": "65bab7582ce14c55cdeec2244c65ea23039c9e6f",
       "pure_python": true,
@@ -251,14 +317,21 @@
       ],
       "n_source_files": 5,
       "n_test_files": 3,
-      "installed": null,
+      "installed": true,
       "n_tests_collected": null,
       "suite_seconds": null,
       "all_green": null,
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
-      "notes": []
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": [
+        "pytest exit 2 (collection_interrupted); 1 tests were in the partial report",
+        "pytest said: E   OSError: pytest: reading from stdin while output is captured!  Consider using `-s`. | ERROR tests\\encoding_test.py - OSError: pytest: reading from stdin while outp... | !!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!"
+      ]
     },
     "pyparsing": {
       "name": "pyparsing",
@@ -278,14 +351,19 @@
       "n_source_files": 17,
       "n_test_files": 9,
       "installed": true,
-      "n_tests_collected": 1,
-      "suite_seconds": 2.39,
+      "n_tests_collected": null,
+      "suite_seconds": null,
       "all_green": null,
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
       "notes": [
-        "pytest exit 2 (collection_interrupted); 1 tests were in the partial report"
+        "pytest exit 2 (collection_interrupted); 1 tests were in the partial report",
+        "pytest said: E   ModuleNotFoundError: No module named 'railroad' | ERROR tests\\test_diagram.py | !!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!"
       ]
     },
     "arrow": {
@@ -293,7 +371,7 @@
       "url": "https://github.com/arrow-py/arrow",
       "stage1_passed": true,
       "stage2_passed": false,
-      "rejected_reason": null,
+      "rejected_reason": "too_many_tests_1902_over_1200",
       "cloned": true,
       "commit_sha": "2224255c4acc594d734cef0bbc83360452a67983",
       "pure_python": true,
@@ -305,13 +383,17 @@
       ],
       "n_source_files": 10,
       "n_test_files": 7,
-      "installed": null,
-      "n_tests_collected": null,
-      "suite_seconds": null,
+      "installed": true,
+      "n_tests_collected": 1902,
+      "suite_seconds": 9.28,
       "all_green": null,
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
       "notes": []
     },
     "sqlparse": {
@@ -333,11 +415,23 @@
       "n_test_files": 10,
       "installed": true,
       "n_tests_collected": 509,
-      "suite_seconds": 7.2,
+      "suite_seconds": 2.34,
       "all_green": true,
       "deterministic": true,
       "n_flaky": 0,
       "n_failing_on_clean": 0,
+      "installed_extras": [],
+      "stage3_passed": true,
+      "n_varying_dep_features": 6,
+      "n_distinct_dep_vectors": 84,
+      "varying_dep_features": [
+        "dep_is_direct_import",
+        "dep_name_heuristic_coupled",
+        "dep_shortest_path_depth",
+        "dep_is_reachable",
+        "dep_max_reverse_dependencies",
+        "dep_test_total_out_degree"
+      ],
       "notes": []
     },
     "pathspec": {
@@ -359,11 +453,26 @@
       "n_test_files": 6,
       "installed": true,
       "n_tests_collected": 205,
-      "suite_seconds": 3.42,
+      "suite_seconds": 1.49,
       "all_green": true,
       "deterministic": true,
       "n_flaky": 0,
       "n_failing_on_clean": 0,
+      "installed_extras": [
+        "hyperscan",
+        "optional",
+        "re2"
+      ],
+      "stage3_passed": true,
+      "n_varying_dep_features": 5,
+      "n_distinct_dep_vectors": 86,
+      "varying_dep_features": [
+        "dep_is_direct_import",
+        "dep_shortest_path_depth",
+        "dep_is_reachable",
+        "dep_max_reverse_dependencies",
+        "dep_test_total_out_degree"
+      ],
       "notes": []
     },
     "funcy": {
@@ -390,8 +499,13 @@
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
       "notes": [
-        "pytest exit 2 (collection_interrupted); 5 tests were in the partial report"
+        "pytest exit 2 (collection_interrupted); 5 tests were in the partial report",
+        "pytest said: ERROR tests\\test_colls.py | ERROR tests\\test_funcolls.py | ERROR tests\\test_funcs.py | ERROR tests\\test_seqs.py | ERROR tests\\test_tree.py | !!!!!!!!!!!!!!!!!!! Interrupted: 5 errors during collection !!!!!!!!!!!!!!!!!!!"
       ]
     },
     "cerberus": {
@@ -399,7 +513,7 @@
       "url": "https://github.com/pyeve/cerberus",
       "stage1_passed": true,
       "stage2_passed": false,
-      "rejected_reason": "collection_interrupted",
+      "rejected_reason": "harvest_too_expensive_3.73h_over_1.0h_(53.66s_x_250_mutants)",
       "cloned": true,
       "commit_sha": "65e977de08ab76d4b40ca981972f9ff68926ed63",
       "pure_python": true,
@@ -412,22 +526,24 @@
       "n_source_files": 10,
       "n_test_files": 9,
       "installed": true,
-      "n_tests_collected": null,
-      "suite_seconds": null,
+      "n_tests_collected": 249,
+      "suite_seconds": 53.66,
       "all_green": null,
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
-      "notes": [
-        "pytest exit 2 (collection_interrupted); 2 tests were in the partial report"
-      ]
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": []
     },
     "sortedcontainers": {
       "name": "sortedcontainers",
       "url": "https://github.com/grantjenks/python-sortedcontainers",
       "stage1_passed": true,
       "stage2_passed": true,
-      "rejected_reason": null,
+      "rejected_reason": "only_1_of_6_dependency_features_vary_(need_3);_test_selection_is_vacuous_here",
       "cloned": true,
       "commit_sha": "3ac358631f58c1347f1d6d2d92784117db0f38ed",
       "pure_python": true,
@@ -441,35 +557,50 @@
       "n_test_files": 9,
       "installed": true,
       "n_tests_collected": 296,
-      "suite_seconds": 11.58,
+      "suite_seconds": 4.05,
       "all_green": true,
       "deterministic": true,
       "n_flaky": 0,
       "n_failing_on_clean": 0,
+      "stage3_passed": false,
+      "n_varying_dep_features": 1,
+      "n_distinct_dep_vectors": 4,
+      "varying_dep_features": [
+        "dep_max_reverse_dependencies"
+      ],
       "notes": []
     },
     "pluggy": {
       "name": "pluggy",
       "url": "https://github.com/pytest-dev/pluggy",
-      "stage1_passed": false,
-      "stage2_passed": false,
-      "rejected_reason": "no_test_directory_found",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": "only_2_of_6_dependency_features_vary_(need_3);_test_selection_is_vacuous_here",
       "cloned": true,
       "commit_sha": "4821148db2f4c6daa62ad8bdcae2918ecf27a731",
       "pure_python": true,
       "source_dirs": [
         "src"
       ],
-      "test_dirs": [],
-      "n_source_files": 0,
-      "n_test_files": 0,
-      "installed": null,
-      "n_tests_collected": null,
-      "suite_seconds": null,
-      "all_green": null,
-      "deterministic": null,
-      "n_flaky": null,
-      "n_failing_on_clean": null,
+      "test_dirs": [
+        "testing"
+      ],
+      "n_source_files": 8,
+      "n_test_files": 9,
+      "installed": true,
+      "n_tests_collected": 144,
+      "suite_seconds": 1.7,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "stage3_passed": false,
+      "n_varying_dep_features": 2,
+      "n_distinct_dep_vectors": 7,
+      "varying_dep_features": [
+        "dep_name_heuristic_coupled",
+        "dep_max_reverse_dependencies"
+      ],
       "notes": []
     },
     "chardet": {
@@ -492,6 +623,10 @@
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
       "notes": []
     },
     "semver": {
@@ -518,10 +653,317 @@
       "deterministic": null,
       "n_flaky": null,
       "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
       "notes": [
-        "pytest exit 4 (pytest_usage_error); 0 tests were in the partial report"
+        "pytest exit 4 (pytest_usage_error); 0 tests were in the partial report",
+        "pytest said: E     File \"C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\semver\\tests\\coerce.py\", line 1 | E       ../docs/advanced/coerce.py | E       ^ | E   SyntaxError: invalid syntax"
       ]
+    },
+    "click": {
+      "name": "click",
+      "url": "https://github.com/pallets/click",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "suite_timeout",
+      "cloned": true,
+      "commit_sha": "36baa15ff831b939a22bc527cd76ce653ef6f66d",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 17,
+      "n_test_files": 34,
+      "installed": true,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": [
+        "pytest exit 124 (suite_timeout); 0 tests were in the partial report"
+      ]
+    },
+    "jinja2": {
+      "name": "jinja2",
+      "url": "https://github.com/pallets/jinja",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "pytest_usage_error",
+      "cloned": true,
+      "commit_sha": "5ef70112a1ff19c05324ff889dd30405b1002044",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 25,
+      "n_test_files": 22,
+      "installed": true,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": [
+        "pytest exit 4 (pytest_usage_error); 0 tests were in the partial report",
+        "pytest said: E   ModuleNotFoundError: No module named 'trio'"
+      ]
+    },
+    "markdown": {
+      "name": "markdown",
+      "url": "https://github.com/Python-Markdown/markdown",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "collection_interrupted",
+      "cloned": true,
+      "commit_sha": "8a9ae23fd33bf1d810b81d801f2f7530c6c98212",
+      "pure_python": true,
+      "source_dirs": [
+        "markdown"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 32,
+      "n_test_files": 31,
+      "installed": true,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": [
+        "pytest exit 2 (collection_interrupted); 1 tests were in the partial report",
+        "pytest said: E   pytest.PytestCollectionWarning: cannot collect test class 'TestSuite' because it has a __init__ constructor (from: markdown/tests/test_syntax/extensions/test_md_in_html.py) | ERROR tests\\test_syntax\\extensions\\test_md_in_html.py::TestSuite - pytest.Pyt... | !!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!"
+      ]
+    },
+    "packaging": {
+      "name": "packaging",
+      "url": "https://github.com/pypa/packaging",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "collection_interrupted",
+      "cloned": true,
+      "commit_sha": "10590c194edb33c82f84a127883d6097c56b7840",
+      "pure_python": true,
+      "source_dirs": [
+        "src",
+        "tasks"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 30,
+      "n_test_files": 31,
+      "installed": true,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": [
+        "pytest exit 2 (collection_interrupted); 6 tests were in the partial report",
+        "pytest said: ERROR tests/test_musllinux.py | ERROR tests/test_pylock.py | ERROR tests/test_specifiers.py | ERROR tests/test_tags.py | ERROR tests/test_version.py | !!!!!!!!!!!!!!!!!!! Interrupted: 6 errors during collection !!!!!!!!!!!!!!!!!!!"
+      ]
+    },
+    "pyjwt": {
+      "name": "pyjwt",
+      "url": "https://github.com/jpadilla/pyjwt",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": null,
+      "cloned": true,
+      "commit_sha": "7144e4534c34810f4525dc4578a32addd8212cff",
+      "pure_python": true,
+      "source_dirs": [
+        "jwt"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 12,
+      "n_test_files": 10,
+      "installed": true,
+      "n_tests_collected": 369,
+      "suite_seconds": 8.42,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "installed_extras": [
+        "crypto",
+        "group:tests"
+      ],
+      "stage3_passed": true,
+      "n_varying_dep_features": 6,
+      "n_distinct_dep_vectors": 71,
+      "varying_dep_features": [
+        "dep_is_direct_import",
+        "dep_name_heuristic_coupled",
+        "dep_shortest_path_depth",
+        "dep_is_reachable",
+        "dep_max_reverse_dependencies",
+        "dep_test_total_out_degree"
+      ],
+      "notes": []
+    },
+    "marshmallow": {
+      "name": "marshmallow",
+      "url": "https://github.com/marshmallow-code/marshmallow",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "pytest_usage_error",
+      "cloned": true,
+      "commit_sha": "74e0043254d2390afe7f8ac83162bb99fd0aafe1",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 14,
+      "n_test_files": 15,
+      "installed": true,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": [
+        "pytest exit 4 (pytest_usage_error); 0 tests were in the partial report",
+        "pytest said: E   ModuleNotFoundError: No module named 'simplejson'"
+      ]
+    },
+    "tomlkit": {
+      "name": "tomlkit",
+      "url": "https://github.com/python-poetry/tomlkit",
+      "stage1_passed": true,
+      "stage2_passed": false,
+      "rejected_reason": "collection_interrupted",
+      "cloned": true,
+      "commit_sha": "7ab7469addd60e03ca3bfbb1287642e8d771e1c0",
+      "pure_python": true,
+      "source_dirs": [
+        "tomlkit"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 12,
+      "n_test_files": 9,
+      "installed": true,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": [
+        "pytest exit 2 (collection_interrupted); 1 tests were in the partial report",
+        "pytest said: E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\\\Users\\\\bbipi\\\\Downloads\\\\project phase 1\\\\final year project\\\\data\\\\repos\\\\tomlkit\\\\tests\\\\toml-test\\\\tests\\\\files-toml-1.1.0' | ERROR tests\\test_toml_tests.py - FileNotFoundError: [Errno 2] No such file or... | !!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!"
+      ]
+    },
+    "mistune": {
+      "name": "mistune",
+      "url": "https://github.com/lepture/mistune",
+      "stage1_passed": true,
+      "stage2_passed": true,
+      "rejected_reason": "only_2_of_6_dependency_features_vary_(need_3);_test_selection_is_vacuous_here",
+      "cloned": true,
+      "commit_sha": "a1b50bc12e066e5707ff797f821829bfcdab03b5",
+      "pure_python": true,
+      "source_dirs": [
+        "src"
+      ],
+      "test_dirs": [
+        "tests"
+      ],
+      "n_source_files": 38,
+      "n_test_files": 17,
+      "installed": true,
+      "n_tests_collected": 765,
+      "suite_seconds": 3.91,
+      "all_green": true,
+      "deterministic": true,
+      "n_flaky": 0,
+      "n_failing_on_clean": 0,
+      "stage3_passed": false,
+      "n_varying_dep_features": 2,
+      "n_distinct_dep_vectors": 30,
+      "varying_dep_features": [
+        "dep_max_reverse_dependencies",
+        "dep_test_total_out_degree"
+      ],
+      "notes": []
+    },
+    "jsonschema": {
+      "name": "jsonschema",
+      "url": "https://github.com/python-jsonschema/jsonschema",
+      "stage1_passed": false,
+      "stage2_passed": false,
+      "rejected_reason": "no_test_files",
+      "cloned": true,
+      "commit_sha": "edf3dc38d29d275c277a85c00dd4d57f21db0de6",
+      "pure_python": true,
+      "source_dirs": [
+        "jsonschema"
+      ],
+      "test_dirs": [
+        "json/tests"
+      ],
+      "n_source_files": 28,
+      "n_test_files": 0,
+      "installed": null,
+      "n_tests_collected": null,
+      "suite_seconds": null,
+      "all_green": null,
+      "deterministic": null,
+      "n_flaky": null,
+      "n_failing_on_clean": null,
+      "stage3_passed": false,
+      "n_varying_dep_features": null,
+      "n_distinct_dep_vectors": null,
+      "varying_dep_features": [],
+      "notes": []
     }
   },
-  "screened_at": "2026-09-02T20:06:45"
+  "screened_at": "2026-09-02T22:51:24"
 }

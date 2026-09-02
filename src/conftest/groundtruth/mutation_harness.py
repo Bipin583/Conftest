@@ -29,6 +29,10 @@ which is the metric the whole project turns on.
 
 import json
 import random
+import subprocess
+import sys
+import tempfile
+import textwrap
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -41,6 +45,19 @@ from conftest.tests.executor import SafeTestExecutor
 
 logger = get_logger(__name__)
 
+# Newline used inside f-strings that build multi-line diagnostics.
+NEWLINE = chr(10)
+
+# Importing a package is fast; a cap only exists so a broken environment cannot
+# hang the harvest before it starts.
+PROVENANCE_PROBE_TIMEOUT = 120
+
+
+# Directories that hold a package rather than being one. A src-layout project
+# puts its distribution inside one of these, so the importable name is the child,
+# not the directory. `validators` ships a docstring-only src/__init__.py, which
+# makes the directory look like a package it is not.
+CONTAINER_DIR_NAMES = frozenset({"src", "lib", "sources"})
 
 # Directory names never treated as mutable source.
 EXCLUDED_DIR_NAMES = frozenset({
@@ -145,6 +162,54 @@ def discover_source_files(repo_root: Path, source_dirs: Sequence[str]) -> List[P
     return found
 
 
+def import_roots(repo_root: Path, source_dirs: Sequence[str]) -> List[str]:
+    """
+    Top-level module names the subject suite must import to reach mutated code.
+
+    Needed because the harness has to prove that the interpreter running the
+    suite imports the *checkout* and not some other copy of the same package.
+
+    Derived from the files `discover_source_files` will actually mutate, not
+    from the directory names, so the answer always describes the code under
+    test. The three layouts among the screened repositories:
+
+    * package at the root   -- ``sqlparse/sql.py``        -> ``sqlparse``
+    * src layout            -- ``src/validators/uri.py``  -> ``validators``
+    * single module         -- ``parse.py``               -> ``parse``
+
+    A leading container directory is stripped. `validators` is why this is not
+    optional: it ships a docstring-only ``src/__init__.py``, so reading the
+    directory as a package would demand that ``import src`` succeed, which it
+    never does -- the installed distribution exposes ``validators``.
+    """
+    roots: List[str] = []
+
+    for path in discover_source_files(repo_root, source_dirs):
+        try:
+            parts = list(path.resolve().relative_to(repo_root).parts)
+        except ValueError:
+            continue
+        if parts and parts[0] in CONTAINER_DIR_NAMES:
+            parts = parts[1:]
+        if not parts:
+            continue
+        if len(parts) == 1:
+            stem = Path(parts[0]).stem
+            if stem != "__init__":
+                roots.append(stem)
+        else:
+            roots.append(parts[0])
+
+    # Order-stable dedupe: keeps the manifest readable and the logs comparable.
+    seen: Set[str] = set()
+    unique: List[str] = []
+    for name in roots:
+        if name not in seen:
+            seen.add(name)
+            unique.append(name)
+    return unique
+
+
 class MutationHarness:
     """Applies mutants to a repository and records measured test outcomes."""
 
@@ -157,6 +222,7 @@ class MutationHarness:
         suite_timeout: int = 300,
         baseline_runs: int = 3,
         seed: int = 42,
+        python_executable: Optional[str] = None,
     ):
         """
         Args:
@@ -167,6 +233,10 @@ class MutationHarness:
             suite_timeout: Per-run wall-clock cap. Mutations can cause hangs.
             baseline_runs: Repeat count for the flakiness screen.
             seed: Seed for mutant sampling only; never affects labels.
+            python_executable: Interpreter that runs the subject suite. Must be
+                the environment the repository is installed into -- see
+                `verify_import_provenance`. Defaults to the current interpreter,
+                which is only correct when repo_root is this project.
         """
         self.repo_root = Path(repo_root).resolve()
         self.repo_name = repo_name
@@ -175,6 +245,7 @@ class MutationHarness:
         self.suite_timeout = suite_timeout
         self.baseline_runs = baseline_runs
         self.seed = seed
+        self.python_executable = python_executable or sys.executable
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.mutants_path = self.output_dir / "mutants.jsonl"
@@ -182,8 +253,124 @@ class MutationHarness:
         self.checkpoint_path = self.output_dir / "checkpoint.json"
 
         self.executor = SafeTestExecutor(
-            repo_root=str(self.repo_root), default_timeout=suite_timeout
+            repo_root=str(self.repo_root),
+            default_timeout=suite_timeout,
+            python_executable=python_executable,
         )
+
+    # ------------------------------------------------------------------
+    # Step 0: prove the suite imports the code we are about to mutate
+    # ------------------------------------------------------------------
+
+    def verify_import_provenance(self) -> Dict[str, Any]:
+        """
+        Check that `self.python_executable` imports the checkout, not a copy.
+
+        A mutation harvest is only measuring something if the package the tests
+        import is the one on disk being mutated. When it is not, every mutant
+        looks harmless and every label comes out 0 -- a clean-looking dataset
+        that is entirely wrong, produced without drawing a single random number.
+
+        This is not hypothetical. `sqlparse` is installed in this project's own
+        ambient environment, so harvesting it under the default interpreter
+        risked importing the released package while mutating the clone.
+
+        The probe runs from a directory outside the repository, because
+        `python -m pytest` puts the working directory on `sys.path` and that
+        alone can make a root-layout checkout importable by accident. The
+        property we require is stronger and does not depend on where pytest is
+        invoked from: the environment itself resolves the package into
+        `repo_root`, which is what `pip install -e .` guarantees and what a
+        stale site-packages copy does not.
+
+        Returns a per-module record for the harvest manifest. Raises
+        RuntimeError if any module is missing or resolves outside the checkout.
+        """
+        roots = import_roots(self.repo_root, self.source_dirs)
+        if not roots:
+            logger.warning(
+                f"{self.repo_name}: could not derive an import name from "
+                f"source_dirs={self.source_dirs}; import provenance NOT verified."
+            )
+            return {"verified": False, "reason": "no_import_root_derived", "modules": {}}
+
+        # "|" separates name from path: it is illegal in a Windows filename and
+        # never appears in a module name, so it cannot occur inside either field.
+        probe = textwrap.dedent(
+            """
+            import importlib, sys
+            for name in sys.argv[1:]:
+                try:
+                    mod = importlib.import_module(name)
+                    print(name + "|" + (getattr(mod, "__file__", None) or "<namespace>"))
+                except Exception as exc:
+                    print(name + "|ERROR: " + type(exc).__name__ + ": " + str(exc)[:200])
+            """
+        )
+
+        # Neutral working directory: see the docstring. A temporary directory is
+        # used rather than a path inside the repo so nothing is written into the
+        # checkout that G3's clean-tree check would then see.
+        with tempfile.TemporaryDirectory() as neutral_cwd:
+            proc = subprocess.run(
+                [self.python_executable, "-c", probe, *roots],
+                cwd=neutral_cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=PROVENANCE_PROBE_TIMEOUT,
+            )
+
+        modules: Dict[str, str] = {}
+        for line in proc.stdout.splitlines():
+            name, sep, where = line.partition("|")
+            if sep:
+                modules[name.strip()] = where.strip()
+
+        problems: List[str] = []
+        for name in roots:
+            where = modules.get(name)
+            if where is None:
+                problems.append(
+                    f"{name}: the interpreter printed no result for it"
+                    + (f" (stderr: {proc.stderr.strip()[:200]})" if proc.stderr.strip() else "")
+                )
+                continue
+            if where.startswith("ERROR: "):
+                problems.append(f"{name}: not importable -- {where[len('ERROR: '):]}")
+                continue
+            if where == "<namespace>":
+                problems.append(f"{name}: resolved to a namespace package with no file")
+                continue
+            try:
+                Path(where).resolve().relative_to(self.repo_root)
+            except ValueError:
+                problems.append(
+                    f"{name}: imports {where}, which is OUTSIDE the checkout at "
+                    f"{self.repo_root} -- mutations to the checkout would be invisible"
+                )
+
+        if problems:
+            detail = "".join(f"{NEWLINE}  - {problem}" for problem in problems)
+            raise RuntimeError(
+                f"{self.repo_name}: the suite would not exercise the mutated code."
+                f"{detail}{NEWLINE}"
+                f"Interpreter: {self.python_executable}{NEWLINE}"
+                f"Install the checkout into the environment that runs the suite "
+                f"(`pip install -e .`), then re-run. Harvesting under an interpreter "
+                f"that imports a different copy of the package records every test as "
+                f"passing for every mutant."
+            )
+
+        logger.info(
+            f"{self.repo_name}: import provenance OK -- "
+            + ", ".join(f"{name} -> {where}" for name, where in modules.items())
+        )
+        return {
+            "verified": True,
+            "interpreter": self.python_executable,
+            "modules": modules,
+        }
 
     # ------------------------------------------------------------------
     # Step 1: baseline and flakiness screen
@@ -518,8 +705,22 @@ class MutationHarness:
     # Orchestration
     # ------------------------------------------------------------------
 
-    def run(self, n_mutants: int = 250, resume: bool = True) -> Dict[str, Any]:
-        """Execute the full protocol end to end for this repository."""
+    def run(
+        self,
+        n_mutants: int = 250,
+        resume: bool = True,
+        verify_provenance: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Execute the full protocol end to end for this repository.
+
+        `verify_provenance` is only turned off by unit tests, which run against
+        synthetic repositories that are deliberately never installed anywhere.
+        """
+        provenance: Dict[str, Any] = {"verified": False, "reason": "not_requested", "modules": {}}
+        if verify_provenance:
+            provenance = self.verify_import_provenance()
+
         baseline = self.profile_baseline()
         candidates = self.collect_candidates()
 
@@ -531,6 +732,8 @@ class MutationHarness:
 
         summary.update({
             "repo": self.repo_name,
+            "interpreter": self.python_executable,
+            "import_provenance": provenance,
             "universe_size": baseline.universe_size,
             "n_candidates": len(candidates),
             "n_sampled": len(selected),
