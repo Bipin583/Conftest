@@ -5,7 +5,7 @@ Implements Wilcoxon Signed-Rank tests, Cliff's Delta non-parametric effect sizes
 and Bootstrap 95% Confidence Intervals for empirical RTS evaluation.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 import numpy as np
 from scipy import stats
 
@@ -249,6 +249,74 @@ def intervals_from_replicates(
     return result
 
 
+def cluster_draws(
+    num_units: int, num_bootstraps: int = 2000, random_seed: int = 42
+) -> Iterator[np.ndarray]:
+    """
+    The resample draws themselves: one array of cluster indices per replicate.
+
+    Every bootstrap path in this module consumes this generator, so "the counts
+    matrix draws the same resamples as the callable path" is true by construction
+    rather than by two functions happening to call the same RNG in the same order.
+    A third consumer -- the calibration metrics, which are not ratios of sums and
+    so cannot use the counts matrix -- is exactly why that stopped being safe to
+    leave as a convention.
+
+    Args:
+        num_units: Number of clusters available to resample.
+        num_bootstraps: Number of resamples (default: 2000).
+        random_seed: Reproducibility seed.
+
+    Yields:
+        For each replicate, `num_units` cluster indices drawn with replacement.
+    """
+    if num_bootstraps < 1:
+        raise ValueError(f"num_bootstraps must be >= 1, got {num_bootstraps}")
+    num_units = int(max(0, num_units))
+    rng = np.random.RandomState(random_seed)
+    empty = np.empty(0, dtype=np.intp)
+    for _ in range(num_bootstraps):
+        yield rng.randint(0, num_units, size=num_units) if num_units > 0 else empty
+
+
+def group_rows_by_cluster(
+    cluster_ids: Sequence[Any],
+) -> Tuple[List[Any], List[np.ndarray]]:
+    """
+    Row indices of each cluster, in order of first appearance.
+
+    The bootstrap resamples clusters, but ECE, MCE and Brier are computed over
+    rows, so something has to hold the mapping. First-appearance order rather than
+    sorted order keeps the result stable under a column of mixed types, which a
+    mutant identifier column read from CSV can easily be.
+
+    Args:
+        cluster_ids: One cluster label per row.
+
+    Returns:
+        (cluster keys, row-index array per cluster), index-aligned.
+    """
+    groups: Dict[Any, List[int]] = {}
+    for row, key in enumerate(cluster_ids):
+        groups.setdefault(key, []).append(row)
+    keys = list(groups)
+    return keys, [np.asarray(groups[k], dtype=np.intp) for k in keys]
+
+
+def rows_for_clusters(
+    row_groups: Sequence[np.ndarray], drawn: np.ndarray
+) -> np.ndarray:
+    """
+    Rows of the drawn clusters, with multiplicity.
+
+    A cluster drawn twice contributes its rows twice -- that is what makes this a
+    bootstrap over clusters rather than a subsample of them.
+    """
+    if len(drawn) == 0:
+        return np.empty(0, dtype=np.intp)
+    return np.concatenate([row_groups[i] for i in drawn])
+
+
 def bootstrap_counts(
     num_units: int, num_bootstraps: int = 2000, random_seed: int = 42
 ) -> np.ndarray:
@@ -256,23 +324,18 @@ def bootstrap_counts(
     Multiplicity matrix for a cluster bootstrap: row b says how many times each
     cluster was drawn in replicate b.
 
-    The draws are made exactly as paired_cluster_bootstrap makes them -- same
-    generator, same order -- so the two paths agree replicate for replicate under
-    one seed. Counts are the useful form when the statistic is a ratio of sums over
+    The draws come from cluster_draws, the one generator every bootstrap path in
+    this module consumes, so all of them agree replicate for replicate under one
+    seed. Counts are the useful form when the statistic is a ratio of sums over
     clusters: every replicate's numerator and denominator is then one matrix
     product away rather than one Python call away, which is the difference between
     seconds and minutes at 8 strategies x 5 metrics x 2000 replicates.
     """
-    if num_bootstraps < 1:
-        raise ValueError(f"num_bootstraps must be >= 1, got {num_bootstraps}")
     num_units = int(max(0, num_units))
     counts = np.zeros((num_bootstraps, num_units), dtype=np.float64)
-    rng = np.random.RandomState(random_seed)
-    for b in range(num_bootstraps):
+    for b, idx in enumerate(cluster_draws(num_units, num_bootstraps, random_seed)):
         if num_units > 0:
-            counts[b] = np.bincount(
-                rng.randint(0, num_units, size=num_units), minlength=num_units
-            )
+            counts[b] = np.bincount(idx, minlength=num_units)
     return counts
 
 
@@ -328,13 +391,10 @@ def paired_cluster_bootstrap(
     num_units = int(max(0, num_units))
     points = {name: _as_float(fn(np.arange(num_units))) for name, fn in statistic_fns.items()}
 
-    rng = np.random.RandomState(random_seed)
     replicates = {name: np.empty(num_bootstraps, dtype=np.float64) for name in names}
-    empty = np.empty(0, dtype=np.intp)
 
-    for b in range(num_bootstraps):
-        # One draw per replicate, reused by every statistic: this is the pairing.
-        idx = rng.randint(0, num_units, size=num_units) if num_units > 0 else empty
+    # One draw per replicate, reused by every statistic: this is the pairing.
+    for b, idx in enumerate(cluster_draws(num_units, num_bootstraps, random_seed)):
         for name, fn in statistic_fns.items():
             replicates[name][b] = _as_float(fn(idx))
 

@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from sklearn.metrics import brier_score_loss
 
 # Add src to pythonpath
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -23,14 +22,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from conftest.models.ensemble import EnsembleUncertaintyPredictor
 from conftest.models.calibration import ConfidenceCalibrator, compute_ece
 from conftest.models.calibrator_selection import (
-    CalibrationScore,
+    score_calibrators,
     select_calibrator,
+    split_clusters_for_selection,
     split_for_selection,
 )
 from conftest.models.trainer import prepare_feature_arrays
 from conftest.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# The dataset builder sets commit_sha to the mutant id, so this column is the
+# cluster: all the rows sharing a value saw one injected fault and are therefore
+# not independent draws.
+CLUSTER_COLUMN = "commit_sha"
 
 
 def parse_args():
@@ -57,6 +62,12 @@ def parse_args():
         help="Directory containing trained ensemble checkpoints.",
     )
     parser.add_argument(
+        "--bootstraps",
+        type=int,
+        default=2000,
+        help="Cluster-bootstrap resamples behind every calibration interval.",
+    )
+    parser.add_argument(
         "--output-calibrator",
         type=str,
         default="./models/calibrator.joblib",
@@ -69,6 +80,58 @@ def parse_args():
         help="Path to export calibration diagnostics report.",
     )
     return parser.parse_args()
+
+
+def score_record(score):
+    """
+    One calibration candidate as it appears in the report.
+
+    The paired differences are included whenever they exist, because the point
+    estimates on their own do not say whether a method helped -- and a reader who
+    only ever sees three ECE values will assume the smallest one won something.
+    """
+    record = {
+        "method": score.method,
+        "ece": round(score.ece, 4),
+        "mce": round(score.mce, 4),
+        "brier_score": round(score.brier, 4),
+    }
+    differences = {
+        "ece": score.ece_vs_baseline,
+        "mce": score.mce_vs_baseline,
+        "brier_score": score.brier_vs_baseline,
+    }
+    for metric, diff in differences.items():
+        if diff is None:
+            continue
+        record[f"{metric}_vs_uncalibrated"] = {
+            "point": round(diff["point"], 5),
+            "ci_lower": round(diff["ci_lower"], 5),
+            "ci_upper": round(diff["ci_upper"], 5),
+            "excludes_zero": bool(diff["excludes_zero"]),
+        }
+    return record
+
+
+def cluster_labels(df, split_name: str):
+    """
+    The mutant identifier for every row, or None when the split does not carry one.
+
+    Without it there is no honest resampling unit: the rows of one mutant share an
+    injected fault, so treating them as independent would quote intervals several
+    times too narrow, and cutting the selection split between them leaks the
+    mutant across both halves. Returning None is therefore a real degradation, and
+    it is warned about here and recorded in the report rather than passed over.
+    """
+    if CLUSTER_COLUMN not in df.columns:
+        logger.warning(
+            f"{split_name} split has no '{CLUSTER_COLUMN}' column, so calibration "
+            f"metrics get no intervals and the method is chosen against fixed "
+            f"tolerances instead of measured noise. Rebuild the splits from "
+            f"scripts/build_real_dataset.py, which records the mutant id."
+        )
+        return None
+    return df[CLUSTER_COLUMN].astype(str).tolist()
 
 
 def main():
@@ -105,12 +168,28 @@ def main():
     # ECE to nearly zero by memorising -- and comparing them on TEST, which is
     # what this script used to do, makes the test split part of model selection
     # and biases every number reported from it.
-    fit_size = split_for_selection(len(val_raw_probs))
-    sel_probs_fit, sel_probs_hold = val_raw_probs[:fit_size], val_raw_probs[fit_size:]
-    sel_y_fit, sel_y_hold = y_val[:fit_size], y_val[fit_size:]
+    val_clusters = cluster_labels(val_df, "validation")
+    if val_clusters is not None:
+        fit_mask = split_clusters_for_selection(np.asarray(val_clusters))
+    else:
+        # No cluster labels: fall back to the positional cut, which splits some
+        # mutants across both halves. Recorded in the report as basis "point".
+        fit_mask = np.zeros(len(val_raw_probs), dtype=bool)
+        fit_mask[: split_for_selection(len(val_raw_probs))] = True
+
+    sel_probs_fit, sel_probs_hold = val_raw_probs[fit_mask], val_raw_probs[~fit_mask]
+    sel_y_fit, sel_y_hold = y_val[fit_mask], y_val[~fit_mask]
+    hold_clusters = (
+        list(np.asarray(val_clusters)[~fit_mask]) if val_clusters is not None else None
+    )
     logger.info(
-        f"Selecting calibration method on validation: {fit_size} rows to fit, "
-        f"{len(sel_probs_hold)} held out to compare."
+        f"Selecting calibration method on validation: {int(fit_mask.sum())} rows to "
+        f"fit, {int((~fit_mask).sum())} held out to compare"
+        + (
+            f" ({len(set(hold_clusters))} mutants, none shared with the fit half)."
+            if hold_clusters is not None
+            else ", split by row index (no cluster column)."
+        )
     )
 
     candidates = {}
@@ -118,17 +197,22 @@ def main():
         probe = ConfidenceCalibrator(method=method).fit(sel_probs_fit, sel_y_fit)
         candidates[method] = probe.calibrate(sel_probs_hold)
 
-    sel_scores = []
-    for method, probs in [("uncalibrated", sel_probs_hold), *candidates.items()]:
-        ece, mce, _ = compute_ece(sel_y_hold, probs, n_bins=10)
-        sel_scores.append(CalibrationScore(
-            method=method,
-            ece=float(ece),
-            mce=float(mce),
-            brier=float(brier_score_loss(sel_y_hold, probs)),
-        ))
+    sel_scores = score_calibrators(
+        sel_y_hold,
+        {"uncalibrated": sel_probs_hold, **candidates},
+        cluster_ids=hold_clusters,
+        num_bootstraps=args.bootstraps,
+    )
 
     outcome = select_calibrator(sel_scores)
+    logger.info(
+        f"  decision basis: {outcome.basis}"
+        + (
+            " (paired cluster bootstrap over mutants)"
+            if outcome.basis == "bootstrap"
+            else " (fixed tolerances; no cluster column to bootstrap over)"
+        )
+    )
     for method, why in sorted(outcome.disqualified.items()):
         logger.warning(f"  disqualified {method}: {why}")
     logger.info(f"  chose {outcome.method}: {outcome.reason}")
@@ -142,13 +226,33 @@ def main():
     test_temp_probs = temp_cal.calibrate(test_raw_probs)
 
     # 4. Compute Calibration Metrics on Test Split
-    raw_ece, raw_mce, raw_bins = compute_ece(y_test, test_raw_probs, n_bins=10)
-    iso_ece, iso_mce, iso_bins = compute_ece(y_test, test_iso_probs, n_bins=10)
-    temp_ece, temp_mce, temp_bins = compute_ece(y_test, test_temp_probs, n_bins=10)
+    _, _, raw_bins = compute_ece(y_test, test_raw_probs, n_bins=10)
+    _, _, iso_bins = compute_ece(y_test, test_iso_probs, n_bins=10)
+    _, _, temp_bins = compute_ece(y_test, test_temp_probs, n_bins=10)
 
-    raw_brier = float(brier_score_loss(y_test, test_raw_probs))
-    iso_brier = float(brier_score_loss(y_test, test_iso_probs))
-    temp_brier = float(brier_score_loss(y_test, test_temp_probs))
+    # Reported with intervals, and with the difference against the uncalibrated
+    # model paired over resampled mutants. "ECE fell from 0.041 to 0.038" is not a
+    # result at this sample size unless the interval on that fall clears zero.
+    test_clusters = cluster_labels(test_df, "test")
+    test_scores = {
+        sc.method: sc
+        for sc in score_calibrators(
+            y_test,
+            {
+                "uncalibrated": test_raw_probs,
+                "isotonic": test_iso_probs,
+                "temperature_scaling": test_temp_probs,
+            },
+            cluster_ids=test_clusters,
+            num_bootstraps=args.bootstraps,
+        )
+    }
+    # Only ECE is read out here, for the reduction percentages the report has
+    # always carried; every other number reaches the report through score_record,
+    # which keeps the point estimate and its interval together.
+    raw_ece = test_scores["uncalibrated"].ece
+    iso_ece = test_scores["isotonic"].ece
+    temp_ece = test_scores["temperature_scaling"].ece
 
     # The method was already chosen on validation. Test metrics below are
     # reported, never used to choose -- that is the whole point of step 2.
@@ -176,28 +280,21 @@ def main():
             "chosen_on": "validation holdout",
             "reason": outcome.reason,
             "disqualified": outcome.disqualified,
-            "validation_scores": [
-                {"method": sc.method, "ece": round(sc.ece, 4),
-                 "mce": round(sc.mce, 4), "brier_score": round(sc.brier, 4)}
-                for sc in sel_scores
-            ],
+            "basis": outcome.basis,
+            "resampling_unit": "mutant" if val_clusters is not None else "none",
+            "num_bootstraps": args.bootstraps,
+            "validation_scores": [score_record(sc) for sc in sel_scores],
         },
         "test_metrics": {
-            "uncalibrated": {
-                "ece": round(raw_ece, 4),
-                "mce": round(raw_mce, 4),
-                "brier_score": round(raw_brier, 4),
-            },
+            "resampling_unit": "mutant" if test_clusters is not None else "none",
+            "num_bootstraps": args.bootstraps,
+            "uncalibrated": score_record(test_scores["uncalibrated"]),
             "isotonic_calibration": {
-                "ece": round(iso_ece, 4),
-                "mce": round(iso_mce, 4),
-                "brier_score": round(iso_brier, 4),
+                **score_record(test_scores["isotonic"]),
                 "ece_reduction_pct": round(((raw_ece - iso_ece) / max(1e-5, raw_ece)) * 100, 2),
             },
             "temperature_scaling": {
-                "ece": round(temp_ece, 4),
-                "mce": round(temp_mce, 4),
-                "brier_score": round(temp_brier, 4),
+                **score_record(test_scores["temperature_scaling"]),
                 "ece_reduction_pct": round(((raw_ece - temp_ece) / max(1e-5, raw_ece)) * 100, 2),
             },
         },
@@ -214,9 +311,27 @@ def main():
         json.dump(report, f, indent=2)
 
     logger.info("\n=== Confidence Calibration Results on Unseen Test Split ===")
-    logger.info(f"Uncalibrated Model:    ECE = {raw_ece:.4f}, MCE = {raw_mce:.4f}, Brier = {raw_brier:.4f}")
-    logger.info(f"Isotonic Calibration:  ECE = {iso_ece:.4f}, MCE = {iso_mce:.4f}, Brier = {iso_brier:.4f} (ECE Delta: {report['test_metrics']['isotonic_calibration']['ece_reduction_pct']}%)")
-    logger.info(f"Temperature Scaling:   ECE = {temp_ece:.4f}, MCE = {temp_mce:.4f}, Brier = {temp_brier:.4f} (ECE Delta: {report['test_metrics']['temperature_scaling']['ece_reduction_pct']}%)")
+    if test_clusters is not None:
+        logger.info(
+            f"  intervals: 95% cluster bootstrap, {args.bootstraps} resamples over "
+            f"{len(set(test_clusters))} mutants; * marks a difference against the "
+            f"uncalibrated model whose interval excludes zero"
+        )
+    for label, key in (
+        ("Uncalibrated Model:   ", "uncalibrated"),
+        ("Isotonic Calibration: ", "isotonic"),
+        ("Temperature Scaling:  ", "temperature_scaling"),
+    ):
+        sc = test_scores[key]
+        line = f"{label} ECE = {sc.ece:.4f}, MCE = {sc.mce:.4f}, Brier = {sc.brier:.4f}"
+        if sc.ece_vs_baseline is not None:
+            d = sc.ece_vs_baseline
+            line += (
+                f" | ECE vs uncalibrated {d['point']:+.4f} "
+                f"[{d['ci_lower']:+.4f}, {d['ci_upper']:+.4f}]"
+                + (" *" if d["excludes_zero"] else "")
+            )
+        logger.info(line)
     logger.info(f"Selected Best Calibrator: '{best_method}' (chosen on validation holdout)")
     if best_cal is not None:
         logger.info(f"  saved to: {cal_path}")

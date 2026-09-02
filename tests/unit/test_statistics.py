@@ -6,6 +6,9 @@ import numpy as np
 import pytest
 
 from conftest.evaluation.statistics import (
+    cluster_draws,
+    group_rows_by_cluster,
+    rows_for_clusters,
     compute_cliffs_delta,
     compute_wilcoxon_test,
     bootstrap_confidence_interval,
@@ -188,3 +191,69 @@ def test_a_reference_must_name_one_of_the_statistics():
         paired_cluster_bootstrap(
             5, {"a": lambda i: 1.0}, num_bootstraps=10, reference="conftest"
         )
+
+
+def test_every_bootstrap_path_draws_from_one_shared_generator():
+    """
+    The counts matrix is the multiplicities of cluster_draws' own draws.
+
+    An earlier version had two functions reimplement the same RNG walk and relied
+    on nobody disturbing the order of the calls. The calibration metrics are a
+    third consumer -- they are not ratios of sums, so they gather rows per draw
+    instead of multiplying a counts matrix -- and three copies of a convention is
+    one too many for the pairing to rest on.
+    """
+    draws = list(cluster_draws(6, 5, random_seed=11))
+    counts = bootstrap_counts(6, 5, random_seed=11)
+
+    assert len(draws) == 5
+    for drawn, row in zip(draws, counts):
+        assert np.array_equal(row, np.bincount(drawn, minlength=6))
+
+
+def test_a_cluster_drawn_twice_contributes_its_rows_twice():
+    """
+    Multiplicity is the whole difference between a bootstrap and a subsample.
+
+    Gathering the drawn clusters' rows as a set -- the obvious way to write it --
+    would silently turn every replicate into a resample *without* replacement, and
+    the intervals would come out too narrow for a reason no output would reveal.
+    """
+    keys, row_groups = group_rows_by_cluster(["m1", "m1", "m2", "m1", "m3", "m3"])
+
+    assert keys == ["m1", "m2", "m3"]
+    assert [g.tolist() for g in row_groups] == [[0, 1, 3], [2], [4, 5]]
+
+    rows = rows_for_clusters(row_groups, np.array([0, 2, 0]))
+    assert rows.tolist() == [0, 1, 3, 4, 5, 0, 1, 3]
+    assert len(rows) == 8, "a cluster drawn twice must be counted twice"
+
+
+def test_clusters_are_grouped_in_first_appearance_order():
+    """
+    Mixed-type identifiers must not decide the order, or crash it.
+
+    A mutant id column read back from CSV can arrive as a mix of strings and
+    numbers; sorting the keys would raise on that comparison in Python 3, and
+    ordering by anything data-dependent would make a seeded resample depend on
+    the order rows happened to be written in.
+    """
+    keys, row_groups = group_rows_by_cluster(["b", 2, "a", 2, "b"])
+
+    assert keys == ["b", 2, "a"]
+    assert [g.tolist() for g in row_groups] == [[0, 4], [1, 3], [2]]
+
+
+def test_an_empty_draw_gathers_no_rows():
+    """A resample of nothing is empty, not an error -- the caller reports it as NaN."""
+    _, row_groups = group_rows_by_cluster(["m1", "m2"])
+    rows = rows_for_clusters(row_groups, np.empty(0, dtype=np.intp))
+
+    assert rows.tolist() == []
+    assert rows.dtype == np.intp
+
+
+def test_no_resamples_is_a_request_that_cannot_be_honoured():
+    """Zero bootstraps would yield an interval computed from nothing at all."""
+    with pytest.raises(ValueError, match="num_bootstraps"):
+        list(cluster_draws(10, 0))

@@ -433,7 +433,7 @@ Do not proceed past a gate until it is green.
 - [x] **C0.5** install declared functional extras — pyjwt ran 221 of 369 tests without them (see log 2026-09-02d)
 - [x] **C0.6** every harvest writes `harvest_summary.json`; the dataset builder refuses labels whose import provenance is missing, unverified, or points outside the checkout (see log 2026-09-02e)
 - [ ] **G1** first real dataset, gates verified
-- [x] **C4.4** calibration selection must not pick a method on ECE alone — `src/conftest/models/calibrator_selection.py`, chosen on a validation half-split
+- [x] **C4.4** calibration selection must not pick a method on ECE alone — `src/conftest/models/calibrator_selection.py`, chosen on a validation half-split that is cut along **mutant** boundaries, on ECE + MCE + Brier jointly, each as a **paired bootstrap difference** against the uncalibrated model; a gain whose interval spans zero is not a gain (see log 2026-09-03b)
 - [x] **C4.5** bootstrap confidence intervals on all headline numbers: the resampling unit is the **commit**, not the test row; every one of the 5 metrics x 8 strategies carries a 95% interval; the headline comparison is reported as a *paired* difference against the ConfTest row (see log 2026-09-03a)
 - [x] **C4.6** relabel `synthetic_generator.py` as smoke-test-only: `acknowledge_synthetic=True` is required to construct it, every emitted commit and test run carries `data_origin=SYNTHETIC_FABRICATED_LABELS`, and the docstring quotes the coin flip (see log 2026-09-02f)
 - [ ] **C3** BugsInPy adapter *(P1)*
@@ -444,6 +444,25 @@ Do not proceed past a gate until it is green.
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-03b · C4.4 completed · the calibration decision now rests on intervals, and the split no longer leaks
+
+**Test suite: 348 -> 366 passing** (18 new: 5 in `tests/unit/test_statistics.py`, 13 in `tests/unit/test_calibrator_selection.py`).
+
+C4.4 was ticked with half of its own row unmet. The plan asked for the choice to be made on "ECE **+ MCE + Brier** jointly **with bootstrap CIs**"; what shipped compared three point estimates against two hardcoded tolerances (`MCE_TOLERANCE = 0.10`, `BRIER_TOLERANCE = 0.01`). Numbers picked by hand, defended by nothing, deciding which calibrator the abstention policy would read confidence from.
+
+**The intervals reverse a decision the tolerances get wrong, on this project's own data.** Temperature scaling measured ECE 0.0192 against 0.0258 uncalibrated on the test split — the report printed `ece_reduction_pct: 25.47`. Its paired difference over resampled mutants is **-0.0066 [-0.0112, +0.0110]**. A 25% improvement and an interval that spans zero are the same measurement. Every guard metric sat well inside tolerance, so the old rule accepted it without comment; the interval path declines and says why. `tests/unit/test_calibrator_selection.py::test_a_lower_ece_whose_interval_spans_zero_is_not_a_gain` holds both paths against the same candidate so the disagreement stays visible.
+
+**Rejection now requires evidence in both directions.** A candidate is disqualified only when its difference is *positive and* excludes zero, and accepted only when the ECE difference is *negative and* excludes zero. The old rule read `score.ece >= baseline.ece`, which promotes any lower number, and `score.mce > baseline.mce + 0.10`, which forgives a real degradation that happens to be small. Symmetry matters here: noise on the wrong side of zero was previously grounds for rejection.
+
+**The validation half-split was leaking mutants across both halves.** `split_for_selection` cut the row array at an index, so a mutant whose tests straddled the cut was partly fitted on and partly held out. Isotonic regression is flexible enough to learn one mutant's failure pattern and be rewarded for it on that same mutant's remaining rows — the precise mechanism by which the more flexible method wins a comparison it should lose, and the leak the half-split existed to prevent. `split_clusters_for_selection` assigns whole clusters, balanced by **row** count rather than cluster count because mutants differ widely in how many tests they carry. Fewer than two clusters is now an error rather than a silent fallback.
+
+**Resampling rows instead of mutants would have understated every interval by ~3.5x.** Same rows, same labels, same probabilities, same point estimate — only the resampling unit differs. Measured on a fixture where failures concentrate inside mutants, as injected faults do: ECE difference `[-0.020, +0.039]` by mutant against `[-0.003, +0.013]` by row. This is the same correction C4.5 made in the benchmark, and it is the reason the calibration path could not simply reuse the counts matrix: ECE and MCE are not ratios of sums, so a replicate has to gather the drawn clusters' rows and recompute over them.
+
+**One generator now owns every resample draw.** `cluster_draws` yields the draws; `bootstrap_counts` bincounts them, `paired_cluster_bootstrap` indexes with them, and `score_calibrators` gathers rows through them. Three separate walks of the same RNG, kept in step by convention, was one too many for the pairing between metrics to rest on. Brier is also computed by hand rather than through `brier_score_loss`, which infers the positive label from the labels present and raises when a resample draws only one class — routine at a 1–15% failure rate.
+
+**What this does not buy.** The decision falls back to the fixed tolerances whenever the dataset carries no cluster column, and that fallback is recorded in the report as `basis: "point"` rather than passed over. If any one candidate lacks intervals the whole comparison drops to tolerances, because judging one candidate on measured noise and another on a hand-picked constant compares them on incomparable evidence. And the numbers quoted above come from the current fabricated splits — 2 mutants in the selection half, 5 in the test split. They demonstrate the machinery, not a calibration result. The real ones arrive with G1.
+
 
 ### 2026-09-03a · C4.5 landed · every reported number now carries an interval, and the unit is the commit
 
