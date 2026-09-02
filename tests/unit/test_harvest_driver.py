@@ -8,6 +8,7 @@ the tests; the ambient interpreter guarantees nothing and, when it happens to
 hold a released copy of the same package, produces a full dataset of zeros.
 """
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -20,7 +21,12 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from harvest_mutations import (  # noqa: E402
     accepted_from_report,
     estimate_hours,
+    harvest_one,
     resolve_interpreter,
+)
+from conftest.groundtruth.mutation_harness import (  # noqa: E402
+    SUMMARY_FILENAME,
+    MutationHarness,
 )
 
 
@@ -59,8 +65,6 @@ def test_resolve_interpreter_is_per_repository(tmp_path):
 # --------------------------------------------------------------------------
 
 def _write_report(path: Path, candidates: dict) -> Path:
-    import json
-
     path.write_text(json.dumps({"candidates": candidates}), encoding="utf-8")
     return path
 
@@ -92,3 +96,48 @@ def test_cost_estimate_scales_with_suite_duration_and_mutants():
     entries = [{"suite_seconds": 3.6}, {"suite_seconds": 7.2}]
 
     assert estimate_hours(entries, 100) == pytest.approx(0.3)
+
+
+# --------------------------------------------------------------------------
+# The driver knows two things the harness does not, and both must be on disk
+# --------------------------------------------------------------------------
+
+def test_harvest_one_persists_the_summary_with_the_drivers_own_fields(tmp_path, monkeypatch):
+    workspace = tmp_path / 'repos'
+    (workspace / 'demo' / 'pkg').mkdir(parents=True)
+    (workspace / 'demo' / 'pkg' / '__init__.py').write_text('')
+    harvest_root = tmp_path / 'harvest'
+    python = _fake_venv(workspace, 'demo')
+
+    def fake_run(self, n_mutants, resume):
+        return {'repo': self.repo_name, 'n_sampled': n_mutants,
+                'import_provenance': {'verified': True, 'modules': {'pkg': 'x'}}}
+
+    monkeypatch.setattr(MutationHarness, 'run', fake_run)
+
+    summary = harvest_one(
+        name='demo',
+        entry={'source_dirs': ['pkg'], 'commit_sha': 'cafef00d'},
+        workspace=workspace,
+        harvest_root=harvest_root,
+        n_mutants=7,
+        resume=False,
+        python_executable=python,
+    )
+
+    assert summary['n_sampled'] == 7
+    on_disk = json.loads((harvest_root / 'demo' / SUMMARY_FILENAME).read_text())
+    assert on_disk['screened_commit_sha'] == 'cafef00d'
+    assert on_disk['wall_clock_seconds'] >= 0
+    assert on_disk['import_provenance']['verified'] is True
+
+
+def test_harvest_one_refuses_a_repo_with_no_source_dirs(tmp_path):
+    workspace = tmp_path / 'repos'
+    (workspace / 'demo').mkdir(parents=True)
+    with pytest.raises(ValueError, match='no source_dirs'):
+        harvest_one(
+            name='demo', entry={}, workspace=workspace,
+            harvest_root=tmp_path / 'harvest', n_mutants=1, resume=False,
+            python_executable=_fake_venv(workspace, 'demo'),
+        )

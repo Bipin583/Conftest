@@ -21,6 +21,7 @@ import pytest
 
 from conftest.groundtruth.mutation_harness import (
     BROKE_SUITE_KILL_RATIO,
+    SUMMARY_FILENAME,
     BaselineProfile,
     MutationHarness,
     discover_source_files,
@@ -777,3 +778,40 @@ def test_harness_passes_its_interpreter_to_the_executor(tmp_path):
 
     assert harness.python_executable == sys.executable
     assert harness.executor.python_executable == str(Path(sys.executable).resolve())
+
+
+# --------------------------------------------------------------------------
+# The run summary is the only auditable record of how labels were produced
+# --------------------------------------------------------------------------
+
+def test_write_summary_lands_beside_the_labels(tmp_path):
+    repo = _make_repo(tmp_path)
+    harness = _make_harness(repo, tmp_path)
+
+    written = harness.write_summary({'repo': 'fake_repo', 'harvested': 3})
+
+    assert written == harness.summary_path
+    assert written.parent == harness.output_dir
+    assert written.name == SUMMARY_FILENAME
+    assert json.loads(written.read_text()) == {'repo': 'fake_repo', 'harvested': 3}
+
+
+def test_write_summary_serialises_paths_rather_than_failing(tmp_path):
+    # Summaries carry interpreter and mutant paths; a TypeError here would lose
+    # the whole record of a harvest that has already been paid for.
+    repo = _make_repo(tmp_path)
+    harness = _make_harness(repo, tmp_path)
+
+    written = harness.write_summary({'interpreter': Path(sys.executable)})
+
+    assert json.loads(written.read_text())['interpreter'] == sys.executable
+
+
+def test_write_summary_overwrites_so_a_resumed_run_is_not_ambiguous(tmp_path):
+    repo = _make_repo(tmp_path)
+    harness = _make_harness(repo, tmp_path)
+
+    harness.write_summary({'harvested': 1})
+    harness.write_summary({'harvested': 2})
+
+    assert json.loads(harness.summary_path.read_text()) == {'harvested': 2}

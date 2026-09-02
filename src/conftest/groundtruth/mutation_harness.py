@@ -59,6 +59,12 @@ PROVENANCE_PROBE_TIMEOUT = 120
 # makes the directory look like a package it is not.
 CONTAINER_DIR_NAMES = frozenset({"src", "lib", "sources"})
 
+# The run summary is the only on-disk record that the labels came from an
+# interpreter which provably imported the checkout. Downstream consumers refuse
+# to build a dataset without it, so it is written by the harness rather than by
+# whichever script happens to drive it.
+SUMMARY_FILENAME = "harvest_summary.json"
+
 # Directory names never treated as mutable source.
 EXCLUDED_DIR_NAMES = frozenset({
     ".git", ".tox", ".venv", "venv", "env", "__pycache__", ".pytest_cache",
@@ -251,6 +257,7 @@ class MutationHarness:
         self.mutants_path = self.output_dir / "mutants.jsonl"
         self.baseline_path = self.output_dir / "baseline.json"
         self.checkpoint_path = self.output_dir / "checkpoint.json"
+        self.summary_path = self.output_dir / SUMMARY_FILENAME
 
         self.executor = SafeTestExecutor(
             repo_root=str(self.repo_root),
@@ -740,5 +747,20 @@ class MutationHarness:
             "mutants_path": str(self.mutants_path),
         })
 
+        self.write_summary(summary)
+
         logger.info(f"Harvest complete for '{self.repo_name}': {summary}")
         return summary
+
+    def write_summary(self, summary: Dict[str, Any]) -> Path:
+        """
+        Persist the run summary beside the labels.
+
+        The dataset builder reads this back to prove that the interpreter which
+        produced the labels resolved the package into the checkout. Without the
+        file there is nothing to audit, so it is written even when provenance
+        verification was skipped -- an unverified record is a fact the builder
+        is entitled to refuse, not something to hide by omission.
+        """
+        self.summary_path.write_text(json.dumps(summary, indent=2, default=str))
+        return self.summary_path

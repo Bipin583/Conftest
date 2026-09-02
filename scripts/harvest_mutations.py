@@ -155,6 +155,10 @@ def harvest_one(
     summary = harness.run(n_mutants=n_mutants, resume=resume)
     summary["wall_clock_seconds"] = round(time.time() - started, 1)
     summary["screened_commit_sha"] = entry.get("commit_sha", "")
+
+    # run() already wrote the summary; rewrite it so the on-disk copy carries the
+    # two fields only the driver knows. The dataset builder reads this file.
+    summary["summary_path"] = str(harness.write_summary(summary))
     return summary
 
 

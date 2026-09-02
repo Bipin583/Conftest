@@ -38,9 +38,14 @@ from build_real_dataset import (  # noqa: E402
     build_dataset,
     build_rows,
     load_harvest,
+    load_provenance,
     resolve_test_id,
 )
 from conftest.features.pipeline import FEATURE_NAMES  # noqa: E402
+from conftest.groundtruth.mutation_harness import SUMMARY_FILENAME  # noqa: E402
+
+# Distinguishes "caller said nothing" from "caller asked for no summary file".
+_UNSET = object()
 
 
 # --------------------------------------------------------------------------
@@ -216,13 +221,33 @@ def test_history_emits_exactly_the_declared_hist_features():
 # Harvest loading: absent input must raise, never default
 # --------------------------------------------------------------------------
 
-def _harvest_dir(tmp_path: Path, baseline: dict, mutant_lines: list) -> Path:
+def _summary(tmp_path: Path, **over) -> dict:
+    """A harvest summary whose provenance points into the checkout at tmp_path."""
+    summary = {
+        "repo": "demo",
+        "interpreter": str(tmp_path / ".venv_demo" / "python"),
+        "import_provenance": {
+            "verified": True,
+            "interpreter": str(tmp_path / ".venv_demo" / "python"),
+            "modules": {"demo": str(tmp_path / "demo" / "__init__.py")},
+        },
+        "universe_size": 1,
+    }
+    summary.update(over)
+    return summary
+
+
+def _harvest_dir(tmp_path: Path, baseline: dict, mutant_lines: list, summary=_UNSET) -> Path:
     hdir = tmp_path / "harvest" / "demo"
     hdir.mkdir(parents=True)
     (hdir / "baseline.json").write_text(json.dumps(baseline), encoding="utf-8")
     (hdir / "mutants.jsonl").write_text(
         "".join(json.dumps(m) + "\n" for m in mutant_lines), encoding="utf-8"
     )
+    if summary is _UNSET:
+        summary = _summary(tmp_path)
+    if summary is not None:
+        (hdir / SUMMARY_FILENAME).write_text(json.dumps(summary), encoding='utf-8')
     return hdir
 
 
@@ -291,6 +316,73 @@ def test_unusable_statuses_are_excluded_and_counted(tmp_path):
     harvest = load_harvest("demo", tmp_path, hdir, "abc123")
     assert [m["mutant_id"] for m in harvest.mutants] == ["m1"]
     assert harvest.excluded_status == {"broke_suite": 2, "timed_out": 1}
+
+
+# --------------------------------------------------------------------------
+# Import provenance: the one thing that cannot be inferred from the labels
+# --------------------------------------------------------------------------
+
+def test_a_harvest_without_a_summary_is_refused(tmp_path):
+    hdir = _harvest_dir(tmp_path, _baseline(), [_mutant('m1')], summary=None)
+    with pytest.raises(FileNotFoundError, match=SUMMARY_FILENAME):
+        load_harvest('demo', tmp_path, hdir, 'abc123')
+
+
+def test_unverified_provenance_is_refused_with_its_reason(tmp_path):
+    hdir = _harvest_dir(tmp_path, _baseline(), [_mutant('m1')], summary=_summary(
+        tmp_path,
+        import_provenance={'verified': False, 'reason': 'not_requested', 'modules': {}},
+    ))
+    with pytest.raises(ValueError, match='not_requested'):
+        load_harvest('demo', tmp_path, hdir, 'abc123')
+
+
+def test_a_summary_from_another_repository_is_refused(tmp_path):
+    hdir = _harvest_dir(tmp_path, _baseline(), [_mutant('m1')],
+                        summary=_summary(tmp_path, repo='somethingelse'))
+    with pytest.raises(ValueError, match='belongs to another harvest'):
+        load_harvest('demo', tmp_path, hdir, 'abc123')
+
+
+def test_provenance_resolving_outside_the_checkout_is_refused(tmp_path):
+    # The exact failure this gate exists for: the suite ran against an installed
+    # copy, so the mutation was never executed and every label would be a 0.
+    elsewhere = tmp_path / 'site-packages' / 'demo' / '__init__.py'
+    hdir = _harvest_dir(tmp_path / 'checkout', _baseline(), [_mutant('m1')], summary=None)
+    (hdir / SUMMARY_FILENAME).write_text(json.dumps({
+        'repo': 'demo',
+        'import_provenance': {'verified': True, 'modules': {'demo': str(elsewhere)}},
+    }), encoding='utf-8')
+    with pytest.raises(ValueError, match='outside the checkout'):
+        load_harvest('demo', tmp_path / 'checkout' / 'demo', hdir, 'abc123')
+
+
+def test_verified_provenance_names_at_least_one_module(tmp_path):
+    hdir = _harvest_dir(tmp_path, _baseline(), [_mutant('m1')], summary=_summary(
+        tmp_path, import_provenance={'verified': True, 'modules': {}},
+    ))
+    with pytest.raises(ValueError, match='names no module'):
+        load_harvest('demo', tmp_path, hdir, 'abc123')
+
+
+def test_a_verified_harvest_carries_its_provenance_forward(tmp_path):
+    hdir = _harvest_dir(tmp_path, _baseline(), [_mutant('m1')])
+    harvest = load_harvest('demo', tmp_path, hdir, 'abc123')
+    assert harvest.provenance['verified'] is True
+    assert 'demo' in harvest.provenance['modules']
+
+
+def test_provenance_comparison_ignores_separator_and_case(tmp_path):
+    # Windows hands back mixed separators and mixed case for the same path.
+    root = tmp_path / 'Checkout'
+    root.mkdir()
+    hdir = _harvest_dir(tmp_path, _baseline(), [_mutant('m1')], summary=None)
+    inside = str(root / 'demo' / '__init__.py').replace(chr(92), '/').upper()
+    (hdir / SUMMARY_FILENAME).write_text(json.dumps({
+        'repo': 'demo',
+        'import_provenance': {'verified': True, 'modules': {'demo': inside}},
+    }), encoding='utf-8')
+    assert load_provenance('demo', root, hdir)['verified'] is True
 
 
 def test_a_harvest_of_only_unusable_mutants_raises(tmp_path):
@@ -494,6 +586,9 @@ def test_build_dataset_produces_a_labelled_frame_and_an_honest_manifest(tmp_path
         + json.dumps(_mutant("m3", status="broke_suite")) + "\n",
         encoding="utf-8",
     )
+    (hdir / SUMMARY_FILENAME).write_text(
+        json.dumps(_summary(workspace)), encoding="utf-8"
+    )
     report = _report(workspace, {
         "demo": {"name": "demo", "stage2_passed": True, "stage3_passed": True, "commit_sha": "deadbeef"}
     })
@@ -517,6 +612,11 @@ def test_build_dataset_produces_a_labelled_frame_and_an_honest_manifest(tmp_path
 
     # The inert list must name the message features rather than hide them.
     assert set(MESSAGE_DERIVED_FEATURES).issubset(set(manifest["inert_features"]))
+
+    # Provenance travels with the dataset: a reader can see which interpreter
+    # produced the labels without going back to the harvest directory.
+    assert repo_entry["import_provenance"]["verified"] is True
+    assert manifest["import_provenance_verified_for_every_repo"] is True
 
 
 def test_requesting_an_unscreened_repo_raises(tmp_path):

@@ -52,6 +52,7 @@ from conftest.features.ast_features import extract_ast_metrics_from_file  # noqa
 from conftest.features.dependency_graph import DependencyGraphBuilder  # noqa: E402
 from conftest.features.diff_features import extract_diff_features  # noqa: E402
 from conftest.features.pipeline import FEATURE_NAMES  # noqa: E402
+from conftest.groundtruth.mutation_harness import SUMMARY_FILENAME  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -165,7 +166,65 @@ class Harvest:
     universe: List[str]
     mean_durations: Dict[str, float]
     mutants: List[Dict[str, Any]]
+    # Proved at load time by load_provenance, which raises rather than returning a
+    # Harvest whose labels cannot be tied to the mutated checkout. The default
+    # exists so unit tests can build a Harvest to exercise row construction alone.
+    provenance: Dict[str, Any] = field(default_factory=dict)
     excluded_status: Dict[str, int] = field(default_factory=dict)
+
+
+def load_provenance(repo: str, repo_root: Path, harvest_dir: Path) -> Dict[str, Any]:
+    """
+    Read the harvest's own proof that its labels came from the checkout.
+
+    If the interpreter that ran a subject suite imported the *installed* copy of
+    the package instead of the mutated checkout, every mutant survives and every
+    label is 0. Nothing about the resulting file looks wrong: it has the right
+    shape, the right test IDs and a plausible class balance. So the proof is
+    required here, not assumed, and a harvest that cannot produce one is refused.
+    """
+    summary_path = harvest_dir / SUMMARY_FILENAME
+    if not summary_path.is_file():
+        raise FileNotFoundError(
+            f"{repo}: no {SUMMARY_FILENAME} at {summary_path}, so there is no record of "
+            f"which interpreter produced the labels. Re-harvest with "
+            f"scripts/harvest_mutations.py --repos {repo}, which writes it."
+        )
+
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if summary.get("repo") not in (None, repo):
+        raise ValueError(
+            f"{repo}: {summary_path} records repo {summary.get('repo')!r}. "
+            f"The summary belongs to another harvest."
+        )
+
+    provenance = summary.get("import_provenance") or {}
+    if not provenance.get("verified"):
+        raise ValueError(
+            f"{repo}: import provenance was not verified for this harvest "
+            f"(reason: {provenance.get('reason', 'unrecorded')}). The labels cannot be "
+            f"shown to describe the mutated checkout, so the dataset would be fiction. "
+            f"Re-harvest with scripts/harvest_mutations.py, which verifies before running."
+        )
+
+    modules = provenance.get("modules") or {}
+    if not modules:
+        raise ValueError(
+            f"{repo}: provenance claims verified but names no module. Re-harvest."
+        )
+
+    root = str(repo_root).replace(chr(92), "/").rstrip("/").lower()
+    outside = {
+        name: path for name, path in modules.items()
+        if not str(path).replace(chr(92), "/").lower().startswith(root + "/")
+    }
+    if outside:
+        raise ValueError(
+            f"{repo}: provenance resolves {sorted(outside)} outside the checkout at "
+            f"{repo_root}: {outside}. The summary does not match this checkout."
+        )
+
+    return provenance
 
 
 def load_harvest(repo: str, repo_root: Path, harvest_dir: Path, commit_sha: str) -> Harvest:
@@ -181,6 +240,10 @@ def load_harvest(repo: str, repo_root: Path, harvest_dir: Path, commit_sha: str)
         raise FileNotFoundError(
             f"{repo}: no mutants at {mutants_path}. Run the mutation harness first."
         )
+
+    # Cheap and decisive: refuse a harvest that cannot show its labels came from
+    # the mutated checkout, before spending anything on parsing it.
+    provenance = load_provenance(repo, repo_root, harvest_dir)
 
     baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
     universe = list(baseline.get("stable_passing", []))
@@ -224,6 +287,7 @@ def load_harvest(repo: str, repo_root: Path, harvest_dir: Path, commit_sha: str)
         universe=universe,
         mean_durations=durations,
         mutants=usable,
+        provenance=provenance,
         excluded_status=excluded,
     )
 
@@ -469,6 +533,11 @@ def build_dataset(
 
         rows = list(build_rows(harvest, resolved))
         frame = pd.DataFrame(rows)
+        # A row lives as a Python dict at ~2.7 KiB before pandas packs it into
+        # ~360 bytes of typed columns. Releasing the dicts here bounds peak memory
+        # at one repository's worth instead of two consecutive ones, which matters
+        # because the largest subject contributes ~224k rows.
+        del rows
         frames.append(frame)
 
         n_fail = int(frame["label_failed"].sum())
@@ -491,6 +560,7 @@ def build_dataset(
             "n_rows": len(frame),
             "n_failures": n_fail,
             "failure_rate": round(rate, 6),
+            "import_provenance": harvest.provenance,
         })
 
     dataset = pd.concat(frames, ignore_index=True)
@@ -529,6 +599,13 @@ def build_dataset(
         "history_is_causal":
             "features for mutant i are read before mutant i's outcomes are "
             "recorded, so no row sees its own or any later label",
+        "import_provenance_verified_for_every_repo": all(
+            bool(r["import_provenance"].get("verified")) for r in manifest_repos
+        ),
+        "import_provenance_means":
+            "the interpreter that ran each subject suite was checked, before any "
+            "mutant, to import the package from the checkout being mutated. A "
+            "harvest without that proof is refused rather than included",
     }
     return dataset, manifest
 
