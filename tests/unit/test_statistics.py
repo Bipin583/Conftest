@@ -9,6 +9,10 @@ from conftest.evaluation.statistics import (
     compute_cliffs_delta,
     compute_wilcoxon_test,
     bootstrap_confidence_interval,
+    bootstrap_counts,
+    cluster_bootstrap_ci,
+    format_interval,
+    paired_cluster_bootstrap,
     StatisticalSignificanceTester,
 )
 
@@ -81,3 +85,106 @@ def test_statistical_significance_tester_pairwise():
     assert "time_reduction" in report
     assert report["failure_recall"]["statistically_significant_p05"] is True
     assert report["failure_recall"]["effect_size"] == "Large"
+
+
+def test_pairing_is_what_makes_a_difference_measurable():
+    """
+    Two strategies whose marginal intervals overlap can still differ decisively.
+
+    Strategy b beats a by exactly 5 points on every cluster, but both vary widely
+    across clusters. Comparing the marginal intervals would call that a tie; the
+    paired difference, taken on a shared resample, does not.
+    """
+    a = np.linspace(0.2, 0.8, 40)
+    b = a + 0.05
+
+    result = paired_cluster_bootstrap(
+        len(a),
+        {"a": lambda i: float(a[i].mean()), "b": lambda i: float(b[i].mean())},
+        num_bootstraps=500,
+        reference="b",
+    )
+    marginal_a = result["intervals"]["a"]
+    marginal_b = result["intervals"]["b"]
+    # The marginal intervals overlap: neither excludes the other's point estimate.
+    assert marginal_a["ci_upper"] > marginal_b["point"]
+
+    difference = result["differences"]["a"]
+    assert difference["reference"] == "b"
+    assert difference["excludes_zero"] is True
+    assert difference["ci_upper"] < 0.0
+    assert difference["point"] == pytest.approx(-0.05)
+
+
+def test_the_counts_matrix_draws_the_same_resamples_as_the_callable_path():
+    """
+    bootstrap_counts claims to reproduce paired_cluster_bootstrap's draws exactly.
+
+    The benchmark relies on it: it bootstraps 8 strategies x 5 metrics by matrix
+    product rather than by 80,000 Python calls, and that shortcut is only sound if
+    the draws are the same ones.
+    """
+    numerator = np.arange(1.0, 31.0)
+    denominator = np.full(30, 4.0)
+
+    loop = paired_cluster_bootstrap(
+        30,
+        {"ratio": lambda i: float(numerator[i].sum() / denominator[i].sum())},
+        num_bootstraps=200,
+        random_seed=7,
+    )["intervals"]["ratio"]
+
+    counts = bootstrap_counts(30, 200, random_seed=7)
+    replicates = (counts @ numerator) / (counts @ denominator)
+
+    # Same draws, so the same interval up to the order the sums are accumulated in.
+    assert float(np.percentile(replicates, 2.5)) == pytest.approx(loop["ci_lower"])
+    assert float(np.percentile(replicates, 97.5)) == pytest.approx(loop["ci_upper"])
+    # Each replicate draws n clusters with replacement, so multiplicities sum to n.
+    assert (counts.sum(axis=1) == 30).all()
+
+
+def test_an_undefined_replicate_is_counted_not_silently_zeroed():
+    """
+    A resample can leave a ratio undefined; that is a fact to report, not a zero.
+
+    Only one of ten clusters carries any denominator, so a resample missing it has
+    nothing to divide by. Coercing those replicates to zero -- which the old
+    max(1, denominator) guard effectively did -- would drag the lower bound down to
+    a value no resample ever produced.
+    """
+    def statistic(idx: np.ndarray) -> float:
+        return 5.0 if 0 in set(idx.tolist()) else float("nan")
+
+    interval = cluster_bootstrap_ci(10, statistic, num_bootstraps=200, random_seed=3)
+
+    assert interval["undefined_replicates"] > 0
+    assert interval["num_bootstraps"] == 200
+    assert interval["ci_lower"] == 5.0 and interval["ci_upper"] == 5.0
+
+
+def test_a_metric_that_is_never_defined_reports_no_interval():
+    """An interval that does not exist must not be rendered as a number."""
+    interval = cluster_bootstrap_ci(
+        5, lambda idx: float("nan"), num_bootstraps=20, random_seed=1
+    )
+
+    assert interval["undefined_replicates"] == 20
+    assert np.isnan(interval["ci_lower"]) and np.isnan(interval["ci_upper"])
+    assert format_interval(interval) == "n/a"
+
+
+def test_format_interval_renders_point_and_bounds():
+    """The report table's cell format, including the unit."""
+    rendered = format_interval(
+        {"point": 72.36, "ci_lower": 68.1, "ci_upper": 76.24}, precision=1, unit="%"
+    )
+    assert rendered == "72.4% [68.1, 76.2]"
+
+
+def test_a_reference_must_name_one_of_the_statistics():
+    """A typo in the reference strategy must fail loudly, not silently skip pairing."""
+    with pytest.raises(ValueError, match="reference"):
+        paired_cluster_bootstrap(
+            5, {"a": lambda i: 1.0}, num_bootstraps=10, reference="conftest"
+        )

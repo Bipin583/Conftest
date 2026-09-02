@@ -53,6 +53,17 @@ class BaseSelector(ABC):
     def __init__(self, name: str):
         self.name = name
 
+    def reset(self) -> None:
+        """
+        Return the selector to the state it was constructed in.
+
+        Called once per evaluation sweep. A selector that carries random state
+        would otherwise give different answers on the second sweep over the same
+        dataset, which makes the benchmark depend on how many times it has been
+        run in this process. Stateless selectors need not override this.
+        """
+        return None
+
     @abstractmethod
     def select(
         self,

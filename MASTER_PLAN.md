@@ -434,7 +434,7 @@ Do not proceed past a gate until it is green.
 - [x] **C0.6** every harvest writes `harvest_summary.json`; the dataset builder refuses labels whose import provenance is missing, unverified, or points outside the checkout (see log 2026-09-02e)
 - [ ] **G1** first real dataset, gates verified
 - [x] **C4.4** calibration selection must not pick a method on ECE alone — `src/conftest/models/calibrator_selection.py`, chosen on a validation half-split
-- [ ] **C4.5** bootstrap confidence intervals on all headline numbers
+- [x] **C4.5** bootstrap confidence intervals on all headline numbers: the resampling unit is the **commit**, not the test row; every one of the 5 metrics x 8 strategies carries a 95% interval; the headline comparison is reported as a *paired* difference against the ConfTest row (see log 2026-09-03a)
 - [x] **C4.6** relabel `synthetic_generator.py` as smoke-test-only: `acknowledge_synthetic=True` is required to construct it, every emitted commit and test run carries `data_origin=SYNTHETIC_FABRICATED_LABELS`, and the docstring quotes the coin flip (see log 2026-09-02f)
 - [ ] **C3** BugsInPy adapter *(P1)*
 - [ ] **C5** re-run every experiment on real data
@@ -444,6 +444,24 @@ Do not proceed past a gate until it is green.
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-03a · C4.5 landed · every reported number now carries an interval, and the unit is the commit
+
+**Test suite: 335 -> 348 passing** (13 new: 6 in `tests/unit/test_statistics.py`, 7 in `tests/unit/test_baselines.py`).
+
+The comparison table was eight rows of bare point estimates pooled over a few hundred commits. At that sample size the gap between two strategies is routinely smaller than the noise in either one, so the table could not answer the question it was printed to answer. It now reports `point [lower, upper]` in every cell, plus a final column giving the paired difference in failure recall against the ConfTest row.
+
+**The resampling unit is the commit.** Test rows inside a commit share a diff and a single injected fault, so they are not independent draws. Resampling rows would have produced intervals several times narrower than the evidence supports — the cheapest available way to overstate a result, and the one a reader cannot detect from the output. `tests/unit/test_baselines.py::test_the_resampling_unit_is_the_commit_not_the_test_row` pins it against a 12-commit / 96-row frame: every interval must report `num_units == 12`.
+
+**Differences are paired, not compared by eye.** Marginal intervals that overlap can still hide a difference that excludes zero — `test_pairing_is_what_makes_a_difference_measurable` constructs exactly that case (strategy b beats a by 5 points on every cluster while both vary widely across clusters). All 8 strategies are therefore evaluated on the *same* resample, and the difference is taken within each replicate. Only that interval gets to carry the `*`.
+
+**A NaN correction that was a real bias, not a cosmetic one.** `fold_commit_metrics` previously divided by `max(1, denominator)`. Pooled once over a whole dataset that is harmless. Inside a bootstrap it is not: every replicate that happens to draw no failing commits reported 0% recall instead of *undefined*, dragging the lower bound to a value no resample ever produced. Empty denominators are now NaN, excluded from the percentile, and **counted** — `undefined_replicates` is reported alongside every interval, so "undefined in 40% of resamples" is visible rather than inferred from a suspiciously wide interval. Same reasoning at the top level: a dataset with nothing to recall now prints `n/a`, not `0.0%`.
+
+**A reproducibility bug found only because the intervals were built.** The point table and the interval table disagreed on the Random-k row (12.5% vs 50.0%). `RandomKSelector` carried its `random.Random` across sweeps, so the second evaluation of one dataset drew a different sample than the first. Fixed with a documented `BaseSelector.reset()` hook called once per sweep. This was pre-existing and invisible while only one sweep was ever run per process.
+
+**Speed came from the sufficient statistics, not from fewer replicates.** Every metric is a ratio of sums over commits, so `accumulate_per_commit` keeps the per-commit numerators and the bootstrap re-folds them; `bootstrap_counts` returns a `(B, n)` multiplicity matrix so each replicate's totals are one matrix product. 8 strategies x 5 metrics x 2000 replicates costs two matrix products per strategy instead of 80,000 selector sweeps. `test_the_counts_matrix_draws_the_same_resamples_as_the_callable_path` asserts the shortcut draws the same resamples as the plain loop under one seed, because that is the only thing that makes it sound.
+
+**What this does and does not buy.** It buys honest error bars and a defensible headline comparison; `scripts/train_baseline.py --bootstraps 0` now warns that bare point estimates should not be quoted on their own. It does **not** make the current numbers meaningful — they are still computed over fabricated labels until G1 lands and C5 re-runs everything on `real_features.csv`. It also does not yet cover the calibration metrics: ECE/MCE/Brier in `src/conftest/models/calibration.py` are still reported without intervals, which is the next place this machinery is owed.
 
 ### 2026-09-02f · C4.6 landed · the second fabricator now refuses to be used by accident
 

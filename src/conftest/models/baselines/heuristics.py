@@ -45,7 +45,19 @@ class RandomKSelector(BaseSelector):
 
     def __init__(self, random_seed: int = 42):
         super().__init__(name="2. Random-k Selection")
+        self.random_seed = random_seed
         self.rng = random.Random(random_seed)
+
+    def reset(self) -> None:
+        """
+        Rewind the stream so every sweep draws the same sample.
+
+        This is the one baseline whose selections depend on call history: without
+        the rewind, evaluating the same dataset twice in one process reports two
+        different Random-k rows, and the point estimate stops matching the
+        bootstrap that was supposed to describe it.
+        """
+        self.rng = random.Random(self.random_seed)
 
     def select(
         self,
