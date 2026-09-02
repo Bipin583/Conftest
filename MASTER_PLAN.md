@@ -19,10 +19,10 @@
 | API + Dashboard | ✅ FastAPI (7 route modules), Streamlit (5 pages) |
 | Docs | ✅ 27 docs, IEEE paper, KTU LaTeX report, viva deck |
 | Mutation harness | ✅ 6 operator families, real pytest labels, **run end to end** (776 labelled rows from a 10-mutant smoke harvest) |
-| Subject repos | ✅ **7 screened and accepted** (G0 met), 0 flaky, harvest = 2.5 h |
+| Subject repos | ✅ **5 stage-3 survivors** (G0 met), 0 flaky, harvest = 1.24 h estimated |
 | Fabrication guards | ✅ AST label guard in CI; every invented fallback now raises |
 | Feature builder | ✅ **C2 done** — test-ID resolver validated on 1138 real testcases, causal history, 32 features |
-| **Real dataset** | ⬜ **Next: the harvest itself, then G1** |
+| **Real dataset** | ⬜ **Pilot green (21,293 real rows, 7.09% failures); the 250x5 harvest is what remains** |
 | Published numbers | ❌ **Still rest on fabricated labels until C5 re-runs them** |
 | LLM review layer | ⬜ Does not exist (optional, deprioritized) |
 
@@ -431,6 +431,7 @@ Do not proceed past a gate until it is green.
 - [x] **C0.3** re-screen the widened pool to restore G0 — **5 stage-3 survivors** (see log 2026-09-02d)
 - [x] **C0.4** every subject suite runs under its own screened venv, enforced by an import-provenance guard (see log 2026-09-02d)
 - [x] **C0.5** install declared functional extras — pyjwt ran 221 of 369 tests without them (see log 2026-09-02d)
+- [x] **C0.6** every harvest writes `harvest_summary.json`; the dataset builder refuses labels whose import provenance is missing, unverified, or points outside the checkout (see log 2026-09-02e)
 - [ ] **G1** first real dataset, gates verified
 - [x] **C4.4** calibration selection must not pick a method on ECE alone — `src/conftest/models/calibrator_selection.py`, chosen on a validation half-split
 - [ ] **C4.5** bootstrap confidence intervals on all headline numbers
@@ -443,6 +444,107 @@ Do not proceed past a gate until it is green.
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-02e · pilot harvest measured · a verified interpreter that leaves no receipt
+
+**Test suite: 321 -> 333 passing** (12 new: 3 harness, 7 builder, 2 driver).
+
+#### The pilot, at full size
+
+25 mutants each on the two repos with the widest suites, under their own screened venvs:
+
+| repo | mutants | universe | rows | failures | rate | all-negative | status |
+|---|---|---|---|---|---|---|---|
+| sqlparse | 25 | 507 | 12,168 | 1,274 | **10.47%** | 1/24 | 24 harvested, 1 timed out |
+| pyjwt | 25 | 365 | 9,125 | 235 | **2.58%** | 4/25 | 25 harvested |
+| **combined** | 50 | - | **21,293** | **1,509** | **7.09%** | 5/49 | - |
+
+7.09% sits inside the G1 band of 1-15%, and it is a *measured* rate: every one of those
+1,509 failures is a pytest run that actually failed under a mutation.
+
+#### The positive class is concentrated, and that is the interesting finding
+
+sqlparse kills per harvested mutant: `0 1 1 1 1 1 1 1 2 2 3 3 5 5 7 10 12 27 27 36 37 322 384 385`.
+Three mutants carry 1,091 of the 1,274 failures -- **86%** of the repo's positive class from
+12% of its mutants. pyjwt is milder but shows the same shape: one mutant at 130 kills against
+a median of 3.
+
+All three sqlparse outliers were read before being accepted:
+
+| mutant | site | why it is wide, not degenerate |
+|---|---|---|
+| `arith_+_to_-` | `grouping.py:288` | tuple arithmetic over token-type flags; every grouped statement changes shape |
+| `bool_and_to_or` | `grouping.py:511` | flips a recursion guard, so grouping descends where it should stop |
+| `return_to_None` | `sqlparse/__init__.py:29` | `parse()` returns nothing, and 64% of the suite parses something |
+
+These are real faults in a parser core, which is exactly where a real fault *is* wide. None is
+an import error masquerading as 500 test failures. **Decision: `BROKE_SUITE_KILL_RATIO` stays at
+0.80.** The threshold never fired across 49 mutants -- the widest was 0.76 (385/507) -- so
+lowering it would have discarded the three most informative faults in the pilot. The kill-ratio
+distribution is reported rather than tuned away.
+
+The one timeout was a boolean flip at `grouping.py:336` that turned a loop condition into an
+infinite loop. It hit the 180s wall, was recorded as `timed_out`, and `USABLE_STATUS` kept it
+out of the dataset. A mutant whose suite never terminates has no labels, not zero labels.
+
+#### C0.6 · provenance was verified and then forgotten
+
+The interpreter guard from 2026-09-02d runs before every harvest and refuses to proceed unless
+the subject package resolves into the checkout. It logged its result and kept nothing. Ten
+minutes after a run, the strongest claim anyone could make about `mutants.jsonl` was that a log
+line had once said `provenance OK`. The label file itself is indistinguishable from one produced
+against an installed copy of the package -- same test IDs, same shape, all labels 0.
+
+- `MutationHarness.write_summary()` persists the run summary as `harvest_summary.json` beside
+  `baseline.json` and `mutants.jsonl`. `run()` calls it; `harvest_one()` rewrites it with
+  `wall_clock_seconds` and `screened_commit_sha`, the two fields only the driver knows.
+- `build_real_dataset.load_provenance()` refuses a harvest with no summary, with
+  `verified: false` (quoting the recorded reason), with a summary belonging to another
+  repository, with no named module, or whose module path resolves outside the checkout.
+  Comparison is separator- and case-insensitive, because Windows returns both.
+- The manifest carries each repository's provenance block plus a verified-for-every-repo flag
+  computed from those entries. A reader of the CSV can see which interpreter produced the
+  labels without going back to the harvest directory.
+
+The pilot ran before this existed. Its two summaries were **backfilled by re-running the same
+probe** against the same checkouts and venvs, and say so in a `backfilled_after_harvest` field;
+they are not transcribed from the log. Full harvests write the file during the run.
+
+#### Measured cost of the dataset build
+
+| quantity | pilot (21,293 rows) | projected (584,500 rows) |
+|---|---|---|
+| wall clock | 2-6 s | ~1-3 min |
+| peak working set | 181 MiB | ~740 MiB (largest single repo) |
+| CSV on disk | 8.5 MiB (419 B/row) | **~233 MiB** |
+| tracked `data/harvest/` | 0.16 MiB | ~5 MiB |
+
+A row costs ~2.7 KiB as a Python dict and ~360 B once pandas types it, so the intermediate
+dominates. `del rows` after each frame is built bounds the peak at one repository's dicts
+instead of two consecutive ones -- enough that the largest subject (validators, 895 tests x 250
+mutants = 223,750 rows) fits comfortably. The 233 MiB CSV stays out of git under the existing
+`data/processed/*` rule; the manifest is what gets committed.
+
+**The harvest cost model is optimistic, and the reason is not bookkeeping overhead.** Screening
+estimates hours as `clean suite_duration x n_mutants`. Harvesting runs *mutated* suites, and a
+mutated suite is not the same suite:
+
+| repo | clean suite | median mutant suite | slowest mutant | per-mutant bookkeeping |
+|---|---|---|---|---|
+| sqlparse | 2.65 s | 7.4 s (**2.8x**) | 180 s (timeout wall) | 0.7 s |
+| pyjwt | 9.48 s | 9.8 s (1.03x) | 17.5 s | ~0 s |
+
+Failing tests cost more than passing ones -- tracebacks to format, fast paths not taken -- and
+one non-terminating mutant burns the entire 180 s timeout, which alone was 42% of sqlparse's
+pilot wall clock. Process spawn and byte-exact file restoration together account for 0.7 s per
+mutant, so they are not where the time goes.
+
+The multiplier therefore is not a constant: it tracks how much of a suite a typical mutant
+breaks and how gracefully it breaks. pyjwt, whose runtime is crypto-bound, is unaffected;
+sqlparse, whose runtime is parse-bound, nearly triples. Two repos are too few to fit a
+correction, and `suite_duration` is recorded per mutant, so the 250 x 5 harvest supplies the
+real distribution and `MAX_HARVEST_HOURS_PER_REPO` gets re-checked against it. At sqlparse's
+2.8x every subject still clears the 1.0 h budget.
 
 ### 2026-09-02d · C0.3 + C4.4 landed · the harvest would have labelled the wrong package
 
