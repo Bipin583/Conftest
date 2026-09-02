@@ -1,11 +1,24 @@
 """
-ConfTest Synthetic Dataset Generator.
+ConfTest SYNTHETIC repository generator -- PIPELINE SMOKE TESTS ONLY.
 
-Generates realistic, labeled synthetic software repository histories, diffs,
-and test execution matrices for offline benchmarking, tests, and viva demonstration.
+WARNING: every test outcome this module emits is a coin flip, not an observation.
 
-IMPORTANT: All synthetic records are explicitly labeled with `data_origin="SYNTHETIC"`
-to strictly prevent accidental mixing with real evaluation data.
+    fail_prob = failure_rate if is_affected else 0.005
+    is_fail = self.rng.random() < fail_prob
+
+Nothing here executes a test suite. A test is marked FAILED because a uniform
+draw came in under a threshold that the caller chose, so the "coupling" between
+a changed module and its failing tests is an assumption written into the
+sampler, not a fact recovered from a repository. A model scored on this data is
+being measured against the generator's own prior. Those numbers MUST NOT appear
+in the report.
+
+Legitimate uses: exercising the database and collector plumbing, shape-checking
+what the API and dashboard consume, and unit-test fixtures.
+
+For real ground truth use conftest.groundtruth.mutation_harness, which injects a
+fault into source, RUNS pytest, and records which tests actually failed. See
+MASTER_PLAN.md section 2.
 """
 
 from datetime import datetime, timedelta
@@ -18,12 +31,35 @@ from conftest.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# Same tag as src/benchmark/dataset_generator.py, so one grep finds every row in
+# the system whose label was sampled rather than measured.
+SYNTHETIC_ORIGIN_TAG = "SYNTHETIC_FABRICATED_LABELS"
+
 
 class SyntheticRepositoryGenerator:
-    """Generates synthetic commit histories and test runs for offline experiments."""
+    """
+    Fabricates commit histories with SAMPLED (not measured) test outcomes.
 
-    def __init__(self, random_seed: int = 42):
-        """Initialize generator with fixed seed for exact reproducibility."""
+    Construction requires `acknowledge_synthetic=True` so this generator cannot
+    be wired into an evaluation by accident. Every emitted commit, test run and
+    dataset carries `data_origin=SYNTHETIC_FABRICATED_LABELS`.
+    """
+
+    def __init__(self, random_seed: int = 42, acknowledge_synthetic: bool = False):
+        """
+        Args:
+            random_seed: fixed seed, so the fabrication is at least reproducible.
+            acknowledge_synthetic: must be True. The keyword exists to make the
+                caller state, at the call site, that it knows these labels are
+                drawn. There is no default that quietly says yes.
+        """
+        if not acknowledge_synthetic:
+            raise ValueError(
+                "SyntheticRepositoryGenerator fabricates test outcomes with "
+                "rng.random() < fail_prob and must not be used for evaluation. Pass "
+                "acknowledge_synthetic=True if you are building a fixture or smoke "
+                "test. For real labels use conftest.groundtruth.mutation_harness."
+            )
         self.random_seed = random_seed
         self.rng = random.Random(random_seed)
 
@@ -37,6 +73,9 @@ class SyntheticRepositoryGenerator:
     ) -> Dict[str, Any]:
         """
         Generate a complete synthetic repository dataset.
+
+        Every returned test-run status is a Bernoulli draw against `failure_rate`,
+        so the returned dataset measures this sampler and nothing else.
 
         Args:
             repo_name: Synthetic repository identifier.
@@ -136,6 +175,7 @@ class SyntheticRepositoryGenerator:
                 test_runs.append({
                     "test_id": tc["test_id"],
                     "status": status,
+                    "data_origin": SYNTHETIC_ORIGIN_TAG,
                     "duration": round(duration, 3),
                     "retry_count": 1 if (is_fail and tc["flaky_indicator"] > 0) else 0,
                     "is_affected": is_affected,
@@ -146,6 +186,7 @@ class SyntheticRepositoryGenerator:
             commits.append({
                 "sha": sha,
                 "parent_sha": parent_sha,
+                "data_origin": SYNTHETIC_ORIGIN_TAG,
                 "timestamp": c_time,
                 "message": f"feat/fix: synthetic modification to {[ch['module'] for ch in changed_modules]}",
                 "ci_status": ci_status,
@@ -156,13 +197,14 @@ class SyntheticRepositoryGenerator:
 
         return {
             "metadata": {
-                "data_origin": "SYNTHETIC",
+                "data_origin": SYNTHETIC_ORIGIN_TAG,
+                "labels_are": "sampled from rng.random(), never measured by running a test",
                 "generated_at": datetime.utcnow().isoformat(),
                 "random_seed": self.random_seed,
                 "repository": repo_name,
                 "total_commits": len(commits),
                 "total_test_cases": len(all_test_cases),
-                "intended_use": "Offline demonstrations, testing, and viva simulations",
+                "intended_use": "smoke tests and fixtures only; never the report",
             },
             "test_cases": all_test_cases,
             "commits": commits,

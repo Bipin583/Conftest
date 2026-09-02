@@ -98,7 +98,9 @@ def main():
     try:
         if args.synthetic:
             logger.info("Running in SYNTHETIC DEMO MODE...")
-            generator = SyntheticRepositoryGenerator(random_seed=args.seed)
+            generator = SyntheticRepositoryGenerator(
+                random_seed=args.seed, acknowledge_synthetic=True
+            )
             dataset = generator.generate_repository_suite(
                 repo_name=args.name,
                 n_commits=args.max_commits,

@@ -44,7 +44,7 @@ label = 1 if np.random.rand() < 0.40 else 0
 label = 1 if np.random.rand() < (hist_fail * 0.1) else 0
 ```
 
-`src/conftest/repository/synthetic_generator.py:123-128` — same thing:
+`src/conftest/repository/synthetic_generator.py:162-167` — same thing:
 
 ```python
 fail_prob = failure_rate if is_affected else 0.005
@@ -435,7 +435,7 @@ Do not proceed past a gate until it is green.
 - [ ] **G1** first real dataset, gates verified
 - [x] **C4.4** calibration selection must not pick a method on ECE alone — `src/conftest/models/calibrator_selection.py`, chosen on a validation half-split
 - [ ] **C4.5** bootstrap confidence intervals on all headline numbers
-- [ ] **C4.6** relabel `synthetic_generator.py` as smoke-test-only, like `dataset_generator.py`
+- [x] **C4.6** relabel `synthetic_generator.py` as smoke-test-only: `acknowledge_synthetic=True` is required to construct it, every emitted commit and test run carries `data_origin=SYNTHETIC_FABRICATED_LABELS`, and the docstring quotes the coin flip (see log 2026-09-02f)
 - [ ] **C3** BugsInPy adapter *(P1)*
 - [ ] **C5** re-run every experiment on real data
 
@@ -444,6 +444,35 @@ Do not proceed past a gate until it is green.
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-02f · C4.6 landed · the second fabricator now refuses to be used by accident
+
+**Test suite: 333 -> 335 passing** (2 new, both in `tests/unit/test_git_collector.py`).
+
+`src/benchmark/dataset_generator.py` was already blunt about what it emits. `src/conftest/repository/synthetic_generator.py` was not: its docstring described it as a repository generator, and nothing at the call site distinguished it from a component that reads real history. Both fabricate labels the same way, so both now say so in the same voice.
+
+Four changes, in increasing order of how hard they are to ignore:
+
+1. **The docstring quotes the fabrication** rather than describing it, so the coin flip is visible without opening the method:
+
+   ```
+   WARNING: every test outcome this module emits is a coin flip, not an observation.
+
+       fail_prob = failure_rate if is_affected else 0.005
+       is_fail = self.rng.random() < fail_prob
+   ```
+
+2. **Construction requires an acknowledgement.** `SyntheticRepositoryGenerator()` now raises; only `acknowledge_synthetic=True` builds one, and the error names `conftest.groundtruth.mutation_harness` as the real-label route. This is the part that cannot be skimmed past -- an evaluation script that reaches for this class fails at line one instead of producing a plausible-looking number.
+
+3. **Every row carries its origin.** `SYNTHETIC_ORIGIN_TAG = "SYNTHETIC_FABRICATED_LABELS"` is stamped on each test-run dict, each commit dict, and the run metadata, which also records `labels_are: "sampled from rng.random(), never measured by running a test"`. The tag string is identical to `dataset_generator.py`'s, so one `grep -rn SYNTHETIC_FABRICATED_LABELS` finds every fabricated row in the system regardless of which generator produced it. `persist_to_database` builds explicit keyword payloads, so the extra key is inert at the DB boundary.
+
+4. **The exemption in `scripts/check_no_fabricated_labels.py` now states the grounds** -- name, gated construction, stamped origin -- instead of asserting the file is fine. The guard still passes: `FABRICATED LABEL CHECK: PASSED (107 files scanned)`.
+
+`scripts/collect_repository_data.py` is the one legitimate caller and passes the flag.
+
+**What this does and does not buy.** It makes accidental use loud, and it makes fabricated rows self-identifying if they ever reach a table. It does not remove the class, because the pipeline smoke tests need a repository-shaped object that costs nothing to build. The honest framing for the report is that ConfTest contains exactly two fabricators, both are named, gated, and tagged, and neither can reach an evaluation path without an explicit acknowledgement in the calling code.
+
+---
 
 ### 2026-09-02e · pilot harvest measured · a verified interpreter that leaves no receipt
 

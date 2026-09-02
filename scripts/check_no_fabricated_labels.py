@@ -47,8 +47,9 @@ RANDOM_CALLS = {
 
 # Files exempt because randomness there is legitimate and reviewed.
 EXEMPT_FILES = {
-    # Deliberately synthetic: used only for unit-test fixtures, never for the
-    # headline evaluation. Its output is labelled SYNTHETIC at the source.
+    # Explicitly synthetic: name says so, construction requires
+    # acknowledge_synthetic=True, and every commit and test run is stamped
+    # data_origin=SYNTHETIC_FABRICATED_LABELS. Smoke tests and fixtures only.
     "src/conftest/repository/synthetic_generator.py",
     # This script quotes the forbidden pattern in its own docstring.
     "scripts/check_no_fabricated_labels.py",

@@ -3,11 +3,16 @@ Unit tests for Git repository mining, GitHub client, synthetic dataset generatio
 """
 
 from pathlib import Path
+
+import pytest
 from sqlalchemy.orm import Session
 
 from conftest.repository.git_collector import anonymize_author, GitRepositoryMiner
 from conftest.github.client import mask_token, GitHubClient
-from conftest.repository.synthetic_generator import SyntheticRepositoryGenerator
+from conftest.repository.synthetic_generator import (
+    SYNTHETIC_ORIGIN_TAG,
+    SyntheticRepositoryGenerator,
+)
 from conftest.repository.collector_service import CollectorService
 from conftest.db import crud
 
@@ -36,13 +41,13 @@ def test_token_masking():
 
 def test_synthetic_data_generator_reproducibility(db_session: Session):
     """Verify that synthetic generator is deterministic with fixed seed."""
-    gen1 = SyntheticRepositoryGenerator(random_seed=1337)
+    gen1 = SyntheticRepositoryGenerator(random_seed=1337, acknowledge_synthetic=True)
     dataset1 = gen1.generate_repository_suite(n_commits=10, n_tests=5)
 
-    gen2 = SyntheticRepositoryGenerator(random_seed=1337)
+    gen2 = SyntheticRepositoryGenerator(random_seed=1337, acknowledge_synthetic=True)
     dataset2 = gen2.generate_repository_suite(n_commits=10, n_tests=5)
 
-    assert dataset1["metadata"]["data_origin"] == "SYNTHETIC"
+    assert dataset1["metadata"]["data_origin"] == SYNTHETIC_ORIGIN_TAG
     assert len(dataset1["commits"]) == 10
     assert len(dataset1["test_cases"]) == 5
     assert dataset1["commits"][0]["sha"] == dataset2["commits"][0]["sha"]
@@ -110,3 +115,22 @@ def test_collector_service_checkpointing(tmp_path: Path):
     cp_loaded = service.load_checkpoint()
     assert cp_loaded["processed_shas"] == ["sha_001", "sha_002"]
     assert cp_loaded["count"] == 2
+
+
+def test_the_synthetic_generator_cannot_be_built_without_saying_so():
+    # The guard exists so a fabricated dataset cannot reach an evaluation through
+    # a default argument. There is no default that quietly says yes.
+    with pytest.raises(ValueError, match='acknowledge_synthetic'):
+        SyntheticRepositoryGenerator(random_seed=1337)
+
+
+def test_every_fabricated_row_carries_the_origin_tag():
+    gen = SyntheticRepositoryGenerator(random_seed=7, acknowledge_synthetic=True)
+    dataset = gen.generate_repository_suite(n_commits=3, n_tests=4)
+
+    assert dataset['metadata']['data_origin'] == SYNTHETIC_ORIGIN_TAG
+    assert all(c['data_origin'] == SYNTHETIC_ORIGIN_TAG for c in dataset['commits'])
+    assert all(
+        run['data_origin'] == SYNTHETIC_ORIGIN_TAG
+        for c in dataset['commits'] for run in c['test_runs']
+    )
