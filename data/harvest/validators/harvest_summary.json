@@ -1,0 +1,47 @@
+{
+  "harvested": 249,
+  "broke_suite": 1,
+  "timed_out": 0,
+  "error": 0,
+  "killed_none": 91,
+  "total_kills": 2559,
+  "checkout_drifted": 0,
+  "records": 250,
+  "unique_mutants": 250,
+  "this_run": {
+    "harvested": 0,
+    "broke_suite": 0,
+    "timed_out": 0,
+    "killed_none": 0,
+    "total_kills": 0,
+    "checkout_drifted": 0,
+    "elapsed_seconds": 0.0,
+    "n_mutants": 0
+  },
+  "n_completed": 250,
+  "elapsed_seconds": 0.0,
+  "sample_digest": "9261998e43395546",
+  "drift_detection": "git",
+  "repo": "validators",
+  "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_validators\\Scripts\\python.exe",
+  "import_provenance": {
+    "verified": true,
+    "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_validators\\Scripts\\python.exe",
+    "modules": {
+      "validators": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\validators\\src\\validators\\__init__.py"
+    }
+  },
+  "checkout": {
+    "verified": true,
+    "tracked_modifications": [],
+    "untracked_files": [],
+    "restored": []
+  },
+  "universe_size": 895,
+  "baseline_self_damage": [],
+  "n_candidates": 2907,
+  "n_sampled": 250,
+  "mutants_path": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\harvest\\validators\\mutants.jsonl",
+  "wall_clock_seconds": 8.9,
+  "screened_commit_sha": "70de324322def13a49a93d222f798ec1ab700885"
+}

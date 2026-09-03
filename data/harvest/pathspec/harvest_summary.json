@@ -1,0 +1,23 @@
+{
+  "harvested": 246,
+  "broke_suite": 3,
+  "timed_out": 1,
+  "killed_none": 87,
+  "total_kills": 4502,
+  "elapsed_seconds": 1481.0,
+  "repo": "pathspec",
+  "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_pathspec\\Scripts\\python.exe",
+  "import_provenance": {
+    "verified": true,
+    "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_pathspec\\Scripts\\python.exe",
+    "modules": {
+      "pathspec": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\pathspec\\pathspec\\__init__.py"
+    }
+  },
+  "universe_size": 191,
+  "n_candidates": 1203,
+  "n_sampled": 250,
+  "mutants_path": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\harvest\\pathspec\\mutants.jsonl",
+  "wall_clock_seconds": 1498.8,
+  "screened_commit_sha": "93e0179cb2d7a6d830050c62f3eab950b9263bf3"
+}

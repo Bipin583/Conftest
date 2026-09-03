@@ -1,0 +1,23 @@
+{
+  "harvested": 250,
+  "broke_suite": 0,
+  "timed_out": 0,
+  "killed_none": 41,
+  "total_kills": 4751,
+  "elapsed_seconds": 1509.7,
+  "repo": "pyjwt",
+  "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_pyjwt\\Scripts\\python.exe",
+  "import_provenance": {
+    "verified": true,
+    "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_pyjwt\\Scripts\\python.exe",
+    "modules": {
+      "jwt": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\pyjwt\\jwt\\__init__.py"
+    }
+  },
+  "universe_size": 365,
+  "n_candidates": 1343,
+  "n_sampled": 250,
+  "mutants_path": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\harvest\\pyjwt\\mutants.jsonl",
+  "wall_clock_seconds": 1529.7,
+  "screened_commit_sha": "7144e4534c34810f4525dc4578a32addd8212cff"
+}

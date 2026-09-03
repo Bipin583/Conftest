@@ -1,0 +1,66 @@
+{
+  "harvested": 236,
+  "broke_suite": 4,
+  "timed_out": 10,
+  "error": 0,
+  "killed_none": 60,
+  "total_kills": 16032,
+  "checkout_drifted": 1,
+  "records": 250,
+  "unique_mutants": 250,
+  "this_run": {
+    "harvested": 216,
+    "broke_suite": 2,
+    "timed_out": 9,
+    "killed_none": 53,
+    "total_kills": 13864,
+    "checkout_drifted": 1,
+    "elapsed_seconds": 30490.1,
+    "n_mutants": 227
+  },
+  "n_completed": 250,
+  "elapsed_seconds": 30490.1,
+  "sample_digest": "c51fcbbb33f7d381",
+  "drift_detection": "git",
+  "repo": "sqlparse",
+  "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_sqlparse\\Scripts\\python.exe",
+  "import_provenance": {
+    "verified": true,
+    "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_sqlparse\\Scripts\\python.exe",
+    "modules": {
+      "sqlparse": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\sqlparse\\sqlparse\\__init__.py"
+    }
+  },
+  "checkout": {
+    "verified": true,
+    "tracked_modifications": [],
+    "untracked_files": [
+      "-"
+    ],
+    "restored": [
+      "sqlparse/filters/reindent.py"
+    ],
+    "resolved_pending_mutation": {
+      "mutant_id": "mut_10c6746605e2",
+      "repo": "sqlparse",
+      "file_path": "sqlparse/filters/reindent.py",
+      "line": 118,
+      "operator": "const_int_increment",
+      "mutated_snippet": "2",
+      "applied_at": "2026-09-03T08:18:28"
+    }
+  },
+  "harvester": {
+    "pid": 21664,
+    "host": "LAPTOP-KLR8OO2V",
+    "started_at": "2026-09-03T08:26:08",
+    "argv": "--repos sqlparse --mutants 250 --restore-checkout"
+  },
+  "universe_size": 507,
+  "baseline_self_damage": [],
+  "n_candidates": 2804,
+  "n_sampled": 250,
+  "mutants_path": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\harvest\\sqlparse\\mutants.jsonl",
+  "wall_clock_seconds": 30505.6,
+  "screened_commit_sha": "60cdc649726bf1bc4f1b336050560b336da715ec"
+}

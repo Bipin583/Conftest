@@ -1,0 +1,23 @@
+{
+  "harvested": 237,
+  "broke_suite": 4,
+  "timed_out": 9,
+  "killed_none": 61,
+  "total_kills": 15964,
+  "elapsed_seconds": 2398.1,
+  "repo": "sqlparse",
+  "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_sqlparse\\Scripts\\python.exe",
+  "import_provenance": {
+    "verified": true,
+    "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_sqlparse\\Scripts\\python.exe",
+    "modules": {
+      "sqlparse": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\sqlparse\\sqlparse\\__init__.py"
+    }
+  },
+  "universe_size": 506,
+  "n_candidates": 2804,
+  "n_sampled": 250,
+  "mutants_path": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\harvest\\sqlparse\\mutants.jsonl",
+  "wall_clock_seconds": 2409.9,
+  "screened_commit_sha": "60cdc649726bf1bc4f1b336050560b336da715ec"
+}
