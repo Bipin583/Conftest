@@ -1,51 +1,93 @@
 {
   "per_repository": {
-    "psf/requests": {
-      "train_samples": 807,
-      "target_samples": 350,
-      "target_failure_rate": 0.06,
-      "zero_shot_pr_auc": 0.9181,
-      "zero_shot_roc_auc": 0.9935,
-      "zero_shot_brier_score": 0.0156,
-      "zero_shot_calibrated_ece": 0.0163,
-      "zero_shot_recall_at_25budget": 1.0
+    "pathspec": {
+      "train_samples": 437139,
+      "calibration_samples": 77586,
+      "calibration_split": "821 of 967 source commits fit the model (437139 rows); the remaining 146 (77586 rows) fit the calibrator. Split on shuffled commit ids, so no commit is in both halves and every source repository is in each.",
+      "target_samples": 46986,
+      "target_failure_rate": 0.0796,
+      "n_estimators": 150,
+      "zero_shot_pr_auc": 0.1295,
+      "zero_shot_roc_auc": 0.7074,
+      "zero_shot_brier_score": 0.2001,
+      "zero_shot_calibrated_ece": 0.2957,
+      "zero_shot_recall_at_budget": 0.4668,
+      "budget_ratio": 0.25,
+      "recall_is_measured_over": "1745 of 3738 failing (commit, test) pairs, pooled over the 159 commits that had at least one failure; each commit ran the top 25% of its own universe"
     },
-    "pallets/flask": {
-      "train_samples": 850,
-      "target_samples": 300,
-      "target_failure_rate": 0.05,
-      "zero_shot_pr_auc": 0.9758,
-      "zero_shot_roc_auc": 0.9986,
-      "zero_shot_brier_score": 0.0097,
-      "zero_shot_calibrated_ece": 0.0216,
-      "zero_shot_recall_at_25budget": 1.0
+    "pyjwt": {
+      "train_samples": 401062,
+      "calibration_samples": 69399,
+      "calibration_split": "818 of 963 source commits fit the model (401062 rows); the remaining 145 (69399 rows) fit the calibrator. Split on shuffled commit ids, so no commit is in both halves and every source repository is in each.",
+      "target_samples": 91250,
+      "target_failure_rate": 0.0521,
+      "n_estimators": 150,
+      "zero_shot_pr_auc": 0.1136,
+      "zero_shot_roc_auc": 0.6841,
+      "zero_shot_brier_score": 0.1648,
+      "zero_shot_calibrated_ece": 0.2899,
+      "zero_shot_recall_at_budget": 0.5546,
+      "budget_ratio": 0.25,
+      "recall_is_measured_over": "2635 of 4751 failing (commit, test) pairs, pooled over the 209 commits that had at least one failure; each commit ran the top 25% of its own universe"
     },
-    "tiangolo/fastapi": {
-      "train_samples": 765,
-      "target_samples": 400,
-      "target_failure_rate": 0.07,
-      "zero_shot_pr_auc": 0.857,
-      "zero_shot_roc_auc": 0.9878,
-      "zero_shot_brier_score": 0.0222,
-      "zero_shot_calibrated_ece": 0.0172,
-      "zero_shot_recall_at_25budget": 1.0
+    "sqlparse": {
+      "train_samples": 378686,
+      "calibration_samples": 63373,
+      "calibration_split": "830 of 977 source commits fit the model (378686 rows); the remaining 147 (63373 rows) fit the calibrator. Split on shuffled commit ids, so no commit is in both halves and every source repository is in each.",
+      "target_samples": 119652,
+      "target_failure_rate": 0.0805,
+      "n_estimators": 150,
+      "zero_shot_pr_auc": 0.1362,
+      "zero_shot_roc_auc": 0.6999,
+      "zero_shot_brier_score": 0.1109,
+      "zero_shot_calibrated_ece": 0.1184,
+      "zero_shot_recall_at_budget": 0.3728,
+      "budget_ratio": 0.25,
+      "recall_is_measured_over": "3589 of 9628 failing (commit, test) pairs, pooled over the 176 commits that had at least one failure; each commit ran the top 25% of its own universe"
     },
-    "pallets/click": {
-      "train_samples": 892,
-      "target_samples": 250,
-      "target_failure_rate": 0.04,
-      "zero_shot_pr_auc": 0.673,
-      "zero_shot_roc_auc": 0.9867,
-      "zero_shot_brier_score": 0.0181,
-      "zero_shot_calibrated_ece": 0.0199,
-      "zero_shot_recall_at_25budget": 1.0
+    "tabulate": {
+      "train_samples": 412281,
+      "calibration_samples": 68462,
+      "calibration_split": "833 of 981 source commits fit the model (412281 rows); the remaining 148 (68462 rows) fit the calibrator. Split on shuffled commit ids, so no commit is in both halves and every source repository is in each.",
+      "target_samples": 80968,
+      "target_failure_rate": 0.0945,
+      "n_estimators": 150,
+      "zero_shot_pr_auc": 0.0868,
+      "zero_shot_roc_auc": 0.4747,
+      "zero_shot_brier_score": 0.1072,
+      "zero_shot_calibrated_ece": 0.0826,
+      "zero_shot_recall_at_budget": 0.3,
+      "budget_ratio": 0.25,
+      "recall_is_measured_over": "2295 of 7651 failing (commit, test) pairs, pooled over the 187 commits that had at least one failure; each commit ran the top 25% of its own universe"
+    },
+    "validators": {
+      "train_samples": 289301,
+      "calibration_samples": 49555,
+      "calibration_split": "819 of 964 source commits fit the model (289301 rows); the remaining 145 (49555 rows) fit the calibrator. Split on shuffled commit ids, so no commit is in both halves and every source repository is in each.",
+      "target_samples": 222855,
+      "target_failure_rate": 0.0075,
+      "n_estimators": 150,
+      "zero_shot_pr_auc": 0.118,
+      "zero_shot_roc_auc": 0.9359,
+      "zero_shot_brier_score": 0.0073,
+      "zero_shot_calibrated_ece": 0.0074,
+      "zero_shot_recall_at_budget": 0.8842,
+      "budget_ratio": 0.25,
+      "recall_is_measured_over": "1482 of 1676 failing (commit, test) pairs, pooled over the 158 commits that had at least one failure; each commit ran the top 25% of its own universe"
     }
   },
   "macro_average": {
-    "mean_pr_auc": 0.856,
-    "mean_roc_auc": 0.9917,
-    "mean_recall_at_25budget": 1.0,
-    "mean_calibrated_ece": 0.0188,
-    "total_repositories_evaluated": 4
-  }
+    "mean_pr_auc": 0.1168,
+    "mean_roc_auc": 0.7004,
+    "mean_recall_at_budget": 0.5157,
+    "repositories_with_defined_recall": 5,
+    "mean_calibrated_ece": 0.1588,
+    "total_repositories_evaluated": 5,
+    "budget_ratio": 0.25,
+    "macro_average_means": "each repository counts once, so a repository with a large test universe does not dominate; the per-repository rows carry the sample sizes the average hides"
+  },
+  "dataset": "data/processed/real_features.csv",
+  "produced_by": "python scripts/build_real_dataset.py --all",
+  "labels_measured": true,
+  "label_provenance": "every label is a recorded pytest outcome for one mutant against one test, harvested per repository; no feature or label in this report is generated"
 }

@@ -1,326 +1,1152 @@
 {
-  "total_streaming_commits": 40,
-  "total_adaptations_performed": 1,
-  "timeline": [
-    {
-      "mean_commit_error": 0.3001,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 160,
-      "total_adaptations": 0,
-      "commit_sequence_id": 1
+  "labels_measured": true,
+  "dataset": "data/processed/real_features.csv",
+  "produced_by": "python scripts/build_real_dataset.py --all",
+  "observation_unit": "mutant",
+  "stream_order": [
+    "commit_timestamp",
+    "mutant_index"
+  ],
+  "error_metric": "mean absolute error between label and predicted probability, averaged over the rows of one mutant",
+  "threshold_grid": [
+    0.5,
+    1.0,
+    2.0,
+    5.0,
+    10.0,
+    15.0
+  ],
+  "threshold_selected": null,
+  "threshold_selection_note": "Not selected here. The grid is published so the false-alarm cost of a sensitive threshold is visible next to the detection latency it buys.",
+  "shift_construction": "Segments are concatenated, so the crossing step is known by construction. The rows on both sides are real harvested rows; only their adjacency is arranged.",
+  "config": {
+    "init_mutants": 40,
+    "segment_mutants": 120,
+    "buffer_capacity": 5000,
+    "random_seed": 42,
+    "n_estimators": 30
+  },
+  "repositories": {
+    "pathspec": {
+      "mutants": 246,
+      "suite_size": 191
     },
-    {
-      "mean_commit_error": 0.1946,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 170,
-      "total_adaptations": 0,
-      "commit_sequence_id": 2
+    "pyjwt": {
+      "mutants": 250,
+      "suite_size": 365
     },
-    {
-      "mean_commit_error": 0.278,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 180,
-      "total_adaptations": 0,
-      "commit_sequence_id": 3
+    "sqlparse": {
+      "mutants": 236,
+      "suite_size": 507
     },
-    {
-      "mean_commit_error": 0.2273,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 190,
-      "total_adaptations": 0,
-      "commit_sequence_id": 4
+    "tabulate": {
+      "mutants": 232,
+      "suite_size": 349
     },
-    {
-      "mean_commit_error": 0.2566,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 200,
-      "total_adaptations": 0,
-      "commit_sequence_id": 5
-    },
-    {
-      "mean_commit_error": 0.2971,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 210,
-      "total_adaptations": 0,
-      "commit_sequence_id": 6
-    },
-    {
-      "mean_commit_error": 0.2439,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 220,
-      "total_adaptations": 0,
-      "commit_sequence_id": 7
-    },
-    {
-      "mean_commit_error": 0.2814,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 230,
-      "total_adaptations": 0,
-      "commit_sequence_id": 8
-    },
-    {
-      "mean_commit_error": 0.2379,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 240,
-      "total_adaptations": 0,
-      "commit_sequence_id": 9
-    },
-    {
-      "mean_commit_error": 0.2436,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 250,
-      "total_adaptations": 0,
-      "commit_sequence_id": 10
-    },
-    {
-      "mean_commit_error": 0.1344,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 260,
-      "total_adaptations": 0,
-      "commit_sequence_id": 11
-    },
-    {
-      "mean_commit_error": 0.1705,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 270,
-      "total_adaptations": 0,
-      "commit_sequence_id": 12
-    },
-    {
-      "mean_commit_error": 0.2976,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 280,
-      "total_adaptations": 0,
-      "commit_sequence_id": 13
-    },
-    {
-      "mean_commit_error": 0.1547,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 290,
-      "total_adaptations": 0,
-      "commit_sequence_id": 14
-    },
-    {
-      "mean_commit_error": 0.3419,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 300,
-      "total_adaptations": 0,
-      "commit_sequence_id": 15
-    },
-    {
-      "mean_commit_error": 0.2199,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 310,
-      "total_adaptations": 0,
-      "commit_sequence_id": 16
-    },
-    {
-      "mean_commit_error": 0.2053,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 320,
-      "total_adaptations": 0,
-      "commit_sequence_id": 17
-    },
-    {
-      "mean_commit_error": 0.2598,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 330,
-      "total_adaptations": 0,
-      "commit_sequence_id": 18
-    },
-    {
-      "mean_commit_error": 0.2165,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 340,
-      "total_adaptations": 0,
-      "commit_sequence_id": 19
-    },
-    {
-      "mean_commit_error": 0.479,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 350,
-      "total_adaptations": 0,
-      "commit_sequence_id": 20
-    },
-    {
-      "mean_commit_error": 0.465,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 360,
-      "total_adaptations": 0,
-      "commit_sequence_id": 21
-    },
-    {
-      "mean_commit_error": 0.5007,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 370,
-      "total_adaptations": 0,
-      "commit_sequence_id": 22
-    },
-    {
-      "mean_commit_error": 0.5071,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 380,
-      "total_adaptations": 0,
-      "commit_sequence_id": 23
-    },
-    {
-      "mean_commit_error": 0.5091,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 390,
-      "total_adaptations": 0,
-      "commit_sequence_id": 24
-    },
-    {
-      "mean_commit_error": 0.4493,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 400,
-      "total_adaptations": 0,
-      "commit_sequence_id": 25
-    },
-    {
-      "mean_commit_error": 0.4255,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 410,
-      "total_adaptations": 0,
-      "commit_sequence_id": 26
-    },
-    {
-      "mean_commit_error": 0.5059,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 420,
-      "total_adaptations": 0,
-      "commit_sequence_id": 27
-    },
-    {
-      "mean_commit_error": 0.4264,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 430,
-      "total_adaptations": 0,
-      "commit_sequence_id": 28
-    },
-    {
-      "mean_commit_error": 0.4902,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 440,
-      "total_adaptations": 0,
-      "commit_sequence_id": 29
-    },
-    {
-      "mean_commit_error": 0.5113,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 450,
-      "total_adaptations": 0,
-      "commit_sequence_id": 30
-    },
-    {
-      "mean_commit_error": 0.475,
-      "drift_detected": true,
-      "model_adapted": true,
-      "buffer_size": 460,
-      "total_adaptations": 1,
-      "commit_sequence_id": 31
-    },
-    {
-      "mean_commit_error": 0.4623,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 470,
-      "total_adaptations": 1,
-      "commit_sequence_id": 32
-    },
-    {
-      "mean_commit_error": 0.4883,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 480,
-      "total_adaptations": 1,
-      "commit_sequence_id": 33
-    },
-    {
-      "mean_commit_error": 0.5074,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 490,
-      "total_adaptations": 1,
-      "commit_sequence_id": 34
-    },
-    {
-      "mean_commit_error": 0.4501,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 500,
-      "total_adaptations": 1,
-      "commit_sequence_id": 35
-    },
-    {
-      "mean_commit_error": 0.4867,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 500,
-      "total_adaptations": 1,
-      "commit_sequence_id": 36
-    },
-    {
-      "mean_commit_error": 0.464,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 500,
-      "total_adaptations": 1,
-      "commit_sequence_id": 37
-    },
-    {
-      "mean_commit_error": 0.5204,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 500,
-      "total_adaptations": 1,
-      "commit_sequence_id": 38
-    },
-    {
-      "mean_commit_error": 0.4394,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 500,
-      "total_adaptations": 1,
-      "commit_sequence_id": 39
-    },
-    {
-      "mean_commit_error": 0.5364,
-      "drift_detected": false,
-      "model_adapted": false,
-      "buffer_size": 500,
-      "total_adaptations": 1,
-      "commit_sequence_id": 40
+    "validators": {
+      "mutants": 249,
+      "suite_size": 895
     }
-  ]
+  },
+  "rotation": [
+    {
+      "source": "pathspec",
+      "target": "pyjwt"
+    },
+    {
+      "source": "pyjwt",
+      "target": "sqlparse"
+    },
+    {
+      "source": "sqlparse",
+      "target": "tabulate"
+    },
+    {
+      "source": "tabulate",
+      "target": "validators"
+    },
+    {
+      "source": "validators",
+      "target": "pathspec"
+    }
+  ],
+  "error_scale_observed": {
+    "min_stationary_mean_error": 0.04144166666666667,
+    "max_stationary_mean_error": 0.4832725
+  },
+  "stationary_adaptation_effect": [
+    {
+      "repo": "pathspec",
+      "comparable": false,
+      "reason": "adaptation either never fired or always fired"
+    },
+    {
+      "repo": "pyjwt",
+      "comparable": true,
+      "no_adaptation": {
+        "threshold": 1.0,
+        "mean_error": 0.07965249999999999
+      },
+      "most_adaptation": {
+        "threshold": 0.5,
+        "mean_error": 0.15521416666666665,
+        "adaptations": 1
+      },
+      "error_delta": 0.07556166666666667
+    },
+    {
+      "repo": "sqlparse",
+      "comparable": true,
+      "no_adaptation": {
+        "threshold": 5.0,
+        "mean_error": 0.11765666666666667
+      },
+      "most_adaptation": {
+        "threshold": 0.5,
+        "mean_error": 0.2416541666666667,
+        "adaptations": 7
+      },
+      "error_delta": 0.12399750000000002
+    },
+    {
+      "repo": "tabulate",
+      "comparable": true,
+      "no_adaptation": {
+        "threshold": 5.0,
+        "mean_error": 0.2726641666666667
+      },
+      "most_adaptation": {
+        "threshold": 1.0,
+        "mean_error": 0.45045583333333333,
+        "adaptations": 4
+      },
+      "error_delta": 0.17779166666666663
+    },
+    {
+      "repo": "validators",
+      "comparable": false,
+      "reason": "adaptation either never fired or always fired"
+    }
+  ],
+  "detector_is_one_sided": "Page-Hinkley accumulates error above a running minimum, so it can only see a shift that makes the model worse. A crossing into an easier project lowers the error and is invisible by construction, not by misconfiguration.",
+  "threshold_summary": [
+    {
+      "threshold": 0.5,
+      "false_alarms_total": 11,
+      "stationary_mutants_streamed": 600,
+      "shifts_detected": 4,
+      "shifts_attempted": 5,
+      "median_detection_latency_mutants": 4.5,
+      "pre_shift_false_alarms_total": 11
+    },
+    {
+      "threshold": 1.0,
+      "false_alarms_total": 6,
+      "stationary_mutants_streamed": 600,
+      "shifts_detected": 3,
+      "shifts_attempted": 5,
+      "median_detection_latency_mutants": 18.0,
+      "pre_shift_false_alarms_total": 6
+    },
+    {
+      "threshold": 2.0,
+      "false_alarms_total": 4,
+      "stationary_mutants_streamed": 600,
+      "shifts_detected": 2,
+      "shifts_attempted": 5,
+      "median_detection_latency_mutants": 33.5,
+      "pre_shift_false_alarms_total": 4
+    },
+    {
+      "threshold": 5.0,
+      "false_alarms_total": 0,
+      "stationary_mutants_streamed": 600,
+      "shifts_detected": 2,
+      "shifts_attempted": 5,
+      "median_detection_latency_mutants": 44.5,
+      "pre_shift_false_alarms_total": 0
+    },
+    {
+      "threshold": 10.0,
+      "false_alarms_total": 0,
+      "stationary_mutants_streamed": 600,
+      "shifts_detected": 0,
+      "shifts_attempted": 5,
+      "median_detection_latency_mutants": null,
+      "pre_shift_false_alarms_total": 0
+    },
+    {
+      "threshold": 15.0,
+      "false_alarms_total": 0,
+      "stationary_mutants_streamed": 600,
+      "shifts_detected": 0,
+      "shifts_attempted": 5,
+      "median_detection_latency_mutants": null,
+      "pre_shift_false_alarms_total": 0
+    }
+  ],
+  "stationary_runs": [
+    {
+      "repo": "pathspec",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.12515166666666666,
+      "max_error": 0.7314
+    },
+    {
+      "repo": "pyjwt",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "streamed_mutants": 120,
+      "false_alarms": 1,
+      "false_alarm_steps": [
+        71
+      ],
+      "adaptations": 1,
+      "mean_error": 0.15521416666666665,
+      "max_error": 0.3983
+    },
+    {
+      "repo": "sqlparse",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "streamed_mutants": 120,
+      "false_alarms": 7,
+      "false_alarm_steps": [
+        8,
+        15,
+        27,
+        33,
+        41,
+        47,
+        110
+      ],
+      "adaptations": 7,
+      "mean_error": 0.2416541666666667,
+      "max_error": 0.7434
+    },
+    {
+      "repo": "tabulate",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "streamed_mutants": 120,
+      "false_alarms": 3,
+      "false_alarm_steps": [
+        11,
+        83,
+        96
+      ],
+      "adaptations": 3,
+      "mean_error": 0.4832725,
+      "max_error": 0.6828
+    },
+    {
+      "repo": "validators",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.04144166666666667,
+      "max_error": 0.1298
+    },
+    {
+      "repo": "pathspec",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.12515166666666666,
+      "max_error": 0.7314
+    },
+    {
+      "repo": "pyjwt",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.07965249999999999,
+      "max_error": 0.3851
+    },
+    {
+      "repo": "sqlparse",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "streamed_mutants": 120,
+      "false_alarms": 2,
+      "false_alarm_steps": [
+        27,
+        47
+      ],
+      "adaptations": 2,
+      "mean_error": 0.2578441666666667,
+      "max_error": 0.71
+    },
+    {
+      "repo": "tabulate",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "streamed_mutants": 120,
+      "false_alarms": 4,
+      "false_alarm_steps": [
+        13,
+        17,
+        29,
+        44
+      ],
+      "adaptations": 4,
+      "mean_error": 0.45045583333333333,
+      "max_error": 0.7158
+    },
+    {
+      "repo": "validators",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.04144166666666667,
+      "max_error": 0.1298
+    },
+    {
+      "repo": "pathspec",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.12515166666666666,
+      "max_error": 0.7314
+    },
+    {
+      "repo": "pyjwt",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.07965249999999999,
+      "max_error": 0.3851
+    },
+    {
+      "repo": "sqlparse",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "streamed_mutants": 120,
+      "false_alarms": 3,
+      "false_alarm_steps": [
+        37,
+        52,
+        88
+      ],
+      "adaptations": 3,
+      "mean_error": 0.183875,
+      "max_error": 0.71
+    },
+    {
+      "repo": "tabulate",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "streamed_mutants": 120,
+      "false_alarms": 1,
+      "false_alarm_steps": [
+        44
+      ],
+      "adaptations": 1,
+      "mean_error": 0.47031166666666663,
+      "max_error": 0.7158
+    },
+    {
+      "repo": "validators",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.04144166666666667,
+      "max_error": 0.1298
+    },
+    {
+      "repo": "pathspec",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.12515166666666666,
+      "max_error": 0.7314
+    },
+    {
+      "repo": "pyjwt",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.07965249999999999,
+      "max_error": 0.3851
+    },
+    {
+      "repo": "sqlparse",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.11765666666666667,
+      "max_error": 0.7145
+    },
+    {
+      "repo": "tabulate",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.2726641666666667,
+      "max_error": 0.6172
+    },
+    {
+      "repo": "validators",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.04144166666666667,
+      "max_error": 0.1298
+    },
+    {
+      "repo": "pathspec",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.12515166666666666,
+      "max_error": 0.7314
+    },
+    {
+      "repo": "pyjwt",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.07965249999999999,
+      "max_error": 0.3851
+    },
+    {
+      "repo": "sqlparse",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.11765666666666667,
+      "max_error": 0.7145
+    },
+    {
+      "repo": "tabulate",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.2726641666666667,
+      "max_error": 0.6172
+    },
+    {
+      "repo": "validators",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.04144166666666667,
+      "max_error": 0.1298
+    },
+    {
+      "repo": "pathspec",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.12515166666666666,
+      "max_error": 0.7314
+    },
+    {
+      "repo": "pyjwt",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.07965249999999999,
+      "max_error": 0.3851
+    },
+    {
+      "repo": "sqlparse",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.11765666666666667,
+      "max_error": 0.7145
+    },
+    {
+      "repo": "tabulate",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.2726641666666667,
+      "max_error": 0.6172
+    },
+    {
+      "repo": "validators",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "streamed_mutants": 120,
+      "false_alarms": 0,
+      "false_alarm_steps": [],
+      "adaptations": 0,
+      "mean_error": 0.04144166666666667,
+      "max_error": 0.1298
+    }
+  ],
+  "shift_runs": [
+    {
+      "source_repo": "pathspec",
+      "target_repo": "pyjwt",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 4,
+      "detection_latency_mutants": 6,
+      "detected": true,
+      "mean_error_source": 0.12515166666666666,
+      "mean_error_target": 0.1602975,
+      "adaptations": 4
+    },
+    {
+      "source_repo": "pyjwt",
+      "target_repo": "sqlparse",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 1,
+      "flags_after_shift": 1,
+      "detection_latency_mutants": 39,
+      "detected": true,
+      "mean_error_source": 0.15521416666666665,
+      "mean_error_target": 0.35332333333333327,
+      "adaptations": 2
+    },
+    {
+      "source_repo": "sqlparse",
+      "target_repo": "tabulate",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 7,
+      "flags_after_shift": 1,
+      "detection_latency_mutants": 1,
+      "detected": true,
+      "mean_error_source": 0.2416541666666667,
+      "mean_error_target": 0.5509741666666667,
+      "adaptations": 8
+    },
+    {
+      "source_repo": "tabulate",
+      "target_repo": "validators",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 3,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.4832725,
+      "mean_error_target": 0.05536833333333333,
+      "adaptations": 3
+    },
+    {
+      "source_repo": "validators",
+      "target_repo": "pathspec",
+      "threshold": 0.5,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 5,
+      "detection_latency_mutants": 3,
+      "detected": true,
+      "mean_error_source": 0.04144166666666667,
+      "mean_error_target": 0.14298166666666667,
+      "adaptations": 5
+    },
+    {
+      "source_repo": "pathspec",
+      "target_repo": "pyjwt",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.12515166666666666,
+      "mean_error_target": 0.13227583333333334,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "pyjwt",
+      "target_repo": "sqlparse",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 4,
+      "detection_latency_mutants": 18,
+      "detected": true,
+      "mean_error_source": 0.07965249999999999,
+      "mean_error_target": 0.3745016666666666,
+      "adaptations": 4
+    },
+    {
+      "source_repo": "sqlparse",
+      "target_repo": "tabulate",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 2,
+      "flags_after_shift": 1,
+      "detection_latency_mutants": 55,
+      "detected": true,
+      "mean_error_source": 0.2578441666666667,
+      "mean_error_target": 0.3964383333333333,
+      "adaptations": 3
+    },
+    {
+      "source_repo": "tabulate",
+      "target_repo": "validators",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 4,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.45045583333333333,
+      "mean_error_target": 0.04637083333333334,
+      "adaptations": 4
+    },
+    {
+      "source_repo": "validators",
+      "target_repo": "pathspec",
+      "threshold": 1.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 2,
+      "detection_latency_mutants": 4,
+      "detected": true,
+      "mean_error_source": 0.04144166666666667,
+      "mean_error_target": 0.20192,
+      "adaptations": 2
+    },
+    {
+      "source_repo": "pathspec",
+      "target_repo": "pyjwt",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.12515166666666666,
+      "mean_error_target": 0.13227583333333334,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "pyjwt",
+      "target_repo": "sqlparse",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 2,
+      "detection_latency_mutants": 24,
+      "detected": true,
+      "mean_error_source": 0.07965249999999999,
+      "mean_error_target": 0.20395916666666664,
+      "adaptations": 2
+    },
+    {
+      "source_repo": "sqlparse",
+      "target_repo": "tabulate",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 3,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.183875,
+      "mean_error_target": 0.18632666666666667,
+      "adaptations": 3
+    },
+    {
+      "source_repo": "tabulate",
+      "target_repo": "validators",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 1,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.47031166666666663,
+      "mean_error_target": 0.04637083333333334,
+      "adaptations": 1
+    },
+    {
+      "source_repo": "validators",
+      "target_repo": "pathspec",
+      "threshold": 2.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 3,
+      "detection_latency_mutants": 43,
+      "detected": true,
+      "mean_error_source": 0.04144166666666667,
+      "mean_error_target": 0.144415,
+      "adaptations": 3
+    },
+    {
+      "source_repo": "pathspec",
+      "target_repo": "pyjwt",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.12515166666666666,
+      "mean_error_target": 0.13227583333333334,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "pyjwt",
+      "target_repo": "sqlparse",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 1,
+      "detection_latency_mutants": 88,
+      "detected": true,
+      "mean_error_source": 0.07965249999999999,
+      "mean_error_target": 0.21140416666666667,
+      "adaptations": 1
+    },
+    {
+      "source_repo": "sqlparse",
+      "target_repo": "tabulate",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 1,
+      "detection_latency_mutants": 1,
+      "detected": true,
+      "mean_error_source": 0.11765666666666667,
+      "mean_error_target": 0.5508775,
+      "adaptations": 1
+    },
+    {
+      "source_repo": "tabulate",
+      "target_repo": "validators",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.2726641666666667,
+      "mean_error_target": 0.03846166666666666,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "validators",
+      "target_repo": "pathspec",
+      "threshold": 5.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.04144166666666667,
+      "mean_error_target": 0.09721416666666667,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "pathspec",
+      "target_repo": "pyjwt",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.12515166666666666,
+      "mean_error_target": 0.13227583333333334,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "pyjwt",
+      "target_repo": "sqlparse",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.07965249999999999,
+      "mean_error_target": 0.1700158333333333,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "sqlparse",
+      "target_repo": "tabulate",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.11765666666666667,
+      "mean_error_target": 0.15059416666666667,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "tabulate",
+      "target_repo": "validators",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.2726641666666667,
+      "mean_error_target": 0.03846166666666666,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "validators",
+      "target_repo": "pathspec",
+      "threshold": 10.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.04144166666666667,
+      "mean_error_target": 0.09721416666666667,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "pathspec",
+      "target_repo": "pyjwt",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 7640,
+      "init_failing_rows": 516,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.12515166666666666,
+      "mean_error_target": 0.13227583333333334,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "pyjwt",
+      "target_repo": "sqlparse",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 14600,
+      "init_failing_rows": 471,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.07965249999999999,
+      "mean_error_target": 0.1700158333333333,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "sqlparse",
+      "target_repo": "tabulate",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 20280,
+      "init_failing_rows": 2239,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.11765666666666667,
+      "mean_error_target": 0.15059416666666667,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "tabulate",
+      "target_repo": "validators",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 13960,
+      "init_failing_rows": 860,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.2726641666666667,
+      "mean_error_target": 0.03846166666666666,
+      "adaptations": 0
+    },
+    {
+      "source_repo": "validators",
+      "target_repo": "pathspec",
+      "threshold": 15.0,
+      "init_mutants": 40,
+      "init_rows": 35800,
+      "init_failing_rows": 299,
+      "shift_at_step": 120,
+      "source_mutants": 120,
+      "target_mutants": 120,
+      "false_alarms_before_shift": 0,
+      "flags_after_shift": 0,
+      "detection_latency_mutants": null,
+      "detected": false,
+      "mean_error_source": 0.04144166666666667,
+      "mean_error_target": 0.09721416666666667,
+      "adaptations": 0
+    }
+  ],
+  "timeline_export": "reports/continuous_learning_timeline.csv",
+  "timeline_rows": 7200
 }

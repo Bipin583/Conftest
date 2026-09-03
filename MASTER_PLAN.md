@@ -1,17 +1,19 @@
 # ConfTest — Master Plan (Real Ground Truth Rebuild)
 
 > **This is the single reference document for the rest of the project.**
-> Last updated: 2026-09-02 · Status: Phase R — ground-truth pipeline built, harvest next
+> Last updated: 2026-09-03 · Status: Phase R — real dataset harvested, **every experiment re-run on it (C5)**; the result is negative and the paper still quotes the old numbers
 
 ---
 
 ## 0. TL;DR — Where we stand
 
-**The engineering is ~4 months ahead of the original 6-month plan. The science is at zero.**
+**The engineering is ~4 months ahead of the original 6-month plan. The science has now been done
+on real labels, and it came back negative: the method as tuned is indistinguishable from running the
+whole suite. That is a publishable result and it is not the one the write-ups claim.**
 
 | Area | State |
 |---|---|
-| Code | ✅ 70+ modules, **481/481 tests passing**, well-architected |
+| Code | ✅ 70+ modules, **519/519 tests passing**, well-architected |
 | Feature pipeline | ✅ 34 features (diff / AST / dependency-graph / history) |
 | ML + calibration | ✅ LightGBM, isotonic + Platt + temperature, ECE, reliability diagrams |
 | Abstention | ✅ Threshold policy, full-suite fallback, policy tuning |
@@ -20,14 +22,16 @@
 | Docs | ✅ 27 docs, IEEE paper, KTU LaTeX report, viva deck |
 | Mutation harness | ✅ 6 operator families, real pytest labels, **run end to end** (776 labelled rows from a 10-mutant smoke harvest) |
 | Subject repos | ✅ **5 stage-3 survivors** (G0 met), 0 flaky, harvest **measured at 2.11 h** of suite time (9.97 h including one run whose 180 s timeout did not hold) — the 1.24 h estimate was low by 70% (see log 2026-09-03e) |
-| Fabrication guards | ✅ AST label guard in CI; every invented fallback now raises |
+| Fabrication guards | ⚠️ AST label guard in CI (110 files, both rules) and every *known* invented fallback raises — but the guard passed for weeks while `benchmark.py` fed the abstention rule an `uncertainty` value computed from the labels. It tests for values that were **drawn**; a constant, a formula and a label-derived quantity all pass it (see log 2026-09-03g) |
 | Feature builder | ✅ **C2 done** — test-ID resolver validated on 1138 real testcases, causal history, 32 features |
 | **Real dataset** | ✅ **561,711 real rows** (1,213 mutants x 5 repos, 27,444 measured failures) — **G0–G3 all met**. Failure rate **6.817% over the 402,559 rows from the 889 mutants some test detected**, 4.886% over all rows; every repo in the 1–15% band, though validators clears the floor by only 0.185pp and 324 mutants (26.7%) were killed by nothing (see logs 2026-09-03e, 2026-09-03f) |
-| Published numbers | ❌ **Still rest on fabricated labels until C5 re-runs them** |
+| Published numbers | ⚠️ **C5 done — every report now traces to a measured run, and the answer is negative.** At the shipped operating point ConfTest abstains on 97.8% of commits, saves **0.0%** of wall time, misses nothing, and is indistinguishable from the full suite (p = 1.00000, d = 0.0000). The $64,992 modelled saving was an artifact of a fabricated `uncertainty` column derived from the labels. The paper, KTU report and viva deck still quote the pre-C5 numbers (see log 2026-09-03g) |
 | LLM review layer | ⬜ Does not exist (optional, deprioritized) |
 
-**We are not behind. The machinery for real labels now exists and is tested; what remains is
-to run it, build the dataset, and re-run every experiment on top of it.**
+**The dataset is real and every experiment has been re-run on it. What remains is not measurement
+but a tuning problem the measurement exposed: the abstention policy has no operating point that
+both holds a recall floor out of sample and saves meaningful time (G5, see log 2026-09-03g), and
+the write-ups still describe the pre-C5 results.**
 
 ---
 
@@ -316,13 +320,19 @@ FeatureExtractionPipeline(repo_root).extract_features_for_pair(
 
 ---
 
-### Component 5 — Re-run Everything
+### Component 5 — Re-run Everything  *(done — see log 2026-09-03g)*
 
 All of this code already exists and is tested. Point it at real data and execute:
 
 `train_model.py` -> `calibrate_model.py` -> `tune_policy.py` -> `train_ensemble.py` -> `run_ablation_study.py` -> `run_cross_repo_eval.py` -> `run_statistical_tests.py` -> `run_flakiness_test.py` -> `run_latency_benchmark.py` -> `run_economic_analysis.py` -> `generate_explanations.py`
 
 **Then rewrite:** `reports/*`, the IEEE paper results section, the KTU report, the viva deck.
+
+`reports/*` is done. The three write-ups are not, and they are the last place in the repository
+where the fabricated-era numbers are still asserted (tracked as C6). Running the chain also turned
+up two things the chain itself was not looking for: the benchmark was inventing the model outputs
+that baselines 6-8 rank by, and baseline 8 was being evaluated at thresholds the tuner never chose.
+Re-running is not a formality; it is what made both visible.
 
 ---
 
@@ -359,8 +369,8 @@ Do not proceed past a gate until it is green.
 | **G1** | ≥ 5,000 labeled (mutant, test) pairs per repo; failure rate in **1–15%**, measured over rows from mutants **at least one test detected** — a mutant no test kills carries label 0 in every row it produces and so states no selection target. Both rates are always published (`failure_rate_detected_mutants`, `failure_rate_all_mutants`) and the undetected rows stay in the dataset flagged `mutant_detected=0`, so the exclusion is auditable and reversible |
 | **G2** | No value on the label path is drawn or imputed — enforced by `scripts/check_no_fabricated_labels.py` (AST, not grep: mutant *sampling* is seeded, so a literal `grep -rn "random"` can never return zero) |
 | **G3** | Every mutated file restored — `git status` clean in all harvested repos |
-| **G4** | ML beats random baseline with **bootstrap 95% CI excluding zero** |
-| **G5** | Reduction @ 95% recall reported with CI, on a repo **never seen in training** |
+| **G4** | ML beats random baseline with **bootstrap 95% CI excluding zero** — ✅ **met.** Per-commit mean failure recall: uncalibrated ML **69.26% [62.60, 75.90]** vs Random-k **20.01% [16.73, 23.02]** over the 135 commits with a defined recall, Wilcoxon `p < 0.00001`, Cliff's delta **+0.6564** (large). `reports/g4_ml_vs_baselines.json` (see log 2026-09-03g) |
+| **G5** | Reduction @ 95% recall reported with CI, on a repo **never seen in training** — ❌ **measured, not met.** On the unseen commit split the validation-selected point gives 32.85% [26.50, 39.18] reduction at **87.69% [75.77, 95.81]** recall: the floor is cleared in sample by 1.02pp and missed out of sample by 7.31pp, and is not met at the interval's lower bound. Leave-one-repo-out is further off still (macro recall@budget 51.57%, `tabulate` ROC-AUC 0.4747). `scripts/check_g5_recall_floor.py` -> `reports/g5_recall_floor.json` (see log 2026-09-03g) |
 | **G6** | BugsInPy external validation on ≥ 3 projects |
 
 **If G4 fails** — ML genuinely does not beat the heuristic baseline — that is a **publishable negative result**, and the original plan already anticipated it ("report as ML didn't beat baselines — valid research result"). We report it honestly with CIs. Far stronger than a fabricated win.
@@ -441,13 +451,307 @@ Do not proceed past a gate until it is green.
 - [x] **C4.5** bootstrap confidence intervals on all headline numbers: the resampling unit is the **commit**, not the test row; every one of the 5 metrics x 8 strategies carries a 95% interval; the headline comparison is reported as a *paired* difference against the ConfTest row (see log 2026-09-03a)
 - [x] **C4.6** relabel `synthetic_generator.py` as smoke-test-only: `acknowledge_synthetic=True` is required to construct it, every emitted commit and test run carries `data_origin=SYNTHETIC_FABRICATED_LABELS`, and the docstring quotes the coin flip (see log 2026-09-02f)
 - [ ] **C3** BugsInPy adapter *(P1)*
-- [ ] **C5** re-run every experiment on real data
+- [x] **C5** re-run every experiment on real data — the full chain twice: `calibrate_model` -> `tune_policy` -> `train_baseline --bootstraps 2000` -> `run_ablation_study` -> `run_cross_repo_eval` -> `run_statistical_tests` -> `run_flakiness_test` -> `run_latency_benchmark` -> `run_economic_analysis` -> `generate_explanations` -> `run_continuous_learning` -> `uncertainty_eval`, then the reporting chain again after the re-run exposed the fabricator below (see log 2026-09-03g)
+- [x] **C5.1** the third fabricator, and the worst one: `benchmark.py` invented the three columns baselines 6-8 rank by — `raw_score` as a hand-weighted `0.6*dep_is_direct_import + 0.4*hist_lifetime_failure_rate`, `calibrated_confidence` as the constant `0.85`, and `uncertainty` as `0.08 if len(failing_test_ids) <= 1 else 0.22`, i.e. **the abstention rule was thresholding a quantity derived from the labels**. It now raises and names the producer; `scripts/train_baseline.py` scores the split with the real ensemble and calibrator and records the ranges it produced. The AST label guard passed all 110 files throughout — no `random` call, real dataset on disk — which is the limit of what that guard can see (see log 2026-09-03g)
+- [x] **C5.2** baseline 8 is the proposed method, so it is evaluated at the tuned operating point: `ConfTestSelectiveSelector` reads `tau_abstain`/`tau_conf` from `models/policy_config.json` and raises if it is absent, instead of defaulting to the `0.15`/`0.70` literals it shipped with while the tuned policy was `0.02`/`0.10`. The policy report and the headline row now agree exactly (see log 2026-09-03g)
+- [x] **C5.3** `scripts/tune_policy.py` takes `--objective {zero_escape,recall_floor}` with `--recall-floor`, measures **both** frontiers on every run, publishes the whole 36-point sweep, replaces `max(1, n)` denominators with NaN, and raises instead of silently writing the invented `(0.015, 0.50)` fallback. The default stays `zero_escape`, and replaying the old selection rule over the 36 measured points picks the same pair, so the refactor moves nothing on its own; the committed `tau_abstain` still moves 0.03 -> 0.02, because the 0.03 came from a pre-provenance run against data that is gone (see log 2026-09-03g)
+- [x] **C5.4** `scripts/check_g5_recall_floor.py` + `reports/g5_recall_floor.json` — the G5 frontier on a grid fine enough to resolve the recall cliff, selected on validation, scored on the unseen split with 2000 commit-resampled bootstraps, with the post-hoc test-split sweep published as an explicitly-labelled diagnostic rather than a menu to select from (see log 2026-09-03g)
+- [ ] **C6** rewrite the IEEE paper results section, the KTU report and the viva deck against the C5 numbers — currently the largest inconsistency in the repository
 
-**Definition of done for this sprint:** `data/processed/real_features.csv` exists, every label traceable to a real pytest run, G0–G3 green.
+**Definition of done for this sprint:** ✅ `data/processed/real_features.csv` exists, every label traceable to a real pytest run, G0–G3 green. **G4 is green** (ML 69.26% [62.60, 75.90] vs random 20.01% [16.73, 23.02] per-commit recall, `d = +0.6564`); **G5 is measured and not met**; G6 is untouched pending C3.
 
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-03g · C5 · the headline row was measuring a system this repository does not contain
+
+Every experiment has now been re-run on the real dataset. The chain is
+`calibrate_model` -> `tune_policy` -> `train_baseline` -> `run_ablation_study` ->
+`run_cross_repo_eval` -> `run_statistical_tests` -> `run_flakiness_test` ->
+`run_latency_benchmark` -> `run_economic_analysis` -> `generate_explanations` ->
+`run_continuous_learning` -> `uncertainty_eval`, and it was run twice: once on the
+real labels, and then again after the re-run exposed something worse than a wrong
+number.
+
+**The policy report and the headline row described two different systems.** The
+tuner said the shipped operating point abstains on 97.81% of commits, reduces the
+suite by 3.11%, and lets nothing escape. The published comparison said ConfTest cut
+wall time by 19.7%, held 99.6% recall, and let 14 commits escape. Both claimed to
+be the same configuration on the same split. Only one of them was reading the
+model.
+
+`src/conftest/evaluation/benchmark.py` invented the three columns that baselines
+6, 7 and 8 rank by, whenever the dataset did not carry them -- and
+`data/splits/test.csv` has 46 columns, none of them these:
+
+- `raw_score` became a hand-weighted `0.6 * dep_is_direct_import + 0.4 *
+  hist_lifetime_failure_rate`, a formula that appears nowhere in the model;
+- `calibrated_confidence` became the constant `0.85`, so every test in the corpus
+  was equally and highly confident;
+- `uncertainty` became `0.08` or `0.22`, **chosen by `len(failing_test_ids)`**.
+
+The third one is the serious one. Uncertainty is the quantity the abstention rule
+thresholds, and it was being derived from the count of tests that actually fail --
+the label. The method's central contribution was being handed the answer and then
+scored on how well it used it. The 19.7% time reduction, the 99.6% recall, the
+$64,992 of modelled annual saving and the `p = 0.00018` significance against the
+full suite were all measurements of that arrangement, not of this system.
+
+Alongside it, `ConfTestSelectiveSelector` carried `abstention_threshold=0.15,
+min_confidence_threshold=0.70` as constructor defaults while
+`models/policy_config.json` -- the file `scripts/tune_policy.py` writes -- held
+`tau_abstain=0.02, tau_conf=0.10`. Baseline 8 *is* the proposed method, so it has
+to be evaluated at the operating point the project ships, not at literals that
+happen to sit in a signature.
+
+**The fix in both places is to refuse.** The benchmark now raises when the score
+columns are absent and names the script that produces them; it no longer has a
+code path that can invent them. `scripts/train_baseline.py` grew
+`attach_model_scores()`, which loads `models/ensembles/5_seed_lgbm` and
+`models/calibrator.joblib`, scores the split, and records what it did:
+`raw_score` spans [0.040121, 0.281224], epistemic std spans [0.000489, 0.080607].
+The selector reads its thresholds from `models/policy_config.json` and raises
+`FileNotFoundError` if the file is missing -- an untuned operating point is not a
+default -- and raises rather than filling in a missing `uncertainty` or
+`calibrated_confidence` per test.
+
+**What the corrected comparison says.** `reports/baseline_comparison.csv`, on 183
+commits of the unseen test split, 25% budget, with 2000 commit-resampled
+bootstraps:
+
+| Strategy | TRR | ETR | FR | Abstention | Escaped commits |
+|---|---|---|---|---|---|
+| 1. Full Test Suite | 0.0% | -0.0% | 100.0% | 0.0% | 0 |
+| 2. Random-k | 75.1% | 78.7% | 25.2% | 0.0% | 133 |
+| 3. Changed-File | 83.6% | 86.1% | 42.3% | 0.0% | 69 |
+| 4. Static AST call graph | 75.6% | 68.2% | 38.6% | 0.0% | 94 |
+| 5. Historical failure frequency | 75.1% | 70.0% | 48.4% | 0.0% | 99 |
+| 6. Uncalibrated ML | 75.1% | 27.7% | 51.8% | 0.0% | 69 |
+| 7. Calibrated ML, no abstention | 75.1% | 27.7% | 51.8% | 0.0% | 69 |
+| **8. ConfTest** | **3.1% [0.8, 6.2]** | **0.0% [0.0, 0.1]** | **100.0%** | **97.8% [95.6, 99.5]** | **0** |
+
+The honest result is negative. At the operating point this project ships, ConfTest
+abstains on 97.8% of commits, saves 0.0% of wall time, misses nothing, and is
+**statistically indistinguishable from running the whole suite**: Wilcoxon
+`p = 1.00000`, Cliff's delta `0.0000`, on the 135 of 183 commits where any recall
+is defined. Against every other baseline it wins on recall with a large effect
+(`d` from 0.5111 to 0.9852, all `p < 0.001`), which is the same statement seen from
+the other side -- it wins on recall because it runs everything. The economic model
+now prices it at **$0** of annual saving with a breakeven of 0 escaped bugs, where
+before it claimed $64,992. Baselines 6 and 7 are priced at $91,384 each on 69
+escaped commits out of 183.
+
+**Baselines 6 and 7 are identical, and that is the correct result.** Temperature
+scaling is a monotone transform of the logit, so it cannot reorder anything; a
+top-k selection by calibrated probability is the same set as a top-k selection by
+raw probability. Their rows agreeing to the last digit is a proof that the
+implementation is faithful, not a copy-paste. It also sharpens the thesis: at a
+fixed budget, calibration buys nothing through ranking. Whatever calibration is
+worth here, it is worth it *only* through the abstention decision.
+
+**The label guard could not see any of this.** `check_no_fabricated_labels.py`
+passes all 110 files, and it was right to: there is no `random` call in
+`benchmark.py`, and the script does read a real dataset from disk. The guard tests
+for values that were *drawn*. These were a hand-weighted formula, a constant, and a
+function of the labels -- fabricated in the sense that matters, invisible to both
+rules. The lesson for the next guard is that the property worth enforcing is not
+"nothing is random" but "no published quantity lacks a named producer", which is
+what `MissingArtifact` already does on the reporting path and what these three
+`row.get(..., default)` calls quietly opted out of.
+
+**G4, answered directly.** The gate asks whether the model beats random with an
+interval excluding zero, and the shipped significance report could not answer it: it
+compares every strategy against ConfTest, which wins on recall by running everything.
+Re-run with `--reference "6. Uncalibrated ML (LightGBM)"` into
+`reports/g4_ml_vs_baselines.json`, the answer is unambiguous. Per-commit mean failure
+recall over the 135 commits where recall is defined: **ML 69.26% [62.60, 75.90] vs
+Random-k 20.01% [16.73, 23.02]**, Wilcoxon `p < 0.00001`, Cliff's delta **+0.6564**,
+large. (These are macro means over commits; the 51.8% and 25.2% in the comparison
+table are pooled over rows. Both are correct and the unit is stated in each report.)
+**G4 is met.** The same table carries a result the paper should not omit: against
+Changed-File selection the model's edge is `d = +0.0759` at `p = 0.01505` -- 69.26%
+against 61.27% mean recall -- and Changed-File reduces the suite by 83.6% where the
+model reduces it by 75.1%. On this dataset the cheap heuristic is competitive on
+recall and better on reduction, and the model's advantage over it is statistically
+present but small. Baseline 7 against baseline 6 comes back at `p = 1.00000`,
+`d = 0.0000`, which is the monotone-calibration identity above confirmed from the
+significance side.
+
+**The tuner was answering a question G5 does not ask.** Its objective was "let
+nothing escape, then take the largest reduction that survives", which on this
+dataset is `tau_abstain = 0.02` -- the degenerate point above. G5 is stated as a
+floor instead: hold failure recall at 95% and take the largest reduction. Those are
+different constraints and the second admits points the first forbids, so a tuner
+that only knows the first cannot report G5 at all. `scripts/tune_policy.py` now
+takes `--objective {zero_escape,recall_floor}` and `--recall-floor`, measures both
+frontiers on every run regardless of which one is selected, and writes the whole
+sweep into `reports/policy_tuning_report.json` -- 36 points that were previously
+collected into a local list and thrown away at the end of the loop. **The default
+stays `zero_escape`**, so the refactor moves no operating point of its own accord:
+replaying the pre-refactor selection rule over the 36 measured points picks
+`tau_abstain = 0.0200, tau_conf = 0.10`, which is exactly what the new frontier code
+selects.
+
+The committed file did move, and that is worth saying out loud rather than leaving in
+a diff. `models/policy_config.json` carried `tau_abstain = 0.03` from the original
+bulk commit, and the report standing behind it has three keys -- `optimized_policy`,
+`validation_evaluation`, `unseen_test_evaluation` -- with no `labels_measured`, no
+`produced_by` and no grid. That 0.03 was tuned against data this repository no longer
+contains, and nothing in the artifact says against what. C5 replaces it with 0.02
+measured on the real splits under a named objective. The shipped policy therefore
+abstains at two thirds of the uncertainty the paper drafts describe, and the ConfTest
+row of `reports/baseline_comparison.csv` -- 3.11% reduction, 100.0% recall, 97.81%
+abstention -- is that threshold's held-out score, not the old one's.
+
+It also had an invented fallback. If no pair on the grid satisfied the constraint,
+`best_config = (0.015, 0.50)` was written anyway -- a policy no evaluation had ever
+scored, shipped as though it had been chosen. It now raises and says the objective
+is unsatisfiable, which is a fact about the grid, not a reason for a default.
+`max(1, denominator)` became NaN on an empty denominator for the same reason as
+everywhere else: "nothing to find" is not "found nothing".
+
+**30 of the tuner's 36 grid points were dead.** No calibrated confidence in this
+dataset reaches 0.30 -- the raw scores top out at 0.281224 and temperature 0.7941
+pushes them lower -- so every `tau_conf >= 0.30` abstains on every commit and buys
+exactly 0.0% reduction. The 6x6 grid was a 6-point one-dimensional sweep over
+`tau_abstain` with 30 wasted evaluations, and the whole interesting range sat inside
+one jump of it: 0.030 gives 5.18% reduction at 99.98% recall, 0.050 gives 45.29% at
+80.65%, and the recall cliff is somewhere in between where the grid cannot see it.
+Both grids are now `--tau-abstain-grid` / `--tau-conf-grid` flags, defaulting to the
+values the shipped policy was tuned on.
+
+**G5, measured properly, is not met.** `scripts/check_g5_recall_floor.py` sweeps a
+grid fine enough to resolve the cliff (0.030 to 0.050 in steps of 0.002), selects on
+validation, and scores the selection on the unseen test split with 2000
+commit-resampled bootstraps:
+
+| | validation (selection) | unseen test split |
+|---|---|---|
+| tau_abstain / tau_conf | 0.044 / 0.10 | same |
+| Test reduction | 32.85% | **32.85% [26.50, 39.18]** |
+| Failure recall | 96.02% | **87.69% [75.77, 95.81]** |
+| Abstention | 66.85% | 66.12% [59.02, 73.22] |
+| Escaped commits | 11 | **15** |
+
+The floor is cleared in sample by 1.02pp and missed out of sample by 7.31pp -- a
+generalization gap of **8.33 points of recall** -- and it is not met at the
+interval's lower bound either, which is the bar a gate should be read against. What
+fails here is the selection, not the method: post hoc, the same grid does contain a
+qualifying point on the test split (`tau_abstain = 0.038`, 26.56% reduction at
+97.35% recall), because validation puts the cliff two grid steps to the right of
+where the test split puts it. That post-hoc sweep is published in
+`reports/g5_recall_floor.json` under an explicit `read_first` saying it is a
+diagnostic and not a menu: selecting from it would make the recall an in-sample fit
+and the gate unfalsifiable. G5's second clause is further away still -- it asks for
+the number on a repo never seen in training, and leave-one-repo-out gives macro
+recall@budget 51.57% with `tabulate` at ROC-AUC 0.4747, i.e. no better than chance
+on one of five repos.
+
+**A third of the feature vector is constant, by construction.** The ablation
+reports `constant_features_in_train: 13` of 32, and 12 of those 13 are the entire
+`diff_*` group. Every mutant is one line added and one line deleted in one source
+file, with no commit message, so across all 561,711 rows `diff_lines_added = 1`,
+`diff_total_churn = 2`, `diff_num_files_changed = 1` and the nine others never move.
+The `diff_churn_only` ablation has `informative_feature_count: 0` -- it is a model
+fitted on twelve constants -- and no `diff_*` feature appears anywhere in the global
+SHAP ranking, which is led by `dep_shortest_path_depth` (0.27428) and
+`hist_total_prior_runs` (0.25392). Two consequences worth stating in the paper
+rather than leaving for a reviewer to find. The mutation-based ground truth cannot
+evaluate the diff-feature group at all, so its contribution is unmeasured, not zero.
+And the policy's out-of-distribution guard (`ood_file_limit=15`,
+`ood_churn_limit=500`) can never fire on this dataset, because one file and two
+lines is what every commit looks like; whatever safety it provides is untested here.
+
+**The calibrator moved, and what it bought is narrower than the report suggests.**
+Temperature scaling wins on the paired half-split at `T = 0.7941` (`moved_from_
+identity: True`, NLL 0.192899 -> 0.183449 over 17 bounded iterations). On the test
+split it cuts ECE from 0.0415 to 0.0161, and that gain is real: the paired
+difference is -0.0254 [-0.03286, -0.0166], excluding zero. Its MCE is 0.1755 against
+0.0486 uncalibrated -- 3.6x worse at the point estimate -- but the paired difference
+is +0.12695 [-0.09459, +0.51834], which spans zero, so by this project's own rule
+that is not an established loss either. It is a flag, not a finding, and it points
+at the right thing: the abstention rule thresholds a confidence, so worst-bin
+calibration is the property it depends on, and worst-bin calibration is exactly the
+one this sample cannot resolve.
+
+**The flakiness result has a confound that makes it unreadable as robustness.** At
+0% injected noise, training prevalence is 5.02%, PR-AUC 0.1393, recall@25% 0.4819;
+at 30% noise, prevalence is 32.00% and PR-AUC *rises* to 0.1653/0.1786. The dataset
+is about 5% positive, so flipping labels at random mostly converts passes into
+failures and raises the base rate. Every `dRecall` sits within +/-0.0094, i.e. there
+is no measurable robustness effect in either direction, and the report now carries a
+`confound_to_read_first` saying so. A metric that improves with the noise rate here
+is reporting the prevalence change.
+
+**The drift detector shipped inert.** The Page-Hinkley sweep in
+`reports/continuous_learning.json` shows threshold 0.5 catching 4 of 5 injected
+shifts at 11 false alarms per 600 stationary mutants (median latency 4.5), 1.0
+catching 3 of 5 at 6 false alarms, 5.0 catching 2 of 5 at zero -- and the shipped
+default of 10.0 catching **0 of 5, with latency `None`**. A detector tuned to never
+fire is not a conservative detector, it is an absent one, and the number to publish
+is the trade-off curve rather than the default.
+
+**Latency, corrected.** 150 batches of 50 rows drawn from the 86,469-row split:
+scoring total 3.345 ms mean, 3.627 p50, 3.943 p90, 4.435 p99, of which ensemble
+inference is 3.246 ms and calibration 0.036 ms. 100% of batches are under 100 ms.
+Two exclusions are stated rather than hidden: the cold first batch at **1321.814
+ms**, roughly 400x the warm mean, and feature mining, which is not in the measured
+path at all. The 3.3 ms figure is the cost of scoring features that already exist.
+
+**The one component that works as advertised is the uncertainty ordering.** The
+risk-coverage curve is monotone over all 86,469 rows: mean prediction error falls
+0.1054 -> 0.0886 -> 0.0781 -> 0.0700 -> 0.0597 -> 0.0483 as coverage drops from 100%
+to 50%, with uncertainty-error correlation 0.4417. Ensemble disagreement does rank
+what the model gets wrong. That is the mechanism the abstention rule is built on,
+and it is measurably real -- which is what makes the degenerate operating point a
+tuning failure rather than a dead idea.
+
+**Two robustness fixes with no effect on any number, recorded so the absence of an
+effect is on the record.** `ConfidenceCalibrator._sigmoid` overflowed at the bottom
+of the bounded temperature search (`T = 0.01` puts logits in the hundreds); it is now
+branch-split on the sign of `z` and the NLL uses `logaddexp` instead of clipping
+probabilities to 1e-9, which had been handing the optimiser a flat region built out
+of the clip bound rather than out of the data. Both fitted temperatures reproduce
+exactly (0.7510 on the selection half, 0.7941 on full validation), so this was
+robustness only. And `LightGBMFailurePredictor` logged `Best iteration: 0` on every
+run, which reads like a degenerate fit; `best_iteration_` is simply 0 when no
+`eval_set` is passed, so the log now says early stopping never ran and all trees were
+kept.
+
+**Environment, for the record.** The whole pytest suite was blocked by a
+`starlette` / `fastapi` collision: `sse-starlette 3.4.10` and `mcp 2.1.1` both
+require `starlette >= 0.49.1`, `fastapi 0.115.0` pins `starlette < 0.42`, and
+nothing in the project pinned fastapi upward, so collection died on
+`TypeError: Router.__init__() got an unexpected keyword argument 'on_startup'` --
+raised inside fastapi's own internals, not by our code, which already uses the
+`lifespan` pattern. Resolved by upgrading **fastapi 0.115.0 -> 0.141.1** in the
+shared user site-packages, which needed no project change and is reversible with
+`pip install "fastapi==0.115.0"`. Separately, `pip check` still reports
+`conftest 0.1.0 requires python-dotenv>=1.0.1, but you have python-dotenv 1.0.0`;
+the suite passes and it was left alone rather than touching shared packages twice.
+
+**Tests.** 519 passing, up from 481 at the start of the sprint and 504 before this
+entry: `tests/unit/test_policy_tuning.py` (11) covers both objectives, the
+unsatisfiable case raising instead of writing `(0.015, 0.50)`, NaN records being
+ineligible rather than worst, deterministic tie-breaking, and grid parsing;
+`tests/unit/test_g5_gate.py` (4) covers commit-level resampling, an undefined recall
+interval staying undefined instead of collapsing to zero, and per-commit records
+being off by default. The fabrication guard passes 110 files on both rules -- which,
+as above, is necessary and not sufficient.
+
+**Artifacts regenerated in this entry.** `reports/baseline_comparison.csv`,
+`baseline_comparison_intervals.{csv,json}`, `baseline_per_commit.csv`,
+`statistical_significance.json`, `economic_analysis.json`, `calibration_report.json`,
+`policy_tuning_report.json`, `flakiness_robustness.json`, `latency_benchmark.json`,
+`explanations.json`, `continuous_learning.json`, `uncertainty_analysis.json`,
+`ablation_study.json`, `cross_repo_generalization.json`, and two new ones:
+`reports/g5_recall_floor.json`, `reports/policy_tuning_recall_floor.json` and
+`reports/g4_ml_vs_baselines.json`. The
+IEEE paper, the KTU report and the viva deck still quote the pre-C5 numbers and are
+now the largest remaining inconsistency in the repository.
+
+---
 
 ### 2026-09-03f · G1 closes on a rule about what a label means, not on a threshold that moved
 

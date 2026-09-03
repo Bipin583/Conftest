@@ -1,0 +1,820 @@
+{
+  "resampling_unit": "commit",
+  "resampling_unit_means": "commits are resampled whole; test rows within a commit are not independent, so resampling rows would understate every interval",
+  "num_commits": 183,
+  "num_bootstraps": 2000,
+  "confidence_level": 0.95,
+  "budget_ratio": 0.25,
+  "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+  "strategies": [
+    "1. Full Test Suite",
+    "2. Random-k Selection",
+    "3. Changed-File Selection",
+    "4. Static AST Call-Graph Selection",
+    "5. Historical Failure Frequency",
+    "6. Uncalibrated ML (LightGBM)",
+    "7. Calibrated ML (No Abstention)",
+    "8. ConfTest (Calibrated + Selective Abstention)"
+  ],
+  "metrics": {
+    "trr": {
+      "label": "Test Reduction (TRR %)",
+      "intervals": {
+        "1. Full Test Suite": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "2. Random-k Selection": {
+          "point": 75.11825047126716,
+          "ci_lower": 75.1090663113111,
+          "ci_upper": 75.1287748922019,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "3. Changed-File Selection": {
+          "point": 83.61031120979773,
+          "ci_lower": 78.81424684428241,
+          "ci_upper": 87.96010489723241,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": 75.59356532398894,
+          "ci_lower": 75.21165981910043,
+          "ci_upper": 76.16485323991918,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "5. Historical Failure Frequency": {
+          "point": 75.11825047126716,
+          "ci_lower": 75.1090663113111,
+          "ci_upper": 75.1287748922019,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": 75.11825047126716,
+          "ci_lower": 75.1090663113111,
+          "ci_upper": 75.1287748922019,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": 75.11825047126716,
+          "ci_lower": 75.1090663113111,
+          "ci_upper": 75.1287748922019,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "8. ConfTest (Calibrated + Selective Abstention)": {
+          "point": 3.1086285258300705,
+          "ci_lower": 0.7576667251919751,
+          "ci_upper": 6.1630429452907345,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        }
+      },
+      "differences": {
+        "1. Full Test Suite": {
+          "point": -3.1086285258300705,
+          "ci_lower": -6.163042945290735,
+          "ci_upper": -0.7576667251919752,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "2. Random-k Selection": {
+          "point": 72.00962194543709,
+          "ci_lower": 68.9480866577686,
+          "ci_upper": 74.3559968210538,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "3. Changed-File Selection": {
+          "point": 80.50168268396766,
+          "ci_lower": 73.20072856013384,
+          "ci_upper": 87.10865069180541,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": 72.48493679815887,
+          "ci_lower": 69.35461232249052,
+          "ci_upper": 75.03168050600023,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "5. Historical Failure Frequency": {
+          "point": 72.00962194543709,
+          "ci_lower": 68.9480866577686,
+          "ci_upper": 74.3559968210538,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": 72.00962194543709,
+          "ci_lower": 68.9480866577686,
+          "ci_upper": 74.3559968210538,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": 72.00962194543709,
+          "ci_lower": 68.9480866577686,
+          "ci_upper": 74.3559968210538,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        }
+      }
+    },
+    "etr": {
+      "label": "Time Reduction (ETR %)",
+      "intervals": {
+        "1. Full Test Suite": {
+          "point": -2.4158453015843406e-13,
+          "ci_lower": -3.268496584496461e-13,
+          "ci_upper": -1.7053025658242404e-13,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "2. Random-k Selection": {
+          "point": 78.73346516349082,
+          "ci_lower": 75.03455700916744,
+          "ci_upper": 81.98975324624672,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "3. Changed-File Selection": {
+          "point": 86.08453567061628,
+          "ci_lower": 80.67544965771538,
+          "ci_upper": 90.72313171243566,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": 68.23261643023878,
+          "ci_lower": 61.84589053690475,
+          "ci_upper": 74.10636809542622,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "5. Historical Failure Frequency": {
+          "point": 69.9581859925164,
+          "ci_lower": 63.830530687941675,
+          "ci_upper": 75.17304010444677,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": 27.734667849014798,
+          "ci_lower": 22.707571040677827,
+          "ci_upper": 32.85745996627507,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": 27.734667849014798,
+          "ci_lower": 22.707571040677827,
+          "ci_upper": 32.85745996627507,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "8. ConfTest (Calibrated + Selective Abstention)": {
+          "point": 0.02916867601769013,
+          "ci_lower": 0.006721217079360287,
+          "ci_upper": 0.06055106778675597,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        }
+      },
+      "differences": {
+        "1. Full Test Suite": {
+          "point": -0.029168676017931716,
+          "ci_lower": -0.060551067787038795,
+          "ci_upper": -0.006721217079629583,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "2. Random-k Selection": {
+          "point": 78.70429648747313,
+          "ci_lower": 75.01327775547324,
+          "ci_upper": 81.95837079583711,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "3. Changed-File Selection": {
+          "point": 86.05536699459859,
+          "ci_lower": 80.63573067980299,
+          "ci_upper": 90.70024571921834,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": 68.20344775422109,
+          "ci_lower": 61.83022133785799,
+          "ci_upper": 74.07978350946823,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "5. Historical Failure Frequency": {
+          "point": 69.92901731649872,
+          "ci_lower": 63.79286240612707,
+          "ci_upper": 75.1424918235457,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": 27.705499172997108,
+          "ci_lower": 22.684584100290344,
+          "ci_upper": 32.83536988982412,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": 27.705499172997108,
+          "ci_lower": 22.684584100290344,
+          "ci_upper": 32.83536988982412,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        }
+      }
+    },
+    "fr": {
+      "label": "Failure Recall (FR %)",
+      "intervals": {
+        "1. Full Test Suite": {
+          "point": 100.0,
+          "ci_lower": 100.0,
+          "ci_upper": 100.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "2. Random-k Selection": {
+          "point": 25.15586034912718,
+          "ci_lower": 23.901988324333555,
+          "ci_upper": 26.36911875687015,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "3. Changed-File Selection": {
+          "point": 42.33167082294264,
+          "ci_lower": 30.003154161767572,
+          "ci_upper": 58.41526561117601,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": 38.55985037406484,
+          "ci_lower": 30.850695777965537,
+          "ci_upper": 48.99410264451461,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "5. Historical Failure Frequency": {
+          "point": 48.410224438902745,
+          "ci_lower": 42.04705312320722,
+          "ci_upper": 55.89147040075566,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": 51.83915211970075,
+          "ci_lower": 42.48366239188786,
+          "ci_upper": 64.48775515787595,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": 51.83915211970075,
+          "ci_lower": 42.48366239188786,
+          "ci_upper": 64.48775515787595,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "8. ConfTest (Calibrated + Selective Abstention)": {
+          "point": 100.0,
+          "ci_lower": 100.0,
+          "ci_upper": 100.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        }
+      },
+      "differences": {
+        "1. Full Test Suite": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": false
+        },
+        "2. Random-k Selection": {
+          "point": -74.84413965087282,
+          "ci_lower": -76.09801167566644,
+          "ci_upper": -73.63088124312985,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "3. Changed-File Selection": {
+          "point": -57.66832917705736,
+          "ci_lower": -69.99684583823243,
+          "ci_upper": -41.58473438882399,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": -61.44014962593516,
+          "ci_lower": -69.14930422203446,
+          "ci_upper": -51.00589735548539,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "5. Historical Failure Frequency": {
+          "point": -51.589775561097255,
+          "ci_lower": -57.95294687679278,
+          "ci_upper": -44.10852959924434,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": -48.16084788029925,
+          "ci_lower": -57.51633760811214,
+          "ci_upper": -35.51224484212405,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": -48.16084788029925,
+          "ci_lower": -57.51633760811214,
+          "ci_upper": -35.51224484212405,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        }
+      }
+    },
+    "mfr": {
+      "label": "Missed-Failure (MFR %)",
+      "intervals": {
+        "1. Full Test Suite": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "2. Random-k Selection": {
+          "point": 74.84413965087282,
+          "ci_lower": 73.63088124312985,
+          "ci_upper": 76.09801167566644,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "3. Changed-File Selection": {
+          "point": 57.66832917705736,
+          "ci_lower": 41.584734388823975,
+          "ci_upper": 69.99684583823242,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": 61.44014962593516,
+          "ci_lower": 51.00589735548539,
+          "ci_upper": 69.14930422203446,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "5. Historical Failure Frequency": {
+          "point": 51.589775561097255,
+          "ci_lower": 44.108529599244335,
+          "ci_upper": 57.95294687679278,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": 48.16084788029925,
+          "ci_lower": 35.51224484212405,
+          "ci_upper": 57.51633760811214,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": 48.16084788029925,
+          "ci_lower": 35.51224484212405,
+          "ci_upper": 57.51633760811214,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "8. ConfTest (Calibrated + Selective Abstention)": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        }
+      },
+      "differences": {
+        "1. Full Test Suite": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": false
+        },
+        "2. Random-k Selection": {
+          "point": 74.84413965087282,
+          "ci_lower": 73.63088124312985,
+          "ci_upper": 76.09801167566644,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "3. Changed-File Selection": {
+          "point": 57.66832917705736,
+          "ci_lower": 41.584734388823975,
+          "ci_upper": 69.99684583823242,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": 61.44014962593516,
+          "ci_lower": 51.00589735548539,
+          "ci_upper": 69.14930422203446,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "5. Historical Failure Frequency": {
+          "point": 51.589775561097255,
+          "ci_lower": 44.108529599244335,
+          "ci_upper": 57.95294687679278,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": 48.16084788029925,
+          "ci_lower": 35.51224484212405,
+          "ci_upper": 57.51633760811214,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": 48.16084788029925,
+          "ci_lower": 35.51224484212405,
+          "ci_upper": 57.51633760811214,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        }
+      }
+    },
+    "ar": {
+      "label": "Abstention Rate (AR %)",
+      "intervals": {
+        "1. Full Test Suite": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "2. Random-k Selection": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "3. Changed-File Selection": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "5. Historical Failure Frequency": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        },
+        "8. ConfTest (Calibrated + Selective Abstention)": {
+          "point": 97.81420765027322,
+          "ci_lower": 95.62841530054644,
+          "ci_upper": 99.4535519125683,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0
+        }
+      },
+      "differences": {
+        "1. Full Test Suite": {
+          "point": -97.81420765027322,
+          "ci_lower": -99.4535519125683,
+          "ci_upper": -95.62841530054644,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "2. Random-k Selection": {
+          "point": -97.81420765027322,
+          "ci_lower": -99.4535519125683,
+          "ci_upper": -95.62841530054644,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "3. Changed-File Selection": {
+          "point": -97.81420765027322,
+          "ci_lower": -99.4535519125683,
+          "ci_upper": -95.62841530054644,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "4. Static AST Call-Graph Selection": {
+          "point": -97.81420765027322,
+          "ci_lower": -99.4535519125683,
+          "ci_upper": -95.62841530054644,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "5. Historical Failure Frequency": {
+          "point": -97.81420765027322,
+          "ci_lower": -99.4535519125683,
+          "ci_upper": -95.62841530054644,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "6. Uncalibrated ML (LightGBM)": {
+          "point": -97.81420765027322,
+          "ci_lower": -99.4535519125683,
+          "ci_upper": -95.62841530054644,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        },
+        "7. Calibrated ML (No Abstention)": {
+          "point": -97.81420765027322,
+          "ci_lower": -99.4535519125683,
+          "ci_upper": -95.62841530054644,
+          "confidence_level": 0.95,
+          "num_bootstraps": 2000,
+          "num_units": 183,
+          "undefined_replicates": 0,
+          "reference": "8. ConfTest (Calibrated + Selective Abstention)",
+          "excludes_zero": true
+        }
+      }
+    }
+  },
+  "model_scores": {
+    "ensemble": "models/ensembles/5_seed_lgbm",
+    "ensemble_members": 5,
+    "calibrator": "models/calibrator.joblib",
+    "calibrator_method": "temperature_scaling",
+    "scored_rows": 86469,
+    "raw_score_is": "ensemble mean failure probability",
+    "calibrated_confidence_is": "raw_score after the fitted calibrator",
+    "uncertainty_is": "across-member standard deviation (epistemic)",
+    "raw_score_range": [
+      0.040121,
+      0.281224
+    ],
+    "uncertainty_range": [
+      0.000489,
+      0.080607
+    ]
+  },
+  "labels_measured": true
+}

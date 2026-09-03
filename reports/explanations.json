@@ -1,268 +1,302 @@
 {
   "model_file": "models\\ensembles\\5_seed_lgbm\\member_1_seed_42.joblib",
   "dataset_file": "data\\splits\\test.csv",
+  "rows_scored": 86469,
+  "cards_drawn_from": "highest predicted failure probability, not file order",
+  "selection_rule": "top 25% of each commit by score",
+  "labels_measured": true,
   "global_shap_importance": [
     {
-      "feature": "dep_name_heuristic_coupled",
-      "mean_abs_shap": 0.16465
+      "feature": "dep_shortest_path_depth",
+      "mean_abs_shap": 0.27428
     },
     {
       "feature": "hist_total_prior_runs",
-      "mean_abs_shap": 0.11536
+      "mean_abs_shap": 0.25392
     },
     {
-      "feature": "diff_lines_added",
-      "mean_abs_shap": 0.06539
+      "feature": "dep_max_reverse_dependencies",
+      "mean_abs_shap": 0.19237
     },
     {
-      "feature": "diff_total_churn",
-      "mean_abs_shap": 0.04526
+      "feature": "hist_lifetime_failure_rate",
+      "mean_abs_shap": 0.15256
     },
     {
-      "feature": "hist_prior_failures",
-      "mean_abs_shap": 0.03249
+      "feature": "dep_name_heuristic_coupled",
+      "mean_abs_shap": 0.13094
     },
     {
-      "feature": "hist_recent_10_failure_rate",
-      "mean_abs_shap": 0.02664
+      "feature": "dep_is_direct_import",
+      "mean_abs_shap": 0.07269
     },
     {
-      "feature": "diff_num_files_changed",
-      "mean_abs_shap": 0.02581
+      "feature": "hist_changed_files_prior_mod_count",
+      "mean_abs_shap": 0.07115
     },
     {
-      "feature": "diff_lines_deleted",
-      "mean_abs_shap": 0.00639
+      "feature": "hist_avg_duration",
+      "mean_abs_shap": 0.0568
     },
     {
-      "feature": "diff_num_src_files",
-      "mean_abs_shap": 0.0
+      "feature": "dep_is_reachable",
+      "mean_abs_shap": 0.05069
     },
     {
-      "feature": "diff_num_test_files",
-      "mean_abs_shap": 0.0
+      "feature": "ast_test_file_functions_count",
+      "mean_abs_shap": 0.04742
     }
   ],
   "sample_developer_cards": [
     {
-      "test_id": "tests/test_auth.py::test_login",
+      "test_id": "sqlparse/tests/test_format::test_format_json_ops",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Recent Regression History: Test failed in 10% of its last 10 executions.",
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Recent Regression History: Test failed in 10% of its last 10 executions."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.882)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.320)",
+        "hist_lifetime_failure_rate (value: 0.1751, SHAP: +0.158)"
+      ],
+      "observed_label_failed": 0,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_auth.py::test_jwt",
+      "test_id": "sqlparse/tests/test_format/TestFormatReindent::test_keywords_between",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.751)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.343)",
+        "hist_lifetime_failure_rate (value: 0.1315, SHAP: +0.168)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_auth.py::test_logout",
+      "test_id": "sqlparse/tests/test_format::test_strip_ws_removes_trailing_ws_in_groups",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Recent Regression History: Test failed in 10% of its last 10 executions."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.882)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.320)",
+        "hist_lifetime_failure_rate (value: 0.1244, SHAP: +0.158)"
+      ],
+      "observed_label_failed": 0,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_db.py::test_pool",
+      "test_id": "sqlparse/tests/test_format::test_format_json_ops",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Recent Regression History: Test failed in 10% of its last 10 executions."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.882)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.320)",
+        "hist_lifetime_failure_rate (value: 0.1737, SHAP: +0.158)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_db.py::test_migration",
+      "test_id": "sqlparse/tests/test_format::test_format_column_ordering",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Recent Regression History: Test failed in 20% of its last 10 executions."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.751)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.343)",
+        "hist_lifetime_failure_rate (value: 0.2066, SHAP: +0.168)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_db.py::test_session",
+      "test_id": "sqlparse/tests/test_format/TestSpacesAroundOperators::test_wildcard_vs_mult",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Recent Regression History: Test failed in 10% of its last 10 executions.",
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.882)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.320)",
+        "hist_lifetime_failure_rate (value: 0.1127, SHAP: +0.158)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_payment.py::test_stripe",
+      "test_id": "sqlparse/tests/test_format/TestFormatReindent::test_keywords",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0825,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Module Coupling: Test module name pattern directly corresponds to changed source file.",
-        "Recent Regression History: Test failed in 10% of its last 10 executions.",
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph."
       ],
       "top_shap_drivers": [
-        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.351)",
-        "diff_lines_added (value: 42.0, SHAP: +0.039)",
-        "diff_total_churn (value: 55.0, SHAP: +0.034)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.882)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.320)",
+        "hist_lifetime_failure_rate (value: 0.1362, SHAP: +0.158)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_payment.py::test_fees",
+      "test_id": "sqlparse/tests/test_format/TestFormat::test_strip_comments_preserves_whitespace",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0825,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Module Coupling: Test module name pattern directly corresponds to changed source file.",
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Recent Regression History: Test failed in 10% of its last 10 executions."
       ],
       "top_shap_drivers": [
-        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.351)",
-        "diff_lines_added (value: 42.0, SHAP: +0.039)",
-        "diff_total_churn (value: 55.0, SHAP: +0.034)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.882)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.320)",
+        "hist_lifetime_failure_rate (value: 0.1737, SHAP: +0.158)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_payment.py::test_refund",
+      "test_id": "sqlparse/tests/test_format/TestFormatReindent::test_case2",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0825,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Module Coupling: Test module name pattern directly corresponds to changed source file.",
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Historical Flakiness/Risk: Lifetime failure rate is 17.4% over 213 runs."
       ],
       "top_shap_drivers": [
-        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.351)",
-        "diff_lines_added (value: 42.0, SHAP: +0.039)",
-        "diff_total_churn (value: 55.0, SHAP: +0.034)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.751)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.343)",
+        "hist_lifetime_failure_rate (value: 0.1737, SHAP: +0.168)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_router.py::test_routes",
+      "test_id": "sqlparse/tests/test_format::test_format_column_ordering",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Recent Regression History: Test failed in 10% of its last 10 executions.",
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Recent Regression History: Test failed in 20% of its last 10 executions."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.751)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.343)",
+        "hist_lifetime_failure_rate (value: 0.2074, SHAP: +0.168)"
+      ],
+      "observed_label_failed": 0,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_router.py::test_cors",
+      "test_id": "sqlparse/tests/test_format/TestFormatReindent::test_identifier_and_functions",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Recent Regression History: Test failed in 10% of its last 10 executions.",
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Recent Regression History: Test failed in 10% of its last 10 executions."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.751)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.343)",
+        "hist_lifetime_failure_rate (value: 0.2019, SHAP: +0.168)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_router.py::test_middleware",
+      "test_id": "sqlparse/tests/test_format/TestSpacesAroundOperators::test_bools",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.882)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.320)",
+        "hist_lifetime_failure_rate (value: 0.108, SHAP: +0.158)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_utils.py::test_format",
+      "test_id": "sqlparse/tests/test_format/TestOutputFormat::test_php",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Recent Regression History: Test failed in 10% of its last 10 executions.",
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.882)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.320)",
+        "hist_lifetime_failure_rate (value: 0.1408, SHAP: +0.158)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_utils.py::test_crypto",
+      "test_id": "sqlparse/tests/test_format/TestFormatReindent::test_identifier_and_functions",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Recent Regression History: Test failed in 10% of its last 10 executions.",
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Recent Regression History: Test failed in 10% of its last 10 executions."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.751)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.343)",
+        "hist_lifetime_failure_rate (value: 0.2028, SHAP: +0.168)"
+      ],
+      "observed_label_failed": 0,
+      "repo": "sqlparse"
     },
     {
-      "test_id": "tests/test_utils.py::test_parser",
+      "test_id": "tests/test_jwks_client/TestPyJWKClient::test_get_signing_key_from_jwt",
       "status": "SELECTED",
-      "risk_level": "LOW",
-      "confidence": 0.0659,
+      "risk_level": "MEDIUM",
+      "confidence": 0.3391,
       "primary_reasons": [
-        "Bugfix Patch Context: Commit message indicates a bug fix or regression patch."
+        "Call-Graph Proximity: Test is within 2 hops of modified functions in the static dependency graph.",
+        "Recent Regression History: Test failed in 10% of its last 10 executions."
       ],
       "top_shap_drivers": [
-        "diff_total_churn (value: 55.0, SHAP: +0.093)",
-        "diff_lines_added (value: 42.0, SHAP: +0.092)",
-        "diff_num_files_changed (value: 1.0, SHAP: +0.014)"
-      ]
+        "dep_name_heuristic_coupled (value: 1.0, SHAP: +0.948)",
+        "dep_shortest_path_depth (value: 2.0, SHAP: +0.318)",
+        "hist_lifetime_failure_rate (value: 0.1822, SHAP: +0.164)"
+      ],
+      "observed_label_failed": 1,
+      "repo": "pyjwt"
     }
   ]
 }

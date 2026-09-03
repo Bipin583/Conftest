@@ -1,12 +1,35 @@
 {
-  "best_method": "uncalibrated",
-  "fitted_temperature": 0.9275,
+  "best_method": "temperature_scaling",
+  "fitted_temperature": 0.7941,
+  "temperature_fit": {
+    "optimiser": "scipy.optimize.minimize_scalar(method='bounded') on log T",
+    "converged": true,
+    "iterations": 17,
+    "temperature": 0.7941035143149817,
+    "nll_at_identity": 0.19289930282641368,
+    "nll_at_fitted": 0.1834491356555148,
+    "nll_improvement": 0.009450167170898888,
+    "moved_from_identity": true,
+    "n_validation_rows": 83417,
+    "validation_positive_rate": 0.05488089957682487
+  },
   "selection": {
     "chosen_on": "validation holdout",
-    "reason": "no candidate improved ECE without degrading worst-case calibration or the proper score; reporting the model uncalibrated",
+    "temperature_fit_on_selection_half": {
+      "optimiser": "scipy.optimize.minimize_scalar(method='bounded') on log T",
+      "converged": true,
+      "iterations": 15,
+      "temperature": 0.7509513991472448,
+      "nll_at_identity": 0.1373243991326002,
+      "nll_at_fitted": 0.12434268843292073,
+      "nll_improvement": 0.01298171069967946,
+      "moved_from_identity": true,
+      "n_validation_rows": 42099,
+      "validation_positive_rate": 0.031069621606213925
+    },
+    "reason": "lowest validation ECE 0.0242 (vs 0.0390 uncalibrated); the paired ECE improvement is 0.0148 [0.0030, 0.0393] and excludes zero, and neither MCE nor Brier is measurably worse",
     "disqualified": {
-      "isotonic": "worst-case miscalibration is measurably worse: MCE 0.3129, paired difference +0.2091 [0.0584, 0.2091] excludes zero",
-      "temperature_scaling": "no measurable calibration gain: ECE 0.0341, paired difference +0.0172 [-0.0279, 0.0173] does not exclude zero"
+      "isotonic": "worst-case miscalibration is measurably worse: MCE 0.2098, paired difference +0.0863 [0.0299, 0.1135] excludes zero"
     },
     "basis": "bootstrap",
     "resampling_unit": "mutant",
@@ -14,55 +37,55 @@
     "validation_scores": [
       {
         "method": "uncalibrated",
-        "ece": 0.0169,
-        "mce": 0.1039,
-        "brier_score": 0.0683
+        "ece": 0.039,
+        "mce": 0.1235,
+        "brier_score": 0.0678
       },
       {
         "method": "isotonic",
-        "ece": 0.0512,
-        "mce": 0.3129,
-        "brier_score": 0.069,
+        "ece": 0.0166,
+        "mce": 0.2098,
+        "brier_score": 0.0705,
         "ece_vs_uncalibrated": {
-          "point": 0.03432,
-          "ci_lower": -0.03475,
-          "ci_upper": 0.03432,
-          "excludes_zero": false
+          "point": -0.02239,
+          "ci_lower": -0.03172,
+          "ci_upper": -0.01038,
+          "excludes_zero": true
         },
         "mce_vs_uncalibrated": {
-          "point": 0.20905,
-          "ci_lower": 0.05837,
-          "ci_upper": 0.20905,
+          "point": 0.08628,
+          "ci_lower": 0.0299,
+          "ci_upper": 0.11347,
           "excludes_zero": true
         },
         "brier_score_vs_uncalibrated": {
-          "point": 0.00066,
-          "ci_lower": -0.00082,
-          "ci_upper": 0.00214,
+          "point": 0.00264,
+          "ci_lower": -0.0004,
+          "ci_upper": 0.0064,
           "excludes_zero": false
         }
       },
       {
         "method": "temperature_scaling",
-        "ece": 0.0341,
-        "mce": 0.0341,
-        "brier_score": 0.0696,
+        "ece": 0.0242,
+        "mce": 0.1369,
+        "brier_score": 0.0689,
         "ece_vs_uncalibrated": {
-          "point": 0.01722,
-          "ci_lower": -0.02786,
-          "ci_upper": 0.01735,
-          "excludes_zero": false
+          "point": -0.0148,
+          "ci_lower": -0.03934,
+          "ci_upper": -0.00297,
+          "excludes_zero": true
         },
         "mce_vs_uncalibrated": {
-          "point": -0.06977,
-          "ci_lower": -0.06977,
-          "ci_upper": 0.00934,
+          "point": 0.01339,
+          "ci_lower": -0.06814,
+          "ci_upper": 0.06997,
           "excludes_zero": false
         },
         "brier_score_vs_uncalibrated": {
-          "point": 0.00133,
-          "ci_lower": -0.00322,
-          "ci_upper": 0.00588,
+          "point": 0.001,
+          "ci_lower": -0.00229,
+          "ci_upper": 0.00494,
           "excludes_zero": false
         }
       }
@@ -73,59 +96,59 @@
     "num_bootstraps": 2000,
     "uncalibrated": {
       "method": "uncalibrated",
-      "ece": 0.0258,
-      "mce": 0.2222,
-      "brier_score": 0.0449
+      "ece": 0.0415,
+      "mce": 0.0486,
+      "brier_score": 0.0349
     },
     "isotonic_calibration": {
       "method": "isotonic",
-      "ece": 0.0251,
-      "mce": 0.5,
-      "brier_score": 0.0368,
+      "ece": 0.0122,
+      "mce": 0.0795,
+      "brier_score": 0.0333,
       "ece_vs_uncalibrated": {
-        "point": -0.00063,
-        "ci_lower": -0.03512,
-        "ci_upper": 0.0425,
-        "excludes_zero": false
+        "point": -0.02935,
+        "ci_lower": -0.03205,
+        "ci_upper": -0.02004,
+        "excludes_zero": true
       },
       "mce_vs_uncalibrated": {
-        "point": 0.27778,
-        "ci_lower": -0.37876,
-        "ci_upper": 0.40672,
+        "point": 0.03096,
+        "ci_lower": -0.04483,
+        "ci_upper": 0.03862,
         "excludes_zero": false
       },
       "brier_score_vs_uncalibrated": {
-        "point": -0.00803,
-        "ci_lower": -0.01881,
-        "ci_upper": 0.0012,
-        "excludes_zero": false
+        "point": -0.00164,
+        "ci_lower": -0.00254,
+        "ci_upper": -0.0008,
+        "excludes_zero": true
       },
-      "ece_reduction_pct": 2.44
+      "ece_reduction_pct": 70.7
     },
     "temperature_scaling": {
       "method": "temperature_scaling",
-      "ece": 0.0192,
-      "mce": 0.8943,
-      "brier_score": 0.0449,
+      "ece": 0.0161,
+      "mce": 0.1755,
+      "brier_score": 0.0335,
       "ece_vs_uncalibrated": {
-        "point": -0.00657,
-        "ci_lower": -0.01119,
-        "ci_upper": 0.01102,
-        "excludes_zero": false
+        "point": -0.0254,
+        "ci_lower": -0.03286,
+        "ci_upper": -0.0166,
+        "excludes_zero": true
       },
       "mce_vs_uncalibrated": {
-        "point": 0.6721,
-        "ci_lower": -0.10507,
-        "ci_upper": 0.75861,
+        "point": 0.12695,
+        "ci_lower": -0.09459,
+        "ci_upper": 0.51834,
         "excludes_zero": false
       },
       "brier_score_vs_uncalibrated": {
-        "point": 6e-05,
-        "ci_lower": -0.00074,
-        "ci_upper": 0.00081,
-        "excludes_zero": false
+        "point": -0.00144,
+        "ci_lower": -0.00244,
+        "ci_upper": -0.00023,
+        "excludes_zero": true
       },
-      "ece_reduction_pct": 25.47
+      "ece_reduction_pct": 61.19
     }
   },
   "reliability_diagram_bins": {
@@ -136,10 +159,10 @@
           0.0,
           0.1
         ],
-        "sample_count": 97,
-        "confidence": 0.0609,
-        "accuracy": 0.0412,
-        "calibration_gap": 0.0197
+        "sample_count": 64693,
+        "confidence": 0.0576,
+        "accuracy": 0.0128,
+        "calibration_gap": 0.0448
       },
       {
         "bin_idx": 1,
@@ -147,10 +170,10 @@
           0.1,
           0.2
         ],
-        "sample_count": 3,
-        "confidence": 0.1111,
-        "accuracy": 0.3333,
-        "calibration_gap": 0.2222
+        "sample_count": 19729,
+        "confidence": 0.1326,
+        "accuracy": 0.1027,
+        "calibration_gap": 0.0299
       },
       {
         "bin_idx": 2,
@@ -158,10 +181,10 @@
           0.2,
           0.3
         ],
-        "sample_count": 0,
-        "confidence": 0.25,
-        "accuracy": 0.0,
-        "calibration_gap": 0.0
+        "sample_count": 2047,
+        "confidence": 0.222,
+        "accuracy": 0.1734,
+        "calibration_gap": 0.0486
       },
       {
         "bin_idx": 3,
@@ -248,10 +271,10 @@
           0.0,
           0.1
         ],
-        "sample_count": 87,
-        "confidence": 0.0162,
-        "accuracy": 0.0115,
-        "calibration_gap": 0.0047
+        "sample_count": 71737,
+        "confidence": 0.0199,
+        "accuracy": 0.0153,
+        "calibration_gap": 0.0046
       },
       {
         "bin_idx": 1,
@@ -259,10 +282,10 @@
           0.1,
           0.2
         ],
-        "sample_count": 11,
-        "confidence": 0.1579,
-        "accuracy": 0.2727,
-        "calibration_gap": 0.1148
+        "sample_count": 12122,
+        "confidence": 0.1813,
+        "accuracy": 0.1391,
+        "calibration_gap": 0.0422
       },
       {
         "bin_idx": 2,
@@ -270,10 +293,10 @@
           0.2,
           0.3
         ],
-        "sample_count": 0,
-        "confidence": 0.25,
-        "accuracy": 0.0,
-        "calibration_gap": 0.0
+        "sample_count": 2610,
+        "confidence": 0.242,
+        "accuracy": 0.1625,
+        "calibration_gap": 0.0795
       },
       {
         "bin_idx": 3,
@@ -281,10 +304,10 @@
           0.3,
           0.4
         ],
-        "sample_count": 1,
-        "confidence": 0.3429,
+        "sample_count": 0,
+        "confidence": 0.35,
         "accuracy": 0.0,
-        "calibration_gap": 0.3429
+        "calibration_gap": 0.0
       },
       {
         "bin_idx": 4,
@@ -292,10 +315,10 @@
           0.4,
           0.5
         ],
-        "sample_count": 1,
-        "confidence": 0.5,
-        "accuracy": 1.0,
-        "calibration_gap": 0.5
+        "sample_count": 0,
+        "confidence": 0.45,
+        "accuracy": 0.0,
+        "calibration_gap": 0.0
       },
       {
         "bin_idx": 5,
@@ -360,10 +383,10 @@
           0.0,
           0.1
         ],
-        "sample_count": 99,
-        "confidence": 0.0508,
-        "accuracy": 0.0404,
-        "calibration_gap": 0.0104
+        "sample_count": 78719,
+        "confidence": 0.0375,
+        "accuracy": 0.0238,
+        "calibration_gap": 0.0137
       },
       {
         "bin_idx": 1,
@@ -371,10 +394,10 @@
           0.1,
           0.2
         ],
-        "sample_count": 1,
-        "confidence": 0.1057,
-        "accuracy": 1.0,
-        "calibration_gap": 0.8943
+        "sample_count": 7589,
+        "confidence": 0.1294,
+        "accuracy": 0.1675,
+        "calibration_gap": 0.0381
       },
       {
         "bin_idx": 2,
@@ -382,10 +405,10 @@
           0.2,
           0.3
         ],
-        "sample_count": 0,
-        "confidence": 0.25,
-        "accuracy": 0.0,
-        "calibration_gap": 0.0
+        "sample_count": 161,
+        "confidence": 0.2096,
+        "accuracy": 0.3851,
+        "calibration_gap": 0.1755
       },
       {
         "bin_idx": 3,

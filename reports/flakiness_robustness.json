@@ -1,20 +1,31 @@
 {
+  "labels_measured": true,
+  "noise_is_injected_into": "training labels only",
+  "evaluated_against": "clean held-out labels",
+  "recall_rule": "per-commit budget; see recall_denominator_* on each row",
+  "confound_to_read_first": "the dataset is about 5% positive, so flipping labels mostly turns passes into failures and raises the training prevalence. A metric that improves with the noise rate may be reporting that prevalence change and not robustness to flakiness.",
   "stress_test_grid": [
     {
       "noise_rate_pct": 0.0,
+      "train_positive_rate": 0.0502,
+      "train_positive_rate_clean": 0.0502,
+      "labels_flipped": 0,
+      "evaluation_labels": "clean held-out labels; noise is injected into training only",
+      "recall_denominator_standard": "1546 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
+      "recall_denominator_robust": "1546 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
       "standard_unweighted": {
-        "pr_auc": 0.2734,
-        "roc_auc": 0.8884,
-        "brier_score": 0.0508,
-        "failure_recall": 0.8
+        "pr_auc": 0.1393,
+        "roc_auc": 0.8326,
+        "brier_score": 0.0449,
+        "failure_recall": 0.4819
       },
       "conftest_robust": {
-        "pr_auc": 0.2734,
-        "roc_auc": 0.8884,
-        "brier_score": 0.0498,
-        "calibrated_ece": 0.047,
-        "failure_recall": 0.8,
-        "temperature": 0.6305
+        "pr_auc": 0.1393,
+        "roc_auc": 0.8326,
+        "brier_score": 0.0402,
+        "calibrated_ece": 0.0289,
+        "failure_recall": 0.4819,
+        "temperature": 0.6655
       },
       "robustness_advantage": {
         "delta_recall": 0.0,
@@ -23,86 +34,110 @@
     },
     {
       "noise_rate_pct": 5.0,
+      "train_positive_rate": 0.0952,
+      "train_positive_rate_clean": 0.0502,
+      "labels_flipped": 19591,
+      "evaluation_labels": "clean held-out labels; noise is injected into training only",
+      "recall_denominator_standard": "1693 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
+      "recall_denominator_robust": "1723 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
       "standard_unweighted": {
-        "pr_auc": 0.1716,
-        "roc_auc": 0.8316,
-        "brier_score": 0.0855,
-        "failure_recall": 0.6
+        "pr_auc": 0.1589,
+        "roc_auc": 0.8654,
+        "brier_score": 0.1181,
+        "failure_recall": 0.5277
       },
       "conftest_robust": {
-        "pr_auc": 0.141,
-        "roc_auc": 0.7958,
-        "brier_score": 0.0693,
-        "calibrated_ece": 0.0692,
-        "failure_recall": 0.8,
-        "temperature": 0.5642
+        "pr_auc": 0.1685,
+        "roc_auc": 0.8739,
+        "brier_score": 0.0372,
+        "calibrated_ece": 0.0206,
+        "failure_recall": 0.5371,
+        "temperature": 0.3159
       },
       "robustness_advantage": {
-        "delta_recall": 0.2,
-        "delta_pr_auc": -0.0306
+        "delta_recall": 0.0094,
+        "delta_pr_auc": 0.0096
       }
     },
     {
       "noise_rate_pct": 10.0,
+      "train_positive_rate": 0.1403,
+      "train_positive_rate_clean": 0.0502,
+      "labels_flipped": 39182,
+      "evaluation_labels": "clean held-out labels; noise is injected into training only",
+      "recall_denominator_standard": "1745 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
+      "recall_denominator_robust": "1721 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
       "standard_unweighted": {
-        "pr_auc": 0.0846,
-        "roc_auc": 0.6147,
-        "brier_score": 0.1041,
-        "failure_recall": 0.4
+        "pr_auc": 0.1635,
+        "roc_auc": 0.8645,
+        "brier_score": 0.149,
+        "failure_recall": 0.544
       },
       "conftest_robust": {
-        "pr_auc": 0.1555,
-        "roc_auc": 0.7537,
-        "brier_score": 0.0459,
-        "calibrated_ece": 0.0133,
-        "failure_recall": 0.6,
-        "temperature": 0.3833
+        "pr_auc": 0.1638,
+        "roc_auc": 0.8591,
+        "brier_score": 0.0368,
+        "calibrated_ece": 0.0242,
+        "failure_recall": 0.5365,
+        "temperature": 0.2481
       },
       "robustness_advantage": {
-        "delta_recall": 0.2,
-        "delta_pr_auc": 0.0709
+        "delta_recall": -0.0075,
+        "delta_pr_auc": 0.0003
       }
     },
     {
       "noise_rate_pct": 20.0,
+      "train_positive_rate": 0.2301,
+      "train_positive_rate_clean": 0.0502,
+      "labels_flipped": 78365,
+      "evaluation_labels": "clean held-out labels; noise is injected into training only",
+      "recall_denominator_standard": "1760 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
+      "recall_denominator_robust": "1734 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
       "standard_unweighted": {
-        "pr_auc": 0.0714,
-        "roc_auc": 0.6063,
-        "brier_score": 0.158,
-        "failure_recall": 0.4
+        "pr_auc": 0.1683,
+        "roc_auc": 0.8601,
+        "brier_score": 0.1861,
+        "failure_recall": 0.5486
       },
       "conftest_robust": {
-        "pr_auc": 0.0656,
-        "roc_auc": 0.5516,
-        "brier_score": 0.0984,
-        "calibrated_ece": 0.1125,
-        "failure_recall": 0.2,
-        "temperature": 0.3458
+        "pr_auc": 0.1779,
+        "roc_auc": 0.8663,
+        "brier_score": 0.035,
+        "calibrated_ece": 0.02,
+        "failure_recall": 0.5405,
+        "temperature": 0.1709
       },
       "robustness_advantage": {
-        "delta_recall": -0.2,
-        "delta_pr_auc": -0.0058
+        "delta_recall": -0.0081,
+        "delta_pr_auc": 0.0096
       }
     },
     {
       "noise_rate_pct": 30.0,
+      "train_positive_rate": 0.32,
+      "train_positive_rate_clean": 0.0502,
+      "labels_flipped": 117547,
+      "evaluation_labels": "clean held-out labels; noise is injected into training only",
+      "recall_denominator_standard": "1783 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
+      "recall_denominator_robust": "1805 of 3208 failing (commit, test) pairs, pooled over the 135 commits that had at least one failure; each commit ran the top 25% of its own universe",
       "standard_unweighted": {
-        "pr_auc": 0.0642,
-        "roc_auc": 0.4779,
-        "brier_score": 0.141,
-        "failure_recall": 0.4
+        "pr_auc": 0.1653,
+        "roc_auc": 0.8539,
+        "brier_score": 0.2089,
+        "failure_recall": 0.5558
       },
       "conftest_robust": {
-        "pr_auc": 0.0757,
-        "roc_auc": 0.5853,
-        "brier_score": 0.0763,
-        "calibrated_ece": 0.0897,
-        "failure_recall": 0.4,
-        "temperature": 0.3879
+        "pr_auc": 0.1786,
+        "roc_auc": 0.8665,
+        "brier_score": 0.0343,
+        "calibrated_ece": 0.0198,
+        "failure_recall": 0.5627,
+        "temperature": 0.1235
       },
       "robustness_advantage": {
-        "delta_recall": 0.0,
-        "delta_pr_auc": 0.0115
+        "delta_recall": 0.0069,
+        "delta_pr_auc": 0.0133
       }
     }
   ]

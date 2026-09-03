@@ -1,42 +1,71 @@
 {
   "num_iterations": 150,
   "batch_size_tests": 50,
+  "rows_available": 86469,
+  "warmup_batches": 5,
+  "cold_start_first_batch_ms": 1321.814,
+  "warmup_batches_ms": [
+    1321.814,
+    4.486,
+    4.9,
+    4.173,
+    3.941
+  ],
+  "timed_statistics_exclude_warmup": true,
+  "measures": "scoring only: sanitisation, inference, calibration, policy",
+  "excludes": "feature mining (git diff, AST parse, dependency graph), which runs once per commit upstream and is not part of this figure",
   "sla_under_100ms_compliance_pct": 100.0,
   "stages": {
-    "feature_preparation": {
-      "mean_ms": 0.041,
-      "median_p50_ms": 0.035,
-      "p90_ms": 0.049,
-      "p95_ms": 0.059,
-      "p99_ms": 0.114
+    "array_sanitisation": {
+      "mean_ms": 0.033,
+      "median_p50_ms": 0.036,
+      "p90_ms": 0.041,
+      "p95_ms": 0.043,
+      "p99_ms": 0.057
     },
     "ensemble_inference": {
-      "mean_ms": 2.244,
-      "median_p50_ms": 2.258,
-      "p90_ms": 2.647,
-      "p95_ms": 2.724,
-      "p99_ms": 3.046
+      "mean_ms": 3.246,
+      "median_p50_ms": 3.523,
+      "p90_ms": 3.824,
+      "p95_ms": 4.024,
+      "p99_ms": 4.309
     },
-    "temperature_calibration": {
-      "mean_ms": 0.027,
-      "median_p50_ms": 0.026,
-      "p90_ms": 0.034,
-      "p95_ms": 0.037,
-      "p99_ms": 0.048
+    "calibration": {
+      "mean_ms": 0.036,
+      "median_p50_ms": 0.042,
+      "p90_ms": 0.044,
+      "p95_ms": 0.046,
+      "p99_ms": 0.068
     },
     "policy_decision": {
-      "mean_ms": 0.032,
-      "median_p50_ms": 0.031,
-      "p90_ms": 0.04,
-      "p95_ms": 0.042,
-      "p99_ms": 0.05
+      "mean_ms": 0.029,
+      "median_p50_ms": 0.032,
+      "p90_ms": 0.036,
+      "p95_ms": 0.038,
+      "p99_ms": 0.046
     },
-    "end_to_end_total": {
-      "mean_ms": 2.344,
-      "median_p50_ms": 2.356,
-      "p90_ms": 2.766,
-      "p95_ms": 2.846,
-      "p99_ms": 3.222
+    "scoring_total": {
+      "mean_ms": 3.345,
+      "median_p50_ms": 3.627,
+      "p90_ms": 3.943,
+      "p95_ms": 4.139,
+      "p99_ms": 4.435
     }
+  },
+  "provenance": {
+    "ensemble_dir": "models/ensembles/5_seed_lgbm",
+    "ensemble_members": 5,
+    "ensemble_n_estimators": 150,
+    "calibrator": "models/calibrator.joblib",
+    "calibrator_method": "temperature_scaling",
+    "policy_config": {
+      "tau_abstain": 0.02,
+      "tau_conf": 0.1,
+      "budget_ratio": 0.25,
+      "ood_file_limit": 15,
+      "ood_churn_limit": 500
+    },
+    "rows_from": "data/splits/test.csv",
+    "inputs_measured": true
   }
 }
