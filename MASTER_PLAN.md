@@ -11,7 +11,7 @@
 
 | Area | State |
 |---|---|
-| Code | ✅ 70+ modules, 277/277 tests passing, well-architected |
+| Code | ✅ 70+ modules, **460/460 tests passing**, well-architected |
 | Feature pipeline | ✅ 34 features (diff / AST / dependency-graph / history) |
 | ML + calibration | ✅ LightGBM, isotonic + Platt + temperature, ECE, reliability diagrams |
 | Abstention | ✅ Threshold policy, full-suite fallback, policy tuning |
@@ -424,6 +424,7 @@ Do not proceed past a gate until it is green.
 - [x] **C4.1b** the reporting layer had its own fabricator: `GET /api/v1/calibration` served hand-typed ECE/MCE/Brier/temperature constants when no report existed, asserting a 25% ECE gain that is `[-0.0112, +0.0110]`. Now 503, and every served metric carries its interval (see log 2026-09-03c)
 - [x] **C4.3** fix Changed-File baseline — stem matching + mandatory `changed_file_path`
 - [x] **C4.7** stop faking ETR — measure it from real durations
+- [x] **C4.8** the dashboard front page is measured-or-absent: every KPI is read from a named artifact by `src/conftest/evaluation/headline.py`, an absent artifact renders as `not measured` with the script that produces it, ETR and TRR are no longer conflated, and a difference whose interval spans zero is reported as no gain (see log 2026-09-03d)
 - [x] **C2** `scripts/build_real_dataset.py` — resolver validated against 1138 real testcases
 - [x] **C2** `scripts/harvest_mutations.py` — the CLI driver that was missing
 - [x] **C2** `tests/unit/test_build_real_dataset.py` — 40 tests, all passing
@@ -433,6 +434,7 @@ Do not proceed past a gate until it is green.
 - [x] **C0.4** every subject suite runs under its own screened venv, enforced by an import-provenance guard (see log 2026-09-02d)
 - [x] **C0.5** install declared functional extras — pyjwt ran 221 of 369 tests without them (see log 2026-09-02d)
 - [x] **C0.6** every harvest writes `harvest_summary.json`; the dataset builder refuses labels whose import provenance is missing, unverified, or points outside the checkout (see log 2026-09-02e)
+- [x] **C0.7** the checkout is treated as an instrument: a `pending_mutation.json` journal, a pristine-checkout assertion with `--restore-checkout` repair (`git checkout HEAD -- .`, never `git clean`), sample-membership verification on resume with off-sample records quarantined, per-run drift detection, and a `harvest.lock` that allows one harvest per output directory and is taken *before* any repair (see log 2026-09-03d)
 - [ ] **G1** first real dataset, gates verified
 - [x] **C4.4** calibration selection must not pick a method on ECE alone — `src/conftest/models/calibrator_selection.py`, chosen on a validation half-split that is cut along **mutant** boundaries, on ECE + MCE + Brier jointly, each as a **paired bootstrap difference** against the uncalibrated model; a gain whose interval spans zero is not a gain (see log 2026-09-03b)
 - [x] **C4.5** bootstrap confidence intervals on all headline numbers: the resampling unit is the **commit**, not the test row; every one of the 5 metrics x 8 strategies carries a 95% interval; the headline comparison is reported as a *paired* difference against the ConfTest row (see log 2026-09-03a)
@@ -445,6 +447,45 @@ Do not proceed past a gate until it is green.
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-03d · C0.7 + C4.8 landed · the harvest was corrupting the checkout it measures, three ways
+
+**Test suite: 371 -> 460 passing** (89 new: 42 in `tests/unit/test_mutation_harness.py`, 34 in the new `tests/unit/test_headline.py`, 13 in `tests/unit/test_dashboard.py`). Measured: `python -m pytest tests/ -q` reports `460 passed, 9 warnings in 75.50s`.
+
+Every label this project publishes is produced by running a subject's own suite against a mutated copy of that subject's own source, in a checkout on disk. That makes the working tree an instrument, and this session found three distinct ways the instrument was being contaminated. All three produce labels that are indistinguishable from good ones: the mutant id, the kill list and the kill ratio all look ordinary.
+
+**D1 — a hard kill leaves the mutation applied, so the next run mutates a mutant.** The sqlparse re-harvest was reported finished by its background wrapper with exit code 0. It had in fact died with its mutation still written into the checkout, which is visible in the successor run's first log line: `08:09:33 | Restored 1 tracked file(s) in ...data/repos/sqlparse`. Without `--restore-checkout` that successor would have applied its next mutant on top of a dead run's mutant and attributed every kill to its own mutant alone. The exit code lied in the other direction too: the wrapper reported 0 while its `nohup`-detached child was still logging `[23/250]` at 08:16:42 and starting another pytest in that same second. **A background exit code is not evidence that a harvest finished — `harvest_summary.json` is.** The harness now writes `pending_mutation.json` before applying each mutation and removes it after reverting, asserts a pristine checkout at startup, and repairs with `git checkout HEAD -- .` under `--restore-checkout` — never `git clean`, so the subject's own untracked debris (sqlparse's CLI tests leave a file literally named `-` on disk) survives the repair.
+
+**D2 — a suite that edits its own tracked fixtures is not flaky, and must not be quarantined as flaky.** sqlparse's CLI tests truncate their own tracked fixture `tests/files/function.sql`, and the damage was already on disk when the baseline screen ran. With that fixture empty exactly one test fails, so the screen recorded
+
+```
+sqlparse/tests/test_split::test_split_create_function[function.sql]
+  -> "failing_on_clean_checkout:FAILED"
+```
+
+which is a false description of a clean checkout. The labelled universe became 506 tests instead of 507: one test of 507 could never be killed by any mutant, and every kill ratio was computed against the wrong denominator — including the `BROKE_SUITE_KILL_RATIO = 0.80` cutoff that decides whether a mutant is discarded as suite-breaking. A complete 250-mutant harvest (237 harvested, 4 broke_suite, 9 timed_out, 15964 kills, 40.2 min) had already run against that tree; it now sits in `data/harvest/sqlparse/superseded-2026-09-03/` with a `WHY.md`, kept for comparison and not for use. The screen restores tracked files between runs and records what it restored. Measured after the fix: **507 stable tests, 2 exclusions (both genuinely `skipped`), 0 flaky, `self_damage: []`, mean suite 8.575 s over 3 runs.**
+
+**D3 — two harvests, one checkout. Found by causing it.** The remedy for D1 became the weapon. At 08:18:12 I started a second harvest over the same output directory while pid 11060 was still working in it. One second later the new run did exactly what it had been told to do: `08:18:13 | Restored 1 tracked file(s)`, discarding the mutation the live run was in the middle of testing, followed by `Discarded the mutation a dead run left applied: mut_10c6746605e2 in sqlparse/filters/reindent.py (operator const_int_increment)` — whose author was not dead. Both runs then read the same 23-record checkpoint and the same seeded sample (seed 42, `sample_digest c51fcbbb33f7d381`), so both chose `mut_10c6746605e2` as the next mutant, and the second applied it at 08:18:28 under a pytest of its own. Two harvests were mutating one tree and appending to one `mutants.jsonl`. I killed both process trees and counted: 23 records, 23 unique mutant ids, checkpoint 23 — nothing was written during the overlap, so no labels had to be thrown away.
+
+The remedy is a lock, and its **ordering** matters as much as its existence: `harvest.lock` is acquired *before* the pristine-checkout assertion, so a second run refuses before it can "repair" a live run's tree. The lock records pid, host, start time and argv; it is released in a `finally`; a dead pid on the same host is taken over with a warning; a lock naming another host is refused outright, because no liveness claim can be made about a pid on a machine we cannot see; an unreadable lock counts as held; and `--break-lock` is the explicit, loudly logged override. `harvest_summary.json` now records the `harvester` that wrote it.
+
+**Four smaller faults, all of them mine:**
+
+1. **The guard refused to run its own remedy.** `assert_pristine_checkout(restore=True)` raised whenever a journal existed — which is precisely when `--restore-checkout`, the flag its own error message recommends, is needed. A journal *names* damage; it is not damage of its own. Once `git` proves the tree matches HEAD the journal is resolved, logged with the mutant it discarded, and recorded as `resolved_pending_mutation`. When `git` cannot prove the tree is clean, the refusal stands.
+
+2. **`os.kill(pid, 0)` would have killed the harvest it was asking about.** The POSIX liveness idiom is unusable on Windows, where `os.kill` calls `TerminateProcess`. Liveness is probed with `OpenProcess` + `GetExitCodeProcess` through `ctypes` (`STILL_ACTIVE = 259`, `ERROR_INVALID_PARAMETER = 87`), and it returns `None` when it genuinely cannot tell. `None` counts as *held*: taking over a lock you cannot prove is stale is the entire defect.
+
+3. **A resume trusted a checkpoint it could not attribute.** The validators harvest had 154 records on disk, of which only 134 belonged to the current seeded sample. The harness now records `sample_digest` and verifies membership on resume: the 20 off-sample records were moved to `data/harvest/validators/quarantine_offsample.jsonl` instead of being silently counted (digest `9261998e43395546`). Resumed to completion: **250 records / 250 unique / 249 harvested / 1 broke_suite / 0 timed_out / 2559 kills / universe 895 / `checkout_drifted: 0`.**
+
+4. **The summary described the process, not the file.** A resumed run reported its own counters as the harvest's totals, so a run that found everything already done would have published zeros. The top-level keys now describe the file (`records`, `unique_mutants`, `harvested`, `total_kills`) with `this_run` alongside — and in the validators summary `this_run` is all zeros, which is the honest description of a resume that had nothing left to do.
+
+**C4.8 — the front page was the fourth fabricator.** The dashboard's KPI row was four literals: `value="100.0%"` failure recall with `delta="0 Escaped Bugs (Safe Fallback)"`, `value="68.6%"` test reduction, ECE 0.0192 at `delta="-25.47% Error (Calibrated)"`, and disagreement 0.0193. The project's own `reports/baseline_comparison.csv` contradicts the first two on the very row they claim to describe: the ConfTest selector recalls **40.0%** of failures, lets **3** commits escape, and cuts wall clock by 58.8% (test count by 60.0%) — 68.6% is neither of those numbers. The chart drew a green "100% Zero-Escape Frontier" annotation at the fabricated value.
+
+Every cell is now read from a named artifact by `src/conftest/evaluation/headline.py`, which raises `MissingArtifact` rather than defaulting, and each metric renders as `not measured` beside the script that would produce it when its artifact is absent. `tests/unit/test_headline.py` (34 tests) pins four rules: the time-reduction cell is **ETR**, with TRR only in the note, because the two were being conflated; a difference whose interval spans zero is reported as such (`ECE difference -0.00657 [-0.01119, +0.01102] spans zero, so not a gain`); the calibration cell names the method actually **served**, not the best-scoring one; and the page opens with a provenance banner that turns green only when `data/processed/real_features.csv` exists — which it does not yet, so the front page currently states that the labels are not measured, which is true.
+
+**One regression surfaced while testing the loaders.** `dashboard/utils.py` stripped `%` from percent columns only when `df[col].dtype == object`, a condition pandas 3 never satisfies for those columns because it infers `StringDtype`. On pandas 3 the coercion silently did nothing and `idxmax` compared `"100.0%"`-style strings as text. The guard is gone, the coercion is unconditional, and `errors="coerce"` keeps `n/a` as `NaN` instead of turning it into zero.
+
+**What this does and does not buy.** Each of the three defects is now refused rather than noticed afterwards, and each refusal has a test that reproduces the measured incident — including one asserting that a live lock stops `--restore-checkout` before it can discard a live run's work. What none of it buys is a dataset. sqlparse is being re-harvested against the corrected 507-test universe as this is written (250 mutants, resumed under the lock held by pid 21664; 139 records at the time of writing: 129 harvested, 4 broke_suite, 6 timed_out). A `timed_out` record carries a full-universe kill list and would be poison as a label, which is why the builder consumes only `status == "harvested"`. G1 stays open until that summary is on disk and G0–G3 are verified against it.
 
 ### 2026-09-03c · the calibration endpoint was serving its own set of literals
 

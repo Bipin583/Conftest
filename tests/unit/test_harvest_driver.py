@@ -109,7 +109,15 @@ def test_harvest_one_persists_the_summary_with_the_drivers_own_fields(tmp_path, 
     harvest_root = tmp_path / 'harvest'
     python = _fake_venv(workspace, 'demo')
 
-    def fake_run(self, n_mutants, resume):
+    forwarded = {}
+
+    def fake_run(self, n_mutants, resume, restore_checkout=False,
+                 reprofile_baseline=False, break_lock=False):
+        forwarded.update(
+            restore_checkout=restore_checkout,
+            reprofile_baseline=reprofile_baseline,
+            break_lock=break_lock,
+        )
         return {'repo': self.repo_name, 'n_sampled': n_mutants,
                 'import_provenance': {'verified': True, 'modules': {'pkg': 'x'}}}
 
@@ -123,9 +131,18 @@ def test_harvest_one_persists_the_summary_with_the_drivers_own_fields(tmp_path, 
         n_mutants=7,
         resume=False,
         python_executable=python,
+        restore_checkout=True,
+        reprofile_baseline=True,
+        break_lock=True,
     )
 
     assert summary['n_sampled'] == 7
+    # Every repair switch has to reach the harness; a driver that swallowed one
+    # would silently harvest a dirty checkout against a stale baseline, or wait
+    # forever on a lock the operator had already cleared.
+    assert forwarded == {
+        'restore_checkout': True, 'reprofile_baseline': True, 'break_lock': True,
+    }
     on_disk = json.loads((harvest_root / 'demo' / SUMMARY_FILENAME).read_text())
     assert on_disk['screened_commit_sha'] == 'cafef00d'
     assert on_disk['wall_clock_seconds'] >= 0

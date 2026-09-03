@@ -191,6 +191,7 @@ class ConfTestSelectiveSelector(BaseSelector):
             uncertainty=round(max_uncertainty, 4),
             reasons=[
                 f"High confidence ({top_confidence*100:.1f}%) with low uncertainty ({max_uncertainty:.3f}).",
-                f"Selected {len(selected)}/{total} high-risk tests ({100*(1-len(selected)/total):.1f}% time saved).",
+                f"Selected {len(selected)}/{total} high-risk tests "
+                f"({100*(1-len(selected)/total):.1f}% of the suite skipped by count).",
             ],
         )

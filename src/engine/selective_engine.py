@@ -100,5 +100,5 @@ class SelectiveDecisionEngine:
             test_reduction_ratio=float(reduction),
             max_uncertainty=max_uncertainty,
             calibrated_confidence=confidence,
-            reason=f"High-confidence prediction ({confidence:.1%}). Selected {len(selected)}/{total_count} tests ({reduction:.1%} time saved)."
+            reason=f"High-confidence prediction ({confidence:.1%}). Selected {len(selected)}/{total_count} tests ({reduction:.1%} of the suite skipped by count)."
         )

@@ -158,9 +158,14 @@ class SelectivePredictionPolicy:
         selected_indices = ranked_indices[:k]
         selected_tests = [candidate_test_ids[i] for i in selected_indices]
 
+        # 1 - selected/total: a fraction of the test COUNT, not of the wall-clock.
+        # The two coincide only if every test costs the same, and durations are
+        # heavily skewed in practice. The field keeps its name for the DB column
+        # it feeds, but nothing downstream may call it a time saving: the reason
+        # string said "time saved" and the dashboard repeated it.
         time_saved_pct = (1.0 - (len(selected_tests) / total_tests)) * 100.0
         reasons.append(f"High confidence ({top_conf*100:.1f}%) and low epistemic uncertainty ({max_uncertainty:.4f}).")
-        reasons.append(f"Fast selective mode: Executing {len(selected_tests)}/{total_tests} risk-ranked tests ({time_saved_pct:.1f}% time saved).")
+        reasons.append(f"Fast selective mode: Executing {len(selected_tests)}/{total_tests} risk-ranked tests ({time_saved_pct:.1f}% of the suite skipped by count).")
 
         return PolicyDecision(
             commit_sha=commit_sha,

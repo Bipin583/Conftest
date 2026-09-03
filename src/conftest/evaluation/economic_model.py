@@ -73,21 +73,30 @@ class EconomicCostBenefitModel:
     def evaluate_rts_strategy(
         self,
         strategy_name: str,
-        test_reduction_rate: float,  # e.g. 0.68 for 68% time reduction
-        failure_recall_rate: float,  # e.g. 0.99 for 99% recall
+        test_reduction_rate: float,
+        failure_recall_rate: Optional[float],
         annual_escapes_with_strategy: int = 0,
     ) -> Dict[str, Any]:
         """
-        Evaluate net financial benefit and ROI of a specific RTS strategy.
+        Project net financial benefit and ROI of a specific RTS strategy.
+
+        Every figure returned is a projection from the config's assumed constants,
+        not a measurement. Only the two rates are measured, and only if the caller
+        read them from the benchmark table.
 
         Args:
             strategy_name: Name of the strategy (e.g. 'ConfTest (Calibrated + Selective)').
-            test_reduction_rate: Fraction of test runtime saved (0.0 to 1.0).
-            failure_recall_rate: Fraction of regression failures caught (0.0 to 1.0).
+            test_reduction_rate: Fraction of test WALL-CLOCK saved (0.0 to 1.0) --
+                the benchmark's ETR, since the arithmetic below multiplies suite
+                minutes by it. Passing the test-COUNT reduction (TRR) instead
+                overstates the saving by however much the durations are skewed.
+            failure_recall_rate: Fraction of regression failures caught (0.0 to 1.0),
+                or None where the split offered no failure to recall. Reported, not
+                used in the arithmetic.
             annual_escapes_with_strategy: Expected production escapes under this strategy.
 
         Returns:
-            Dictionary containing economic savings, escape risk, and net ROI.
+            Dictionary containing projected savings, escape risk, and net ROI.
         """
         baseline = self.calculate_full_suite_annual_cost()
         annual_commits = self.total_annual_commits
@@ -116,7 +125,11 @@ class EconomicCostBenefitModel:
         return {
             "strategy_name": strategy_name,
             "test_reduction_rate_pct": round(test_reduction_rate * 100, 1),
-            "failure_recall_rate_pct": round(failure_recall_rate * 100, 1),
+            # None, not 0.0: a split with no available failure has no recall, and
+            # 0.0% would read as a strategy that caught nothing.
+            "failure_recall_rate_pct": (
+                None if failure_recall_rate is None else round(failure_recall_rate * 100, 1)
+            ),
             "annual_ci_compute_cost_usd": round(ci_cost, 2),
             "annual_developer_wait_cost_usd": round(dev_wait_cost, 2),
             "annual_escape_cost_usd": round(escape_cost, 2),

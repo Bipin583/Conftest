@@ -153,8 +153,10 @@ class AnalyticsSummarySchema(BaseModel):
     total_decisions: int
     total_selective_fast_mode: int
     total_safe_abstentions: int
-    average_test_reduction_pct: float
+    # None when no decision has been recorded: an average over an empty set is
+    # not zero, and must not be returned in the shape of a measurement.
+    average_test_reduction_pct: Optional[float] = None
     total_failures_detected: int
     total_missed_failures: int
-    average_uncertainty: float
+    average_uncertainty: Optional[float] = None
     recent_decisions: List[Dict[str, Any]] = Field(default_factory=list)

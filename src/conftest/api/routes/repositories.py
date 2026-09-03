@@ -83,6 +83,7 @@ def list_repository_commits(repo_id: int, skip: int = 0, limit: int = 50, db: Se
             "timestamp": c.timestamp.isoformat(),
             "decision_mode": dec.mode if dec else "NOT_EVALUATED",
             "abstained": dec.abstained if dec else False,
-            "time_saved_pct": dec.estimated_saving if dec else 0.0,
+            # A count ratio, not a duration. See analytics.py.
+            "test_reduction_pct": dec.estimated_saving if dec else None,
         })
     return out

@@ -27,8 +27,12 @@ selector would have picked. A partial label matrix cannot measure recall,
 which is the metric the whole project turns on.
 """
 
+import ctypes
+import hashlib
 import json
+import os
 import random
+import socket
 import subprocess
 import sys
 import tempfile
@@ -82,6 +86,185 @@ BROKE_SUITE_KILL_RATIO = 0.80
 # Outcome statuses that count as a killed test.
 FAILING_STATUSES = frozenset({"FAILED", "ERROR"})
 
+# Journal written while a mutation is on disk. Surviving the run means the
+# process died between applying a mutant and restoring the file, so the
+# checkout can no longer be assumed to hold the revision that was screened.
+PENDING_MUTATION_FILENAME = "pending_mutation.json"
+
+# Read-only git queries take milliseconds; the cap only stops a wedged git
+# from hanging a multi-hour harvest.
+GIT_TIMEOUT_SECONDS = 60
+
+# One harvest per output directory. Two of them sharing a checkout is not a
+# slowdown, it is silent corruption: they apply mutants to the same files and
+# each one's restore lands inside the other's suite run.
+LOCK_FILENAME = "harvest.lock"
+STILL_ACTIVE = 259
+ERROR_INVALID_PARAMETER = 87
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+
+class CheckoutNotPristine(RuntimeError):
+    """
+    The subject checkout differs from HEAD before a harvest starts.
+
+    Mutants are enumerated from the files on disk and the baseline screen runs
+    against those same files, so a modified checkout silently changes both
+    which mutants exist and which tests count as stable. Refusing is the only
+    way to keep every label traceable to a known revision.
+    """
+
+
+class HarvestAlreadyRunning(RuntimeError):
+    """Another live harvest already owns this output directory."""
+
+
+class SampleMismatch(RuntimeError):
+    """
+    The checkpoint records mutants the current sample does not contain.
+
+    Enumerating candidates over a modified tree produces different mutant IDs,
+    so resuming would append labels drawn from two different populations into
+    one file. Raising keeps the two apart.
+    """
+
+
+def _git(repo_root: Path, *args: str) -> Optional[str]:
+    """Return stdout of a git command, or None when git cannot answer."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning(f"git {args[0]} could not run in {repo_root}: {exc}")
+        return None
+
+    if proc.returncode != 0:
+        logger.warning(
+            f"git {args[0]} exited {proc.returncode} in {repo_root}: "
+            f"{proc.stderr.strip()}"
+        )
+        return None
+
+    return proc.stdout
+
+
+def _git_paths(output: Optional[str]) -> List[str]:
+    """Split newline-separated git output into a sorted, de-duplicated list."""
+    if not output:
+        return []
+    return sorted({line.strip() for line in output.splitlines() if line.strip()})
+
+
+def tracked_modifications(repo_root: Path) -> Optional[List[str]]:
+    """
+    Repo-relative paths of tracked files that differ from HEAD.
+
+    Returns None to mean "unknown" -- the directory is not a git checkout, or
+    git could not be run. A caller must not read None as "clean"; it is the
+    absence of evidence, and the harness records it as such.
+    """
+    output = _git(repo_root, "diff", "--name-only", "HEAD")
+    if output is None:
+        return None
+    return _git_paths(output)
+
+
+def untracked_files(repo_root: Path) -> List[str]:
+    """
+    Repo-relative paths present on disk but unknown to git, ignores excluded.
+
+    Untracked debris cannot change a mutant or a label -- nothing imports it --
+    so it is reported rather than treated as a fault.
+    """
+    return _git_paths(_git(repo_root, "ls-files", "--others", "--exclude-standard"))
+
+
+def restore_tracked(repo_root: Path) -> List[str]:
+    """
+    Discard modifications to tracked files, returning the paths restored.
+
+    `git checkout HEAD -- .` rewrites the index and working tree for tracked
+    paths only. Untracked files are deliberately left alone: `git clean` would
+    delete work this harness never created and cannot judge.
+    """
+    modified = tracked_modifications(repo_root)
+    if not modified:
+        return []
+
+    if _git(repo_root, "checkout", "HEAD", "--", ".") is None:
+        raise CheckoutNotPristine(
+            f"Cannot restore {repo_root}: git checkout failed. "
+            f"Modified: {', '.join(modified)}"
+        )
+
+    still_dirty = tracked_modifications(repo_root)
+    if still_dirty:
+        raise CheckoutNotPristine(
+            f"{repo_root} is still modified after restore: {', '.join(still_dirty)}"
+        )
+
+    logger.info(f"Restored {len(modified)} tracked file(s) in {repo_root}.")
+    return modified
+
+
+def process_is_alive(pid: Optional[int]) -> Optional[bool]:
+    """
+    Is `pid` a live process? None when that cannot be determined.
+
+    The POSIX idiom `os.kill(pid, 0)` must not be used unguarded here: on
+    Windows `os.kill` calls TerminateProcess, so the "signal 0 is only a
+    liveness probe" assumption would kill the process it is asking about --
+    and on this project that process is a running harvest.
+
+    A pid can also be recycled, so a True answer means "something with that pid
+    is running", not "the harvest is running". Callers therefore treat True as
+    a reason to stop and ask rather than as proof, which is why --break-lock
+    exists.
+    """
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+
+    if os.name == "nt":
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            # Only "no such process" is evidence of death; anything else
+            # (access denied, for instance) leaves the question open.
+            return False if ctypes.get_last_error() == ERROR_INVALID_PARAMETER else None
+        try:
+            code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return None
+            return code.value == STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Someone else's process, and it exists.
+        return True
+    except OSError:
+        return None
+    return True
+
+
+def sample_digest(mutants: Sequence[Mutant]) -> str:
+    """
+    Fingerprint of a sample's membership, recorded alongside the labels.
+
+    Two runs that agree on this string enumerated the same candidates from the
+    same source, which is what makes their records poolable.
+    """
+    joined = NEWLINE.join(sorted(m.mutant_id for m in mutants))
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
+
 
 @dataclass
 class BaselineProfile:
@@ -92,6 +275,10 @@ class BaselineProfile:
     mean_durations: Dict[str, float] = field(default_factory=dict)
     suite_duration: float = 0.0
     n_runs: int = 0
+    # Tracked files the suite modified while being screened. A suite that edits
+    # its own fixtures makes its own outcomes depend on run order, which is why
+    # the affected tests show up as flaky rather than as stable.
+    self_damage: List[str] = field(default_factory=list)
 
     @property
     def universe_size(self) -> int:
@@ -106,6 +293,7 @@ class BaselineProfile:
             "stable_passing": self.stable_passing,
             "excluded": self.excluded,
             "mean_durations": {k: round(v, 4) for k, v in self.mean_durations.items()},
+            "self_damage": self.self_damage,
         }
 
     @classmethod
@@ -116,6 +304,7 @@ class BaselineProfile:
             mean_durations=dict(payload.get("mean_durations", {})),
             suite_duration=float(payload.get("suite_duration", 0.0)),
             n_runs=int(payload.get("n_runs", 0)),
+            self_damage=list(payload.get("self_damage", [])),
         )
 
 
@@ -258,6 +447,9 @@ class MutationHarness:
         self.baseline_path = self.output_dir / "baseline.json"
         self.checkpoint_path = self.output_dir / "checkpoint.json"
         self.summary_path = self.output_dir / SUMMARY_FILENAME
+        self.pending_mutation_path = self.output_dir / PENDING_MUTATION_FILENAME
+        self.lock_path = self.output_dir / LOCK_FILENAME
+        self.holds_lock = False
 
         self.executor = SafeTestExecutor(
             repo_root=str(self.repo_root),
@@ -266,7 +458,203 @@ class MutationHarness:
         )
 
     # ------------------------------------------------------------------
-    # Step 0: prove the suite imports the code we are about to mutate
+    # Step 0a: prove the tree on disk is the revision that was screened
+    # ------------------------------------------------------------------
+
+    def read_lock(self) -> Optional[Dict[str, Any]]:
+        """Return the lock record, or None when the directory is unlocked."""
+        if not self.lock_path.exists():
+            return None
+        try:
+            return json.loads(self.lock_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            # A lock we cannot read is still a lock. Reporting it as absent
+            # would be the one interpretation that permits a second harvest.
+            return {"pid": None, "host": None, "unreadable": True}
+
+    def acquire_lock(self, break_lock: bool = False) -> Dict[str, Any]:
+        """
+        Claim this output directory for the current process.
+
+        Concurrent harvests over one checkout corrupt each other in a way that
+        leaves no trace in the labels: both processes pick the same next mutant
+        from the same seeded sample, and whichever restores first pulls the
+        fault out from under the other's suite run. That was observed here on
+        2026-09-03 -- a second run treated the first run's in-flight mutation
+        journal as the residue of a dead run and discarded it. The journal
+        cannot distinguish the two cases; a lock naming a live pid can.
+
+        `break_lock` (--break-lock) forces the takeover for the case the lock
+        outlives its process in a way the probe cannot confirm.
+        """
+        existing = self.read_lock()
+        if existing is not None:
+            pid = existing.get("pid")
+            host = existing.get("host")
+            same_host = host == socket.gethostname()
+            alive = process_is_alive(pid) if same_host else None
+
+            if break_lock:
+                logger.warning(
+                    f"--break-lock: taking over the lock held by pid {pid} on {host} "
+                    f"(started {existing.get('started_at')}). If that harvest is still "
+                    f"running, both runs are now writing to {self.output_dir}."
+                )
+            elif alive is False:
+                logger.warning(
+                    f"Taking over a stale lock from pid {pid} (started "
+                    f"{existing.get('started_at')}): that process is gone."
+                )
+            else:
+                detail = (
+                    "it is running" if alive
+                    else f"it cannot be checked from here (lock host {host!r})"
+                )
+                raise HarvestAlreadyRunning(
+                    f"{self.repo_name}: another harvest holds {self.lock_path}."
+                    + NEWLINE
+                    + f"  - pid {pid} on {host}, started {existing.get('started_at')}, "
+                    f"argv: {existing.get('argv')}"
+                    + NEWLINE
+                    + f"  - {detail}"
+                    + NEWLINE
+                    + "Two harvests over one checkout overwrite each other's mutations "
+                    "and mislabel both runs."
+                    + NEWLINE
+                    + "Wait for it to finish, or re-run with --break-lock once it is "
+                    "confirmed dead."
+                )
+
+        payload = {
+            "pid": os.getpid(),
+            "host": socket.gethostname(),
+            "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "argv": " ".join(sys.argv[1:]),
+        }
+        self.lock_path.write_text(json.dumps(payload, indent=2))
+        self.holds_lock = True
+        return payload
+
+    def release_lock(self) -> None:
+        """Drop the lock, but only if this process is the one holding it."""
+        if self.holds_lock:
+            self.lock_path.unlink(missing_ok=True)
+            self.holds_lock = False
+
+    def pending_mutation(self) -> Optional[Dict[str, Any]]:
+        """Return the unfinished mutation recorded by a dead run, if any."""
+        if not self.pending_mutation_path.exists():
+            return None
+        try:
+            return json.loads(self.pending_mutation_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            # The file exists, so a run died mid-mutant; unreadable contents
+            # make that worse, not better.
+            return {"mutant_id": "unreadable", "file_path": "unknown"}
+
+    def assert_pristine_checkout(self, restore: bool = False) -> Dict[str, Any]:
+        """
+        Refuse to harvest a checkout that no longer matches HEAD.
+
+        Two failure modes are covered, both observed in practice:
+
+        * a previous run was hard-killed while a mutant was applied, leaving
+          the fault in the tree. Later runs then enumerate candidates over
+          mutated source -- a different sample -- and screen a baseline that
+          silently contains an extra fault.
+        * the subject suite modifies its own tracked fixtures while running.
+          The next baseline screen blames the damage on the checkout and
+          excludes the test as `failing_on_clean_checkout`, which is false.
+
+        `restore` discards tracked modifications first (`--restore-checkout`).
+        It is off by default: throwing away someone else's edits is not a
+        decision this harness should make on its own.
+
+        Returns the observation so the run summary can record what was seen,
+        including the case where git is unavailable and nothing could be proven.
+        """
+        journal = self.pending_mutation()
+        modified = tracked_modifications(self.repo_root)
+        restored: List[str] = []
+
+        if restore and modified:
+            restored = restore_tracked(self.repo_root)
+            modified = tracked_modifications(self.repo_root)
+
+        untracked = untracked_files(self.repo_root)
+        observation: Dict[str, Any] = {
+            "verified": modified is not None,
+            "tracked_modifications": modified if modified is not None else [],
+            "untracked_files": untracked,
+            # What was actually discarded, not merely whether the switch was
+            # given: the summary is the audit trail for how a label was made.
+            "restored": restored,
+        }
+
+        if modified is None:
+            observation["reason"] = "not_a_git_checkout_or_git_unavailable"
+            logger.warning(
+                f"Cannot verify that {self.repo_root} is pristine: no usable git "
+                f"checkout. Labels from this run are unverifiable at the revision level."
+            )
+        if untracked:
+            logger.warning(
+                f"{len(untracked)} untracked file(s) in {self.repo_root}: "
+                f"{', '.join(untracked[:5])}. Untracked files are not imported, "
+                f"so they are recorded rather than treated as a fault."
+            )
+
+        # A journal names the damage rather than being damage of its own: it
+        # records a mutation that was applied and never reverted. So once
+        # --restore-checkout has verifiably returned the tree to HEAD, the
+        # journal is resolved, not an independent reason to refuse. Treating it
+        # as one would mean the single flag documented as the remedy could never
+        # repair the state it exists for -- every hard-killed run would have to
+        # be cleared by deleting the file by hand, which is the undocumented
+        # manual step this guard was written to remove.
+        verified_clean = modified is not None and not modified
+        problems: List[str] = []
+        if journal is not None:
+            if restore and verified_clean:
+                observation["resolved_pending_mutation"] = journal
+                logger.warning(
+                    f"Discarded the mutation a dead run left applied: "
+                    f"{journal.get('mutant_id')} in {journal.get('file_path')} "
+                    f"(operator {journal.get('operator')}, applied "
+                    f"{journal.get('applied_at')})."
+                )
+            else:
+                unprovable = (
+                    "" if modified is not None
+                    else ", and git cannot confirm whether it is still applied"
+                )
+                observation["pending_mutation"] = journal
+                problems.append(
+                    f"a previous run died with mutant {journal.get('mutant_id')} applied "
+                    f"to {journal.get('file_path')}{unprovable}"
+                )
+        if modified:
+            problems.append(f"tracked files differ from HEAD: {', '.join(modified)}")
+
+        if problems:
+            raise CheckoutNotPristine(
+                f"{self.repo_name}: refusing to harvest an unclean checkout at "
+                f"{self.repo_root}."
+                + NEWLINE
+                + NEWLINE.join(f"  - {p}" for p in problems)
+                + NEWLINE
+                + "Mutants are enumerated from these files, so the sample and the "
+                "baseline both depend on them."
+                + NEWLINE
+                + "Re-run with --restore-checkout to discard the modifications, or "
+                "restore the checkout by hand."
+            )
+
+        self.pending_mutation_path.unlink(missing_ok=True)
+        return observation
+
+    # ------------------------------------------------------------------
+    # Step 0b: prove the suite imports the code we are about to mutate
     # ------------------------------------------------------------------
 
     def verify_import_provenance(self) -> Dict[str, Any]:
@@ -391,6 +779,13 @@ class MutationHarness:
         test would otherwise be recorded as mutation-killed when it simply
         failed on its own, injecting exactly the kind of fake label this
         pipeline exists to eliminate.
+
+        The tree is restored between runs. One subject suite truncates a tracked
+        fixture of its own when it runs; without a restore, run 1 damages the
+        tree and runs 2 and 3 measure the damage, so the test looks like it fails
+        on a clean checkout. Restoring makes each run an independent trial of the
+        same revision, which is what repeating it is for -- the test then shows
+        up as flaky, which is the truth about it.
         """
         if self.baseline_path.exists() and not force:
             logger.info(f"Reusing cached baseline: {self.baseline_path}")
@@ -401,9 +796,22 @@ class MutationHarness:
         per_run_status: List[Dict[str, str]] = []
         per_run_duration: List[Dict[str, float]] = []
         suite_durations: List[float] = []
+        drift_checkable = tracked_modifications(self.repo_root) is not None
+        self_damage: Set[str] = set()
 
         for run_index in range(self.baseline_runs):
             result = self.executor.run_tests(timeout=self.suite_timeout)
+
+            if drift_checkable:
+                drifted = tracked_modifications(self.repo_root)
+                if drifted:
+                    self_damage.update(drifted)
+                    logger.warning(
+                        f"  run {run_index + 1} modified tracked file(s): "
+                        f"{', '.join(drifted)}. The suite edits its own checkout; "
+                        f"restoring so the next run screens the same revision."
+                    )
+                    restore_tracked(self.repo_root)
 
             if result.timed_out:
                 raise RuntimeError(
@@ -460,6 +868,7 @@ class MutationHarness:
             mean_durations=mean_durations,
             suite_duration=sum(suite_durations) / len(suite_durations),
             n_runs=self.baseline_runs,
+            self_damage=sorted(self_damage),
         )
 
         if not profile.stable_passing:
@@ -562,16 +971,32 @@ class MutationHarness:
         Apply a mutation, guaranteeing restoration of the original bytes.
 
         The original content is captured as bytes and rewritten in a finally
-        block, so an exception, timeout, or interrupt cannot leave the target
-        repository in a mutated state.
+        block, so an exception or timeout cannot leave the target repository in
+        a mutated state.
+
+        A `finally` block cannot survive SIGKILL or a machine losing power, and
+        one such death did leave a mutated file behind. So the mutation is also
+        journalled to disk before it is applied and the journal removed after
+        the restore: if the file outlives the process, the next run finds it and
+        refuses to harvest instead of mutating an already-mutated tree.
         """
         target = self.repo_root / mutant.file_path
         original_bytes = target.read_bytes()
+        self.pending_mutation_path.write_text(json.dumps({
+            "mutant_id": mutant.mutant_id,
+            "repo": self.repo_name,
+            "file_path": mutant.file_path,
+            "line": mutant.line,
+            "operator": mutant.operator,
+            "mutated_snippet": mutant.mutated_snippet,
+            "applied_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }, indent=2))
         try:
             write_source(target, mutant.mutated_source)
             yield
         finally:
             target.write_bytes(original_bytes)
+            self.pending_mutation_path.unlink(missing_ok=True)
 
     def _harvest_one(self, mutant: Mutant, baseline: BaselineProfile) -> Dict[str, Any]:
         """Run the full suite under one mutant and label the measured outcome."""
@@ -621,25 +1046,120 @@ class MutationHarness:
         }
         return record
 
-    def _load_checkpoint(self) -> Set[str]:
-        """Return mutant IDs already harvested, enabling interrupt-safe resume."""
+    def _load_checkpoint_payload(self) -> Dict[str, Any]:
+        """Return the checkpoint as written, or an empty mapping."""
         if not self.checkpoint_path.exists():
-            return set()
+            return {}
         try:
             payload = json.loads(self.checkpoint_path.read_text())
-            return set(payload.get("completed", []))
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning(f"Unreadable checkpoint, starting fresh: {exc}")
-            return set()
+            return {}
+        return payload if isinstance(payload, dict) else {}
 
-    def _save_checkpoint(self, completed: Set[str]) -> None:
+    def _load_checkpoint(self) -> Set[str]:
+        """Return mutant IDs already harvested, enabling interrupt-safe resume."""
+        return set(self._load_checkpoint_payload().get("completed", []))
+
+    def _save_checkpoint(
+        self,
+        completed: Set[str],
+        digest: Optional[str] = None,
+        n_sampled: Optional[int] = None,
+    ) -> None:
         payload = {
             "repo": self.repo_name,
             "seed": self.seed,
+            # Which sample these IDs were drawn from. A later run that
+            # enumerates different candidates can be caught instead of
+            # appending labels from a second population to the same file.
+            "sample_digest": digest,
+            "n_sampled": n_sampled,
             "completed": sorted(completed),
             "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         }
         self.checkpoint_path.write_text(json.dumps(payload, indent=2))
+
+    def _verify_resumable(self, completed: Set[str], mutants: Sequence[Mutant]) -> None:
+        """
+        Refuse to resume when the checkpoint and the sample disagree.
+
+        Growing `--mutants` is legitimate: stratified sampling is a prefix walk
+        over seeded per-family orders, so a larger sample contains the smaller
+        one. Completed IDs that are *absent* from the current sample are not
+        legitimate -- they mean the candidate set itself changed, which happens
+        when the tree was mutated or edited between runs.
+        """
+        orphans = sorted(completed - {m.mutant_id for m in mutants})
+        if orphans:
+            raise SampleMismatch(
+                f"{self.repo_name}: checkpoint holds {len(completed)} completed "
+                f"mutants, {len(orphans)} of which are absent from the current "
+                f"{len(mutants)}-mutant sample."
+                + NEWLINE
+                + f"  first missing: {', '.join(orphans[:5])}"
+                + NEWLINE
+                + "The candidate set changed since those labels were recorded, so "
+                "resuming would pool two different populations in one file."
+                + NEWLINE
+                + "Check the checkout is pristine, then either re-harvest from "
+                "scratch (--no-resume) or truncate mutants.jsonl and checkpoint.json "
+                "to the records drawn from this sample."
+            )
+
+        recorded = self._load_checkpoint_payload().get("sample_digest")
+        current = sample_digest(mutants)
+        if recorded and recorded != current:
+            logger.info(
+                f"Sample extended: checkpoint digest {recorded} -> {current} "
+                f"({len(mutants)} mutants, {len(completed)} already done)."
+            )
+
+    def file_totals(self) -> Dict[str, Any]:
+        """
+        Count the labels actually on disk, not the ones this process wrote.
+
+        A resumed run only touches the mutants it still owed, so its own tallies
+        describe the increment. The summary is read later as a description of
+        the dataset, so it has to report the file. The log is append-only and a
+        re-harvest can write a mutant twice; the last record for an ID wins,
+        which is what a reader of the file would conclude too.
+        """
+        totals: Dict[str, Any] = {
+            "harvested": 0, "broke_suite": 0, "timed_out": 0, "error": 0,
+            "killed_none": 0, "total_kills": 0, "checkout_drifted": 0,
+        }
+        if not self.mutants_path.exists():
+            totals["records"] = 0
+            totals["unique_mutants"] = 0
+            return totals
+
+        latest: Dict[str, Dict[str, Any]] = {}
+        n_lines = 0
+        with open(self.mutants_path, encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                n_lines += 1
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    logger.warning(f"Skipping unreadable record in {self.mutants_path}")
+                    continue
+                latest[record.get("mutant_id", f"unnamed_{n_lines}")] = record
+
+        for record in latest.values():
+            status = record.get("status", "error")
+            totals[status] = totals.get(status, 0) + 1
+            totals["total_kills"] += record.get("n_killed", 0)
+            if record.get("n_killed", 0) == 0:
+                totals["killed_none"] += 1
+            if record.get("checkout_drifted"):
+                totals["checkout_drifted"] += 1
+
+        totals["records"] = n_lines
+        totals["unique_mutants"] = len(latest)
+        return totals
 
     def harvest(
         self,
@@ -653,16 +1173,31 @@ class MutationHarness:
         Records are flushed immediately and the checkpoint is updated after
         every mutant, so an interrupted multi-hour run resumes without
         repeating work.
+
+        After every mutant the checkout is re-checked against HEAD. A suite that
+        edits its own tracked fixtures leaves damage the next mutant would
+        inherit -- and that a later baseline screen would misread as a test
+        failing on a clean checkout -- so the drift is recorded on the record and
+        undone before the loop moves on.
         """
         completed = self._load_checkpoint() if resume else set()
+        digest = sample_digest(mutants)
+
+        if completed:
+            self._verify_resumable(completed, mutants)
+
         pending = [m for m in mutants if m.mutant_id not in completed]
 
         if completed:
             logger.info(f"Resuming: {len(completed)} done, {len(pending)} remaining.")
 
-        summary = {
+        # One probe decides whether per-mutant drift detection is available at
+        # all: a synthetic fixture repo is not a git checkout and cannot answer.
+        drift_checkable = tracked_modifications(self.repo_root) is not None
+
+        this_run = {
             "harvested": 0, "broke_suite": 0, "timed_out": 0,
-            "killed_none": 0, "total_kills": 0,
+            "killed_none": 0, "total_kills": 0, "checkout_drifted": 0,
         }
         started = time.time()
 
@@ -684,16 +1219,29 @@ class MutationHarness:
                         "n_killed": 0,
                     }
 
+                if drift_checkable:
+                    drifted = tracked_modifications(self.repo_root)
+                    if drifted:
+                        record["checkout_drifted"] = drifted
+                        this_run["checkout_drifted"] += 1
+                        logger.error(
+                            f"{mutant.mutant_id} left the checkout modified: "
+                            f"{', '.join(drifted)}. The suite edited its own tracked "
+                            f"files, so this record may hold inherited damage rather "
+                            f"than kills. Restoring before the next mutant."
+                        )
+                        restore_tracked(self.repo_root)
+
                 sink.write(json.dumps(record) + "\n")
                 sink.flush()
 
                 completed.add(mutant.mutant_id)
-                self._save_checkpoint(completed)
+                self._save_checkpoint(completed, digest=digest, n_sampled=len(mutants))
 
-                summary[record["status"]] = summary.get(record["status"], 0) + 1
-                summary["total_kills"] += record.get("n_killed", 0)
+                this_run[record["status"]] = this_run.get(record["status"], 0) + 1
+                this_run["total_kills"] += record.get("n_killed", 0)
                 if record.get("n_killed", 0) == 0:
-                    summary["killed_none"] += 1
+                    this_run["killed_none"] += 1
 
                 elapsed = time.time() - started
                 rate = elapsed / index
@@ -705,7 +1253,17 @@ class MutationHarness:
                     f"(eta {remaining / 60:.0f}m)"
                 )
 
-        summary["elapsed_seconds"] = round(time.time() - started, 1)
+        this_run["elapsed_seconds"] = round(time.time() - started, 1)
+        this_run["n_mutants"] = len(pending)
+
+        # Top-level counts describe the label file; `this_run` describes what
+        # this process contributed to it.
+        summary: Dict[str, Any] = dict(self.file_totals())
+        summary["this_run"] = this_run
+        summary["n_completed"] = len(completed)
+        summary["elapsed_seconds"] = this_run["elapsed_seconds"]
+        summary["sample_digest"] = digest
+        summary["drift_detection"] = "git" if drift_checkable else "unavailable"
         return summary
 
     # ------------------------------------------------------------------
@@ -717,37 +1275,64 @@ class MutationHarness:
         n_mutants: int = 250,
         resume: bool = True,
         verify_provenance: bool = True,
+        restore_checkout: bool = False,
+        reprofile_baseline: bool = False,
+        break_lock: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute the full protocol end to end for this repository.
 
         `verify_provenance` is only turned off by unit tests, which run against
         synthetic repositories that are deliberately never installed anywhere.
+
+        The checkout is checked before anything else: the baseline screen and
+        the candidate enumeration both read the files on disk, so a tree that
+        does not match HEAD changes the sample and the label universe silently.
+        `restore_checkout` discards tracked modifications first, and
+        `reprofile_baseline` re-runs the flakiness screen instead of trusting a
+        cached one -- which is required after the checkout has been repaired,
+        because the cached profile was screened against the damaged tree.
+
+        The lock is taken before the checkout is even inspected, because
+        `restore_checkout` is destructive to a concurrent run: it would discard
+        the mutation another live harvest has applied. Refusing first is what
+        makes the repair switch safe to hand out.
         """
-        provenance: Dict[str, Any] = {"verified": False, "reason": "not_requested", "modules": {}}
-        if verify_provenance:
-            provenance = self.verify_import_provenance()
+        harvester = self.acquire_lock(break_lock=break_lock)
+        try:
+            checkout = self.assert_pristine_checkout(restore=restore_checkout)
 
-        baseline = self.profile_baseline()
-        candidates = self.collect_candidates()
+            provenance: Dict[str, Any] = {
+                "verified": False, "reason": "not_requested", "modules": {},
+            }
+            if verify_provenance:
+                provenance = self.verify_import_provenance()
 
-        if not candidates:
-            raise RuntimeError(f"No mutants generated for '{self.repo_name}'.")
+            baseline = self.profile_baseline(force=reprofile_baseline)
+            candidates = self.collect_candidates()
 
-        selected = self.sample_mutants(candidates, n_mutants)
-        summary = self.harvest(selected, baseline, resume=resume)
+            if not candidates:
+                raise RuntimeError(f"No mutants generated for '{self.repo_name}'.")
 
-        summary.update({
-            "repo": self.repo_name,
-            "interpreter": self.python_executable,
-            "import_provenance": provenance,
-            "universe_size": baseline.universe_size,
-            "n_candidates": len(candidates),
-            "n_sampled": len(selected),
-            "mutants_path": str(self.mutants_path),
-        })
+            selected = self.sample_mutants(candidates, n_mutants)
+            summary = self.harvest(selected, baseline, resume=resume)
 
-        self.write_summary(summary)
+            summary.update({
+                "repo": self.repo_name,
+                "interpreter": self.python_executable,
+                "import_provenance": provenance,
+                "checkout": checkout,
+                "harvester": harvester,
+                "universe_size": baseline.universe_size,
+                "baseline_self_damage": baseline.self_damage,
+                "n_candidates": len(candidates),
+                "n_sampled": len(selected),
+                "mutants_path": str(self.mutants_path),
+            })
+
+            self.write_summary(summary)
+        finally:
+            self.release_lock()
 
         logger.info(f"Harvest complete for '{self.repo_name}': {summary}")
         return summary

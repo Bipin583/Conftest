@@ -1,5 +1,12 @@
 """
 ConfTest Streamlit Analytics Portal - Main Application Entrypoint.
+
+The KPI row is read from report artifacts by conftest.evaluation.headline. It
+used to be four literals -- 100.0% recall with "0 Escaped Bugs", 68.6% test
+reduction, ECE 0.0192 at "-25.47% Error (Calibrated)", disagreement 0.0193 --
+none of which came from a measurement, and the first two of which the project's
+own reports/baseline_comparison.csv contradicts: the ConfTest selector recalls
+40.0% of failures and lets 3 commits escape.
 """
 
 import streamlit as st
@@ -13,7 +20,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from dashboard.utils import load_baseline_data, load_calibration_data, load_shap_report
+from dashboard.utils import (
+    MissingArtifact,
+    headline_metrics,
+    load_baseline_data,
+    load_calibration_data,
+    provenance,
+    stop_on_missing_artifact,
+)
 
 st.set_page_config(
     page_title="ConfTest | Intelligent Regression Test Selection",
@@ -51,40 +65,20 @@ st.markdown("""
 st.markdown('<div class="main-header">🛡️ ConfTest: Confidence-Calibrated RTS Portal</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Selective Prediction & Uncertainty-Aware Regression Test Selection for CI/CD</div>', unsafe_allow_html=True)
 
-# Top KPI Row
-col1, col2, col3, col4 = st.columns(4)
+# Provenance first: a real artifact computed on sampled labels is still not
+# evidence about the technique, and the reader has to be told which they have.
+prov = provenance(PROJECT_ROOT)
+if prov.real_labels:
+    st.success(f"✅ {prov.detail}")
+else:
+    st.error(f"⚠️ **Labels not measured.** {prov.detail}")
 
-with col1:
-    st.metric(
-        label="🎯 Failure Detection Recall",
-        value="100.0%",
-        delta="0 Escaped Bugs (Safe Fallback)",
-        delta_color="normal",
-    )
-
-with col2:
-    st.metric(
-        label="⚡ Test Execution Reduction",
-        value="68.6%",
-        delta="+68.6% CI Speedup",
-        delta_color="normal",
-    )
-
-with col3:
-    st.metric(
-        label="📉 Expected Calibration Error (ECE)",
-        value="0.0192",
-        delta="-25.47% Error (Calibrated)",
-        delta_color="inverse",
-    )
-
-with col4:
-    st.metric(
-        label="🔮 Epistemic Disagreement (std)",
-        value="0.0193",
-        delta="5-Seed Deep Ensemble",
-        delta_color="off",
-    )
+# Top KPI Row, every cell read from the artifact named beneath it.
+for column, headline in zip(st.columns(4), headline_metrics(PROJECT_ROOT)):
+    with column:
+        st.metric(label=headline.label, value=headline.value or "not measured")
+        st.caption(headline.note)
+        st.caption(f"source: `{headline.source}`")
 
 st.divider()
 
@@ -93,7 +87,10 @@ left_col, right_col = st.columns([3, 2])
 
 with left_col:
     st.subheader("📊 RTS Baseline Comparison (Recall vs. Time Saved)")
-    df_baselines = load_baseline_data()
+    try:
+        df_baselines = load_baseline_data()
+    except MissingArtifact as exc:
+        stop_on_missing_artifact(exc)
     fig = px.scatter(
         df_baselines,
         x="time_reduction_pct",
@@ -105,26 +102,49 @@ with left_col:
         labels={"time_reduction_pct": "Test Execution Reduction (%)", "failure_recall_pct": "Bug Detection Recall (%)"},
     )
     fig.update_traces(textposition="top center")
-    fig.add_hline(y=100.0, line_dash="dash", line_color="green", annotation_text="100% Zero-Escape Frontier")
+    fig.add_hline(
+        y=100.0,
+        line_dash="dash",
+        line_color="green",
+        annotation_text="100% recall (no escaped failure)",
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 with right_col:
     st.subheader("🧠 System Architecture & Pillars")
-    st.markdown("""
+    try:
+        calibration = load_calibration_data()
+    except MissingArtifact as exc:
+        stop_on_missing_artifact(exc)
+    chosen = str(calibration.get("best_method", "uncalibrated"))
+    selection = calibration.get("selection", {})
+    if chosen == "uncalibrated":
+        calibration_line = (
+            "**Declined on the current split.** "
+            f"{selection.get('reason', 'no candidate cleared the noise in the measurement')} "
+            f"Decided on {selection.get('basis', 'unknown')} evidence, "
+            f"resampling by {selection.get('resampling_unit', 'unknown')}."
+        )
+    else:
+        temperature = calibration.get("fitted_temperature")
+        fitted = f" Fitted $T = {temperature}$." if temperature is not None else ""
+        calibration_line = f"**{chosen}**, chosen over the uncalibrated model.{fitted}"
+
+    st.markdown(f"""
     **ConfTest** prevents silent CI regression escapes using a four-stage pipeline:
-    
+
     1. **32-Feature Extraction Pipeline**:
        - 12 Churn & Diff Metrics
        - 6 AST Semantic & Cyclomatic Metrics
        - 6 Static Dependency-Graph Reachability Hops
        - 8 Historical Failure Telemetry Metrics (Strict Anti-Leakage)
-       
+
     2. **5-Seed Deep Ensemble**:
-       - Quantifies epistemic model uncertainty $\\sigma(c, t) = \\text{Std}(\\{p_m\\})$.
-       
-    3. **Post-Hoc Temperature Calibration**:
-       - Optimizes $T = 0.9275$ to align predicted probabilities with true empirical risk.
-       
+       - Quantifies epistemic model uncertainty $\sigma(c, t) = \text{{Std}}(\{{p_m\}})$.
+
+    3. **Post-Hoc Calibration**:
+       - {calibration_line}
+
     4. **Dual-Mode Selective Policy**:
        - `FAST_SELECTED`: Confident test ranking.
        - `SAFE_FULL_SUITE`: 100% full fallback on high uncertainty or OOD diffs.

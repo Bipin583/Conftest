@@ -34,13 +34,17 @@ def get_analytics_summary(db: Session = Depends(get_db)) -> AnalyticsSummarySche
         select(func.count(SelectionDecision.id)).where(SelectionDecision.abstained == True)
     ).scalar() or 0
 
+    # An average over no decisions does not exist. These were `or 0.0` and
+    # `or 0.015`: an empty database reported a plausible-looking 0.015 mean
+    # uncertainty in the same field, and with the same type, as a real average.
+    # None serialises to null, which a caller can tell apart from a measurement.
     avg_savings = db.execute(
         select(func.avg(SelectionDecision.estimated_saving))
-    ).scalar() or 0.0
+    ).scalar()
 
     avg_uncertainty = db.execute(
         select(func.avg(SelectionDecision.uncertainty_score))
-    ).scalar() or 0.015
+    ).scalar()
 
     total_detected_fails = db.execute(
         select(func.sum(Outcome.detected_failures))
@@ -66,7 +70,9 @@ def get_analytics_summary(db: Session = Depends(get_db)) -> AnalyticsSummarySche
             "abstained": dec.abstained,
             "selected_count": dec.selected_count,
             "total_count": dec.total_count,
-            "time_saved_pct": dec.estimated_saving,
+            # estimated_saving is 1 - selected/total: a count ratio. Reporting it
+            # as time saved asserts that every test costs the same.
+            "test_reduction_pct": dec.estimated_saving,
             "uncertainty": dec.uncertainty_score,
             "created_at": dec.created_at.isoformat(),
         })
@@ -77,9 +83,13 @@ def get_analytics_summary(db: Session = Depends(get_db)) -> AnalyticsSummarySche
         total_decisions=total_decisions,
         total_selective_fast_mode=fast_mode_count,
         total_safe_abstentions=abstention_count,
-        average_test_reduction_pct=round(float(avg_savings), 2),
+        average_test_reduction_pct=(
+            None if avg_savings is None else round(float(avg_savings), 2)
+        ),
         total_failures_detected=int(total_detected_fails),
         total_missed_failures=int(total_missed_fails),
-        average_uncertainty=round(float(avg_uncertainty), 4),
+        average_uncertainty=(
+            None if avg_uncertainty is None else round(float(avg_uncertainty), 4)
+        ),
         recent_decisions=recent_list,
     )

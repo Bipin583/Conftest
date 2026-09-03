@@ -124,6 +124,9 @@ def harvest_one(
     n_mutants: int,
     resume: bool,
     python_executable: Path,
+    restore_checkout: bool = False,
+    reprofile_baseline: bool = False,
+    break_lock: bool = False,
 ) -> Dict[str, Any]:
     """Harvest one repository. Raises rather than returning a partial result."""
     repo_root = (workspace / name).resolve()
@@ -152,7 +155,13 @@ def harvest_one(
     )
 
     started = time.time()
-    summary = harness.run(n_mutants=n_mutants, resume=resume)
+    summary = harness.run(
+        n_mutants=n_mutants,
+        resume=resume,
+        restore_checkout=restore_checkout,
+        reprofile_baseline=reprofile_baseline,
+        break_lock=break_lock,
+    )
     summary["wall_clock_seconds"] = round(time.time() - started, 1)
     summary["screened_commit_sha"] = entry.get("commit_sha", "")
 
@@ -174,6 +183,27 @@ def main() -> int:
     parser.add_argument(
         "--no-resume", action="store_true",
         help="ignore the checkpoint and re-harvest from the first mutant",
+    )
+    parser.add_argument(
+        "--restore-checkout", action="store_true",
+        help=(
+            "discard modifications to tracked files in the subject checkout "
+            "before harvesting; without it an unclean checkout aborts the repo"
+        ),
+    )
+    parser.add_argument(
+        "--reprofile-baseline", action="store_true",
+        help=(
+            "re-run the flakiness screen instead of reusing the cached one; "
+            "required after repairing a checkout the cached screen ran against"
+        ),
+    )
+    parser.add_argument(
+        "--break-lock", action="store_true",
+        help=(
+            "take over the harvest lock on the output directory; only safe once "
+            "the process named in harvest.lock is confirmed dead"
+        ),
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -244,6 +274,9 @@ def main() -> int:
                 n_mutants=args.mutants,
                 resume=not args.no_resume,
                 python_executable=interpreters[name],
+                restore_checkout=args.restore_checkout,
+                reprofile_baseline=args.reprofile_baseline,
+                break_lock=args.break_lock,
             ))
         except Exception as exc:
             # One repository failing must not discard the others' hours of work.
@@ -259,6 +292,7 @@ def main() -> int:
             f"broke_suite {summary.get('broke_suite', 0):>3}  "
             f"timed_out {summary.get('timed_out', 0):>3}  "
             f"kills {summary.get('total_kills', 0):>6}  "
+            f"drifted {summary.get('checkout_drifted', 0):>3}  "
             f"{summary.get('wall_clock_seconds', 0.0) / 60:.1f}min"
         )
     if failed:
