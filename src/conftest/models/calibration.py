@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import joblib
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize_scalar
 from sklearn.isotonic import IsotonicRegression
 
 from conftest.logging_config import get_logger
@@ -90,13 +90,24 @@ class TemperatureScalingCalibrator:
 
     def __init__(self):
         self.temperature: float = 1.0
+        # Populated by fit(). A temperature of exactly 1.0 is the identity, so a fit that
+        # never moved and a fit that found no useful temperature look the same from the
+        # outside unless the search itself is reported.
+        self.fit_diagnostics: Dict[str, Any] = {}
 
     def _logit(self, p: np.ndarray, eps: float = 1e-7) -> np.ndarray:
         p_c = np.clip(p, eps, 1.0 - eps)
         return np.log(p_c / (1.0 - p_c))
 
     def _sigmoid(self, z: np.ndarray) -> np.ndarray:
-        return 1.0 / (1.0 + np.exp(-z))
+        """Overflow-free logistic. The bounded search evaluates T down to 0.01, where
+        logits / T reaches several hundred and the naive exp(-z) overflows."""
+        out = np.empty_like(z, dtype=np.float64)
+        pos = z >= 0
+        out[pos] = 1.0 / (1.0 + np.exp(-z[pos]))
+        exp_z = np.exp(z[~pos])
+        out[~pos] = exp_z / (1.0 + exp_z)
+        return out
 
     def fit(self, val_probs: np.ndarray, y_val: np.ndarray) -> "TemperatureScalingCalibrator":
         """
@@ -109,18 +120,62 @@ class TemperatureScalingCalibrator:
         logits = self._logit(val_probs)
         y = np.asarray(y_val).astype(float)
 
-        def nll_objective(t: np.ndarray) -> float:
-            temp = t[0]
-            scaled_logits = logits / max(1e-3, temp)
-            probs = self._sigmoid(scaled_logits)
-            eps = 1e-9
-            probs = np.clip(probs, eps, 1.0 - eps)
-            loss = -np.mean(y * np.log(probs) + (1.0 - y) * np.log(1.0 - probs))
+        def nll(temp: float) -> float:
+            # log(1 + exp(x)) via logaddexp, so no probability is ever clipped and no
+            # intermediate overflows. Clipping to 1e-9 and taking logs used to hand the
+            # optimiser a flat region at small T built out of the clip bound rather than
+            # out of the data.
+            z = logits / max(1e-3, temp)
+            loss = np.mean(y * np.logaddexp(0.0, -z) + (1.0 - y) * np.logaddexp(0.0, z))
             return float(loss)
 
-        res = minimize(nll_objective, x0=[1.0], bounds=[(0.01, 10.0)], method="L-BFGS-B")
-        self.temperature = float(res.x[0])
-        logger.info(f"Fitted Temperature Scaling calibrator: T = {self.temperature:.4f}")
+        # The search is derivative-free and runs in log-temperature.
+        #
+        # This used to be L-BFGS-B started at T = 1.0 with a finite-difference gradient.
+        # On the ablation's validation probabilities that gradient came out below pgtol at
+        # the starting point, so the optimiser returned T = 1.0 after zero iterations and
+        # reported success -- while T = 0.75 scored NLL 0.1901 against 0.2094 for the
+        # identity it returned. An unmoved optimiser is indistinguishable from a model that
+        # needs no calibration, and the column was still published as "calibrated".
+        res = minimize_scalar(
+            lambda u: nll(float(np.exp(u))),
+            bounds=(np.log(0.01), np.log(10.0)),
+            method="bounded",
+            options={"xatol": 1e-6},
+        )
+        candidate = float(np.clip(np.exp(res.x), 0.01, 10.0))
+        nll_identity = nll(1.0)
+        nll_candidate = nll(candidate)
+
+        if nll_candidate <= nll_identity:
+            self.temperature = candidate
+        else:
+            # A search that cannot beat the identity has not found a temperature.
+            self.temperature = 1.0
+
+        self.fit_diagnostics = {
+            "optimiser": "scipy.optimize.minimize_scalar(method='bounded') on log T",
+            "converged": bool(res.success),
+            "iterations": int(getattr(res, "nit", 0)),
+            "temperature": self.temperature,
+            "nll_at_identity": nll_identity,
+            "nll_at_fitted": min(nll_candidate, nll_identity),
+            "nll_improvement": float(nll_identity - min(nll_candidate, nll_identity)),
+            "moved_from_identity": bool(abs(self.temperature - 1.0) > 1e-6),
+            "n_validation_rows": int(len(y)),
+            "validation_positive_rate": float(np.mean(y)) if len(y) else float("nan"),
+        }
+        if not self.fit_diagnostics["moved_from_identity"]:
+            logger.warning(
+                "Temperature scaling stayed at T = 1.0: no temperature in [0.01, 10] "
+                f"beat the identity on {len(y)} validation rows (NLL {nll_identity:.6f}). "
+                "The calibrated column is the uncalibrated model."
+            )
+        else:
+            logger.info(
+                f"Fitted Temperature Scaling calibrator: T = {self.temperature:.4f} "
+                f"(NLL {nll_identity:.6f} -> {nll_candidate:.6f})"
+            )
         return self
 
     def calibrate(self, probs: np.ndarray) -> np.ndarray:
@@ -161,10 +216,22 @@ class ConfidenceCalibrator:
         self.method = method.lower()
         if self.method == "isotonic":
             self.calibrator = IsotonicCalibrator()
-        elif self.method in ("temperature", "temperature_scaling", "platt"):
+        elif self.method in ("temperature", "temperature_scaling"):
             self.calibrator = TemperatureScalingCalibrator()
+        elif self.method == "platt":
+            # Platt scaling fits a slope and an intercept; temperature scaling fits one
+            # scalar. Aliasing them would let a report claim it compared two methods
+            # when it had fitted the same model twice.
+            raise ValueError(
+                "Platt scaling is not implemented. It fits sigmoid(a * logit + b), which "
+                "is not temperature scaling's sigmoid(logit / T); use "
+                "'temperature_scaling' or 'isotonic'."
+            )
         else:
-            raise ValueError(f"Unknown calibration method: {method}. Choose 'isotonic' or 'temperature_scaling'.")
+            raise ValueError(
+                f"Unknown calibration method: {method}. "
+                "Choose 'isotonic' or 'temperature_scaling'."
+            )
 
     def fit(self, val_probs: np.ndarray, y_val: np.ndarray) -> "ConfidenceCalibrator":
         """Fit calibration model on validation predictions."""

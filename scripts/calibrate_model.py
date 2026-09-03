@@ -6,7 +6,10 @@ evaluates Expected Calibration Error (ECE) and Brier Score reductions on the tes
 and exports calibrated model artifacts and reliability diagram data.
 
 Usage:
-    python scripts/calibrate_model.py --val data/splits/val.csv --test data/splits/test.csv --ensemble models/ensembles/5_seed_lgbm
+    python scripts/calibrate_model.py \
+        --val data/splits/val.csv \
+        --test data/splits/test.csv \
+        --ensemble models/ensembles/5_seed_lgbm
 """
 
 import argparse
@@ -193,9 +196,11 @@ def main():
     )
 
     candidates = {}
+    selection_fits = {}
     for method in ("isotonic", "temperature_scaling"):
         probe = ConfidenceCalibrator(method=method).fit(sel_probs_fit, sel_y_fit)
         candidates[method] = probe.calibrate(sel_probs_hold)
+        selection_fits[method] = getattr(probe.calibrator, "fit_diagnostics", {})
 
     sel_scores = score_calibrators(
         sel_y_hold,
@@ -280,8 +285,16 @@ def main():
         # previously served a literal 0.9275 regardless of what was fitted, so a
         # rerun that landed on a different T went unreported.
         "fitted_temperature": round(float(temp_cal.calibrator.temperature), 4),
+        # A search that never left T = 1.0 produces the uncalibrated model under the
+        # name "calibrated", and the decision that follows is temperature scaling
+        # measured against itself. That is what happened before 2026-09-03g, so the
+        # search is now reported alongside its result.
+        "temperature_fit": temp_cal.calibrator.fit_diagnostics,
         "selection": {
             "chosen_on": "validation holdout",
+            "temperature_fit_on_selection_half": selection_fits.get(
+                "temperature_scaling", {}
+            ),
             "reason": outcome.reason,
             "disqualified": outcome.disqualified,
             "basis": outcome.basis,

@@ -7,10 +7,20 @@ Implements:
 8. ConfTestSelectiveSelector (Proposed calibrated selector with epistemic abstention fallback)
 """
 
+import json
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 
 from conftest.models.baselines.base import BaseSelector, SelectionResult
+
+# The operating point this system ships. Baseline 8 is the proposed method, so it has
+# to be evaluated at the thresholds scripts/tune_policy.py chose -- not at literals
+# that happen to sit in a constructor signature. Until 2026-09-03 this class defaulted
+# to 0.15 / 0.70 while the tuned policy was 0.02 / 0.10, so the published headline row
+# and the policy report described two different systems.
+POLICY_CONFIG_PATH = Path("models/policy_config.json")
+POLICY_PRODUCED_BY = "python scripts/tune_policy.py"
 
 
 class UncalibratedMLSelector(BaseSelector):
@@ -111,12 +121,45 @@ class ConfTestSelectiveSelector(BaseSelector):
 
     def __init__(
         self,
-        abstention_threshold: float = 0.15,
-        min_confidence_threshold: float = 0.70,
+        abstention_threshold: Optional[float] = None,
+        min_confidence_threshold: Optional[float] = None,
+        policy_config_path: Optional[Path] = None,
     ):
+        """
+        Args:
+            abstention_threshold: Max epistemic uncertainty before falling back to the
+                full suite. None reads tau_abstain from the tuned policy.
+            min_confidence_threshold: Min top-1 calibrated confidence required to run in
+                fast mode. None reads tau_conf from the tuned policy.
+            policy_config_path: Override for the tuned policy location.
+
+        Raises:
+            FileNotFoundError: A threshold was left unspecified and there is no tuned
+                policy to read it from. An untuned operating point is not a default.
+        """
         super().__init__(name="8. ConfTest (Calibrated + Selective Abstention)")
-        self.abstention_threshold = abstention_threshold
-        self.min_confidence_threshold = min_confidence_threshold
+        if abstention_threshold is None or min_confidence_threshold is None:
+            path = policy_config_path or POLICY_CONFIG_PATH
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"No tuned policy at {path}, and this selector was constructed "
+                    "without explicit thresholds. Run "
+                    f"`{POLICY_PRODUCED_BY}` first, or pass both thresholds "
+                    "explicitly to evaluate a deliberately different operating point."
+                )
+            tuned = json.loads(path.read_text(encoding="utf-8"))
+            for key in ("tau_abstain", "tau_conf"):
+                if key not in tuned:
+                    raise KeyError(f"{path} has no '{key}'; re-run {POLICY_PRODUCED_BY}.")
+            if abstention_threshold is None:
+                abstention_threshold = float(tuned["tau_abstain"])
+            if min_confidence_threshold is None:
+                min_confidence_threshold = float(tuned["tau_conf"])
+            self.thresholds_from = str(path)
+        else:
+            self.thresholds_from = "explicit constructor arguments"
+        self.abstention_threshold = float(abstention_threshold)
+        self.min_confidence_threshold = float(min_confidence_threshold)
 
     def select(
         self,
@@ -133,11 +176,18 @@ class ConfTestSelectiveSelector(BaseSelector):
         uncertainties = []
         confidences = []
 
+        # No invented uncertainty and no invented confidence. The abstention rule is
+        # the method's contribution; thresholding a filled-in 0.08 measures nothing.
         for t in candidate_tests:
-            u = float(t.get("uncertainty", 0.08))
-            c = float(t.get("calibrated_confidence", t.get("raw_score", 0.85)))
-            uncertainties.append(u)
-            confidences.append(c)
+            for key in ("uncertainty", "calibrated_confidence"):
+                if key not in t:
+                    raise KeyError(
+                        f"Candidate {t.get('test_id', '<unknown>')} has no '{key}'. "
+                        "Baseline 8 abstains on measured ensemble disagreement and "
+                        "measured calibrated confidence; score the tests first."
+                    )
+            uncertainties.append(float(t["uncertainty"]))
+            confidences.append(float(t["calibrated_confidence"]))
 
         max_uncertainty = float(np.max(uncertainties)) if uncertainties else 0.0
         top_confidence = float(np.max(confidences)) if confidences else 0.85

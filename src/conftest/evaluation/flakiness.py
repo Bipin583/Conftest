@@ -8,6 +8,7 @@ and evaluates model robustness with sample downweighting and selective abstentio
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
+from conftest.evaluation.budget import recall_at_budget_per_commit
 from conftest.models.lightgbm_model import LightGBMTestPredictor
 from conftest.models.calibration import TemperatureScalingCalibrator, compute_ece
 from conftest.models.trainer import evaluate_predictions
@@ -72,9 +73,18 @@ class FlakinessStressTester:
         X_test: np.ndarray,
         y_test: np.ndarray,
         noise_rate: float,
+        groups_test: Optional[np.ndarray] = None,
+        budget_ratio: float = 0.25,
     ) -> Dict[str, Any]:
         """
-        Evaluate Standard Unweighted ML vs. ConfTest Robust Downweighted ML at a given noise rate.
+        Evaluate Standard Unweighted ML vs. ConfTest Robust Downweighted ML at a noise rate.
+
+        Noise is injected into the training labels only. Every metric is scored against the
+        clean held-out labels, so a model cannot score well by learning the corruption.
+
+        `groups_test` carries the commit id per test row. Without it the budget recall is
+        undefined rather than pooled over a global ranking, because a global ranking lets
+        one commit spend another commit's budget.
         """
         # Inject noise into training set
         noisy_y_train, flakiness_scores = inject_flakiness_noise(
@@ -102,17 +112,30 @@ class FlakinessStressTester:
         robust_metrics = evaluate_predictions(y_test, robust_cal_probs)
         cal_ece = compute_ece(y_test, robust_cal_probs)
 
-        # Failure Recall @ 25% Budget
-        k = max(1, int(len(y_test) * 0.25))
-        top_k_std = np.argsort(std_test_probs)[-k:]
-        top_k_rob = np.argsort(robust_cal_probs)[-k:]
-        total_fails = max(1, int(np.sum(y_test)))
+        # Failure recall under a per-commit budget. The previous version ranked the whole
+        # test set at once and divided by max(1, failures), which turns "no failure to
+        # find" into a denominator of one and reports a miss as 0.0.
+        std_recall, std_note = recall_at_budget_per_commit(
+            y_test, std_test_probs, groups_test, budget_ratio
+        )
+        rob_recall, rob_note = recall_at_budget_per_commit(
+            y_test, robust_cal_probs, groups_test, budget_ratio
+        )
 
-        std_recall = float(np.sum(y_test[top_k_std]) / total_fails)
-        rob_recall = float(np.sum(y_test[top_k_rob]) / total_fails)
+        # Flipping labels in a 5%-positive dataset overwhelmingly turns passes into
+        # failures, so the training prevalence climbs with the noise rate. Published so a
+        # reader can see that a metric improving under noise may be reporting the
+        # prevalence change rather than robustness.
+        train_prevalence = float(np.mean(noisy_y_train))
 
         return {
             "noise_rate_pct": round(noise_rate * 100, 1),
+            "train_positive_rate": round(train_prevalence, 4),
+            "train_positive_rate_clean": round(float(np.mean(y_train)), 4),
+            "labels_flipped": int(np.sum(noisy_y_train != np.asarray(y_train))),
+            "evaluation_labels": "clean held-out labels; noise is injected into training only",
+            "recall_denominator_standard": std_note,
+            "recall_denominator_robust": rob_note,
             "standard_unweighted": {
                 "pr_auc": round(float(std_metrics["pr_auc"]), 4),
                 "roc_auc": round(float(std_metrics["roc_auc"]), 4),
@@ -142,11 +165,16 @@ class FlakinessStressTester:
         X_test: np.ndarray,
         y_test: np.ndarray,
         noise_levels: List[float],
+        groups_test: Optional[np.ndarray] = None,
+        budget_ratio: float = 0.25,
     ) -> List[Dict[str, Any]]:
         """Run stress grid across multiple noise levels."""
         results = []
         for noise in noise_levels:
             logger.info(f"Evaluating flakiness noise level: {noise*100:.1f}%...")
-            res = self.evaluate_noise_level(X_train, y_train, X_val, y_val, X_test, y_test, noise)
+            res = self.evaluate_noise_level(
+                X_train, y_train, X_val, y_val, X_test, y_test, noise,
+                groups_test=groups_test, budget_ratio=budget_ratio,
+            )
             results.append(res)
         return results

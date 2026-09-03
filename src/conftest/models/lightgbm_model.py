@@ -103,9 +103,14 @@ class LightGBMTestPredictor:
         eval_set = None
         if X_val is not None and y_val is not None:
             eval_set = [(X_val, y_val)]
-            callbacks.append(lgb.early_stopping(stopping_rounds=early_stopping_rounds, verbose=False))
+            callbacks.append(
+                lgb.early_stopping(stopping_rounds=early_stopping_rounds, verbose=False)
+            )
 
-        logger.info(f"Training LightGBM model (Seed: {self.random_seed}, scale_pos_weight: {scale_pos_weight:.2f})...")
+        logger.info(
+            f"Training LightGBM model (Seed: {self.random_seed}, "
+            f"scale_pos_weight: {scale_pos_weight:.2f})..."
+        )
         self.model.fit(
             X_train,
             y_train,
@@ -115,7 +120,18 @@ class LightGBMTestPredictor:
         )
 
         best_iter = getattr(self.model, "best_iteration_", self.n_estimators)
-        logger.info(f"Training complete. Best iteration: {best_iter}")
+        if best_iter:
+            logger.info(
+                f"Training complete. Early stopping kept {best_iter} "
+                f"of {self.n_estimators} trees."
+            )
+        else:
+            # best_iteration_ is 0 when no eval_set was supplied, so early stopping never ran and
+            # every tree is kept. Logging that as "best iteration: 0" read like a degenerate fit.
+            logger.info(
+                f"Training complete. No validation set, so no early stopping: "
+                f"all {self.n_estimators} trees kept."
+            )
 
         return {
             "model_version": self.model_version,

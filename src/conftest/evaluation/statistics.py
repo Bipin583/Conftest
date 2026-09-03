@@ -123,7 +123,17 @@ def bootstrap_confidence_interval(
     data = np.asarray(data).ravel()
     n = len(data)
     if n == 0:
-        return {"mean": 0.0, "median": 0.0, "ci_lower": 0.0, "ci_upper": 0.0}
+        # An interval of [0, 0] is what a measured, perfectly precise zero looks
+        # like. Returning it for an empty sample hands the caller a fabrication in
+        # the shape of a result, so say NaN and say n = 0 instead.
+        return {
+            "mean": float("nan"),
+            "median": float("nan"),
+            "ci_lower": float("nan"),
+            "ci_upper": float("nan"),
+            "confidence_level": ci,
+            "n": 0,
+        }
 
     rng = np.random.RandomState(random_seed)
     boot_stats = np.empty(num_bootstraps, dtype=np.float64)
@@ -147,6 +157,7 @@ def bootstrap_confidence_interval(
         "ci_lower": round(ci_lower, 4),
         "ci_upper": round(ci_upper, 4),
         "confidence_level": ci,
+        "n": n,
     }
 
 

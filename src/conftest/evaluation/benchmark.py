@@ -42,6 +42,13 @@ COMMIT_STAT_FIELDS = (
     "escaped",
 )
 
+# What baselines 6, 7 and 8 rank by. These are model outputs, not features, so the
+# caller has to score the split and pass them in; the benchmark will not synthesise
+# them. raw_score is the ensemble mean probability, calibrated_confidence is that
+# probability after models/calibrator.joblib, and uncertainty is the across-member
+# standard deviation the abstention rule thresholds.
+MODEL_SCORE_COLUMNS = ("raw_score", "calibrated_confidence", "uncertainty")
+
 # Column headings, so the interval table and the point-estimate table name the
 # same metrics the same way.
 METRIC_LABELS = {
@@ -146,6 +153,10 @@ class BaselineBenchmarkRunner:
             CalibratedNoAbstentionSelector(),
             ConfTestSelectiveSelector(),
         ]
+        # Filled by accumulate_per_commit. Empty until one has run, so a caller
+        # that exports per-commit rows without accumulating first gets an empty
+        # list rather than a plausible-looking misalignment.
+        self.last_commit_order: List[str] = []
 
     def accumulate_per_commit(self, df: pd.DataFrame) -> Dict[str, Dict[str, np.ndarray]]:
         """
@@ -169,11 +180,35 @@ class BaselineBenchmarkRunner:
             selector.reset()
 
         commit_groups = df.groupby("commit_sha")
+        # The order the arrays are built in, kept so a per-commit export can name
+        # which commit each entry belongs to. groupby sorts, so this is stable
+        # across runs, but relying on that silently is how columns get misaligned.
+        self.last_commit_order: List[str] = []
         results: Dict[str, Dict[str, List[float]]] = {
             s.name: {field: [] for field in COMMIT_STAT_FIELDS} for s in self.selectors
         }
 
+        # Baselines 6, 7 and 8 are model strategies: their ranking IS the model's
+        # output. Until 2026-09-03 this loop invented that output when the columns
+        # were absent -- raw_score as a hand-weighted 0.6/0.4 blend of two features,
+        # calibrated_confidence as the constant 0.85, and uncertainty as 0.08 or 0.22
+        # chosen by len(failing_test_ids), which reads the ground-truth labels of the
+        # commit and feeds them to the abstention rule. The published comparison was
+        # therefore not a measurement of this system. Refuse instead, and name the
+        # script that produces the columns.
+        missing_scores = [c for c in MODEL_SCORE_COLUMNS if c not in df.columns]
+        if missing_scores:
+            raise ValueError(
+                "Dataset is missing the model score columns "
+                f"{missing_scores}. Baselines 6-8 rank by model output, so a "
+                "benchmark without it measures nothing. Score the split first: "
+                "scripts/train_baseline.py attaches raw_score, "
+                "calibrated_confidence and uncertainty from "
+                "models/ensembles/5_seed_lgbm and models/calibrator.joblib."
+            )
+
         for sha, group in commit_groups:
+            self.last_commit_order.append(str(sha))
             candidate_tests: List[Dict[str, Any]] = []
             failing_test_ids = set()
 
@@ -188,9 +223,9 @@ class BaselineBenchmarkRunner:
                     "test_id": t_id,
                     "test_path": t_id.split("::")[0],
                     "features": feat_dict,
-                    "raw_score": float(row.get("raw_score", row.get("dep_is_direct_import", 0.0) * 0.6 + row.get("hist_lifetime_failure_rate", 0.0) * 0.4)),
-                    "calibrated_confidence": float(row.get("calibrated_confidence", 0.85)),
-                    "uncertainty": float(row.get("uncertainty", 0.08 if len(failing_test_ids) <= 1 else 0.22)),
+                    "raw_score": float(row["raw_score"]),
+                    "calibrated_confidence": float(row["calibrated_confidence"]),
+                    "uncertainty": float(row["uncertainty"]),
                 })
 
             # The changed-file list must come from the dataset. Defaulting it to
@@ -269,17 +304,75 @@ class BaselineBenchmarkRunner:
             for name, fields in results.items()
         }
 
-    def evaluate_dataset(self, df: pd.DataFrame) -> pd.DataFrame:
+    def per_commit_frame(
+        self, per_commit: Dict[str, Dict[str, np.ndarray]]
+    ) -> pd.DataFrame:
+        """
+        The unpooled per-commit statistics as one tidy row per (commit, strategy).
+
+        Pooled metrics answer 'how do the strategies compare on this dataset'. A
+        paired significance test asks a different question -- 'does the difference
+        hold commit by commit' -- and it needs the per-commit numerators, not the
+        pooled ratio. Exporting them is what lets the statistical tests run on
+        measured observations instead of on a distribution someone chose.
+
+        Args:
+            per_commit: Return value of accumulate_per_commit, from the same run
+                that populated last_commit_order.
+
+        Returns:
+            One row per (commit_sha, strategy) carrying every field in
+            COMMIT_STAT_FIELDS, plus the per-commit recall and time reduction
+            derived from them -- NaN where the denominator is empty, since a
+            commit with no failure available did not achieve 0% recall.
+
+        Raises:
+            ValueError: If the recorded commit order does not match the array
+                lengths, which would silently mislabel every row.
+        """
+        order = list(self.last_commit_order)
+        rows: List[Dict[str, Any]] = []
+        for strategy, stats in per_commit.items():
+            length = len(stats[COMMIT_STAT_FIELDS[0]])
+            if length != len(order):
+                raise ValueError(
+                    f"{strategy}: {length} per-commit entries but "
+                    f"{len(order)} commit ids were recorded. The export would "
+                    "attach each number to the wrong commit; re-run "
+                    "accumulate_per_commit and export from that same result."
+                )
+            for i, sha in enumerate(order):
+                row: Dict[str, Any] = {"commit_sha": sha, "strategy": strategy}
+                for field in COMMIT_STAT_FIELDS:
+                    row[field] = float(stats[field][i])
+                row["failure_recall"] = float(
+                    _ratio(row["failures_detected"], row["failures_available"])
+                )
+                row["time_reduction"] = float(
+                    100.0 - _ratio(row["duration_selected"], row["duration_available"])
+                )
+                rows.append(row)
+        return pd.DataFrame(rows)
+
+    def evaluate_dataset(
+        self,
+        df: pd.DataFrame,
+        per_commit: Optional[Dict[str, Dict[str, np.ndarray]]] = None,
+    ) -> pd.DataFrame:
         """
         Run all 8 baselines on a tabular dataset containing commits, test cases, and ground-truth labels.
 
         Args:
             df: DataFrame containing 'commit_sha', 'test_id', 'label_failed', and feature columns.
+            per_commit: An already-accumulated sweep to fold, so a caller that also
+                wants intervals or a per-commit export pays for one sweep instead
+                of three. None runs the sweep here.
 
         Returns:
             Comparison summary DataFrame with TRR, ETR, FR, MFR, and Abstention Rate.
         """
-        per_commit = self.accumulate_per_commit(df)
+        if per_commit is None:
+            per_commit = self.accumulate_per_commit(df)
 
         summary_rows = []
         for name, stats in per_commit.items():
@@ -306,6 +399,7 @@ class BaselineBenchmarkRunner:
         ci: float = 0.95,
         reference: Optional[str] = None,
         random_seed: int = 42,
+        per_commit: Optional[Dict[str, Dict[str, np.ndarray]]] = None,
     ) -> Dict[str, Any]:
         """
         The benchmark table with a bootstrap confidence interval on every number in it.
@@ -328,12 +422,14 @@ class BaselineBenchmarkRunner:
             reference: Strategy that differences are taken against, e.g. the
                 ConfTest selector's name. None reports marginal intervals only.
             random_seed: Reproducibility seed.
+            per_commit: An already-accumulated sweep, as evaluate_dataset.
 
         Returns:
             Dict with 'metrics' (metric -> intervals and differences per strategy)
             and the resampling metadata.
         """
-        per_commit = self.accumulate_per_commit(df)
+        if per_commit is None:
+            per_commit = self.accumulate_per_commit(df)
         strategies = list(per_commit)
         if reference is not None and reference not in per_commit:
             raise ValueError(

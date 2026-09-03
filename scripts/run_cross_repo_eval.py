@@ -1,8 +1,21 @@
 """
 ConfTest Multi-Repository Cross-Project Generalization CLI.
 
-Benchmarks Zero-Shot transferability and Leave-One-Project-Out (LOPO) cross-validation
-across 4 real-world open-source repositories (requests, flask, fastapi, click).
+Leave-One-Project-Out transfer over the five harvested repositories: train on four,
+calibrate on a held-out slice of those four, and predict on the fifth, which the
+model has never seen. This is the evidence G5 asks for -- a reduction figure on an
+unseen repository -- so it has to be measured on the real harvest.
+
+The input is `data/processed/real_features.csv`, whose labels are pytest outcomes
+recorded per mutant. Rows are grouped by `commit_sha`, one mutant applied to one
+checkout, and recall at a budget is computed per commit and pooled.
+
+Until 2026-09-03 this script invented its own input: four `generate_mock_repo_dataset`
+calls drew Gaussian feature matrices, planted signal on three column indices, and
+thresholded a logistic function of them into labels. It then reported those results
+under the names of four real projects -- requests, flask, fastapi, click -- none of
+which had been touched. Nothing in the pipeline flagged it, because the label guard
+polices the label path and this was on the reporting path.
 
 Usage:
     python scripts/run_cross_repo_eval.py --output reports/cross_repo_generalization.json
@@ -12,53 +25,47 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
+
 import numpy as np
+import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from conftest.features.pipeline import FEATURE_NAMES
 from conftest.evaluation.cross_repo import CrossRepoEvaluator
+from conftest.evaluation.headline import MissingArtifact
+from conftest.features.pipeline import FEATURE_NAMES
 from conftest.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-
-def generate_mock_repo_dataset(
-    repo_name: str,
-    n_samples: int,
-    fail_rate: float,
-    seed: int,
-) -> Dict[str, np.ndarray]:
-    """Generate realistic feature vectors and outcomes for a specific repository."""
-    rng = np.random.RandomState(seed)
-    n_feats = len(FEATURE_NAMES)
-
-    # Base features
-    X = rng.randn(n_samples, n_feats).astype(np.float32)
-    # Give high signal to dependency coupling and prior failures
-    X[:, 18] += rng.exponential(scale=1.5, size=n_samples)  # direct import
-    X[:, 24] += rng.exponential(scale=2.0, size=n_samples)  # prior runs
-    X[:, 27] += rng.beta(0.5, 2.0, size=n_samples)  # recent failure rate
-
-    # Labels with some correlation to features
-    logits = 0.8 * X[:, 18] + 1.2 * X[:, 27] - 2.5
-    probs = 1.0 / (1.0 + np.exp(-logits))
-    y = (probs > np.percentile(probs, (1.0 - fail_rate) * 100)).astype(int)
-
-    # Ensure at least 2 failures
-    if np.sum(y) < 2:
-        y[0] = 1
-        y[1] = 1
-
-    return {"X": X, "y": y}
+PRODUCED_BY = "python scripts/build_real_dataset.py --all"
+MIN_REPOS = 2
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description="ConfTest Cross-Repository Generalization Suite",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="./data/processed/real_features.csv",
+        help="Labelled dataset carrying a 'repo' column, one row per (mutant, test).",
+    )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=0.25,
+        help="Fraction of each commit's own test universe a policy may run.",
+    )
+    parser.add_argument(
+        "--n-estimators",
+        type=int,
+        default=150,
+        help="Trees per transfer model. Matches the reported ensemble's members.",
     )
     parser.add_argument(
         "--output",
@@ -69,54 +76,111 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
-    logger.info("Initializing Cross-Repository Generalization Evaluator...")
+def load_repo_datasets(path: Path) -> Dict[str, Dict[str, np.ndarray]]:
+    """
+    Split the labelled dataset into one per-repository block.
 
-    repo_datasets = {
-        "psf/requests": generate_mock_repo_dataset("requests", 350, fail_rate=0.06, seed=101),
-        "pallets/flask": generate_mock_repo_dataset("flask", 300, fail_rate=0.05, seed=102),
-        "tiangolo/fastapi": generate_mock_repo_dataset("fastapi", 400, fail_rate=0.07, seed=103),
-        "pallets/click": generate_mock_repo_dataset("click", 250, fail_rate=0.04, seed=104),
-    }
+    Returns:
+        repo -> {'X', 'y', 'groups'}, with X restricted to FEATURE_NAMES in order.
 
-    evaluator = CrossRepoEvaluator(random_seed=42)
-    report = evaluator.evaluate_lopo_transfer(repo_datasets)
+    Raises:
+        MissingArtifact: If the dataset has not been built.
+        ValueError: If it lacks the columns transfer evaluation needs, or carries
+            fewer than two repositories -- there is nothing to hold out from one.
+    """
+    if not path.exists():
+        raise MissingArtifact(path, PRODUCED_BY)
 
-    logger.info("\n" + "=" * 100)
-    logger.info("  ConfTest Leave-One-Project-Out (LOPO) Zero-Shot Cross-Repository Benchmark")
-    logger.info("=" * 100)
-    logger.info(f"{'Target Repository':<22} | {'Test Samples':<12} | {'Zero-Shot PR-AUC':<18} | {'ROC-AUC':<10} | {'ECE':<8} | {'Recall@25%'}")
-    logger.info("-" * 100)
-
-    for repo, res in report["per_repository"].items():
-        logger.info(
-            f"{repo:<22} | "
-            f"{res['target_samples']:<12} | "
-            f"{res['zero_shot_pr_auc']:<18.4f} | "
-            f"{res['zero_shot_roc_auc']:<10.4f} | "
-            f"{res['zero_shot_calibrated_ece']:<8.4f} | "
-            f"{res['zero_shot_recall_at_25budget']:<10.4f}"
+    frame = pd.read_csv(path)
+    required = {"repo", "commit_sha", "label_failed", *FEATURE_NAMES}
+    missing = sorted(required - set(frame.columns))
+    if missing:
+        raise ValueError(
+            f"{path.as_posix()} is missing {len(missing)} needed columns "
+            f"(first few: {missing[:5]}). Rebuild it with: {PRODUCED_BY}"
         )
 
-    logger.info("-" * 100)
-    macro = report["macro_average"]
+    datasets: Dict[str, Dict[str, np.ndarray]] = {}
+    for repo, block in frame.groupby("repo"):
+        datasets[str(repo)] = {
+            "X": block[list(FEATURE_NAMES)].to_numpy(dtype=np.float32),
+            "y": block["label_failed"].to_numpy(dtype=np.int32),
+            "groups": block["commit_sha"].to_numpy(dtype=object),
+        }
+    if len(datasets) < MIN_REPOS:
+        raise ValueError(
+            f"{path.as_posix()} carries {len(datasets)} repository/ies. "
+            "Leave-one-project-out needs at least two, and the study claims five."
+        )
+    return datasets
+
+
+def main():
+    args = parse_args()
+    dataset_path = Path(args.dataset)
+
+    repo_datasets = load_repo_datasets(dataset_path)
     logger.info(
-        f"{'MACRO AVERAGE':<22} | "
-        f"{'-':<12} | "
-        f"{macro['mean_pr_auc']:<18.4f} | "
-        f"{macro['mean_roc_auc']:<10.4f} | "
-        f"{macro['mean_calibrated_ece']:<8.4f} | "
-        f"{macro['mean_recall_at_25budget']:<10.4f}"
+        f"Loaded {len(repo_datasets)} repositories from {dataset_path}: "
+        + ", ".join(
+            f"{repo} ({len(d['y']):,} rows, {int(d['y'].sum()):,} failures, "
+            f"{len(np.unique(d['groups']))} mutants)"
+            for repo, d in repo_datasets.items()
+        )
     )
-    logger.info("=" * 100)
+
+    evaluator = CrossRepoEvaluator(random_seed=42, n_estimators=args.n_estimators)
+    report: Dict[str, Any] = evaluator.evaluate_lopo_transfer(
+        repo_datasets, budget_ratio=args.budget
+    )
+    report["dataset"] = dataset_path.as_posix()
+    report["produced_by"] = PRODUCED_BY
+    report["labels_measured"] = True
+    report["label_provenance"] = (
+        "every label is a recorded pytest outcome for one mutant against one test, "
+        "harvested per repository; no feature or label in this report is generated"
+    )
+
+    header = (
+        f"{'Target Repository':<14} | {'Rows':>9} | {'Fail %':>7} | {'PR-AUC':>7} | "
+        f"{'ROC-AUC':>7} | {'ECE':>6} | {'Recall@budget':>13}"
+    )
+    logger.info("\n" + "=" * len(header))
+    logger.info("  Leave-One-Project-Out transfer: trained on the other four, never on this one")
+    logger.info("=" * len(header))
+    logger.info(header)
+    logger.info("-" * len(header))
+
+    for repo, res in report["per_repository"].items():
+        recall = res["zero_shot_recall_at_budget"]
+        logger.info(
+            f"{repo:<14} | {res['target_samples']:>9,} | "
+            f"{res['target_failure_rate']*100:>6.2f}% | "
+            f"{res['zero_shot_pr_auc']:>7.4f} | {res['zero_shot_roc_auc']:>7.4f} | "
+            f"{res['zero_shot_calibrated_ece']:>6.4f} | "
+            + (f"{recall*100:>12.2f}%" if recall is not None else f"{'n/a':>13}")
+        )
+
+    macro = report["macro_average"]
+    logger.info("-" * len(header))
+    mean_recall = macro["mean_recall_at_budget"]
+    logger.info(
+        f"{'MACRO MEAN':<14} | {'-':>9} | {'-':>7} | "
+        f"{macro['mean_pr_auc']:>7.4f} | {macro['mean_roc_auc']:>7.4f} | "
+        f"{macro['mean_calibrated_ece']:>6.4f} | "
+        + (f"{mean_recall*100:>12.2f}%" if mean_recall is not None else f"{'n/a':>13}")
+    )
+    logger.info("=" * len(header))
+    logger.info(
+        f"Recall is measured per commit at a {args.budget:.0%} budget of that commit's "
+        "own universe and pooled; a commit no test detected has no recall to measure "
+        "and is excluded from it."
+    )
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2)
-
-    logger.info(f"\nCross-repo report saved to: {out_path}")
+    out_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    logger.info(f"Cross-repo report saved to: {out_path}")
 
 
 if __name__ == "__main__":

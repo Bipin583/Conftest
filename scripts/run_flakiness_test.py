@@ -1,10 +1,12 @@
 """
 ConfTest Flakiness Stress Testing CLI.
 
-Evaluates RTS model resilience under increasing degrees of injected test flakiness (label noise).
+Evaluates model resilience to injected label noise in the TRAINING labels, scored against
+clean held-out labels.
 
 Usage:
-    python scripts/run_flakiness_test.py --noise-levels 0.0,0.05,0.10,0.20,0.30 --output reports/flakiness_robustness.json
+    python scripts/run_flakiness_test.py --noise-levels 0.0,0.05,0.10,0.20,0.30 \
+        --output reports/flakiness_robustness.json
 """
 
 import argparse
@@ -83,13 +85,28 @@ def main():
     noise_levels = [float(x.strip()) for x in args.noise_levels.split(",")]
     logger.info(f"Running Flakiness Stress Test across noise levels: {noise_levels}")
 
+    # Commit ids for the held-out rows: recall is a per-commit budget, so the tester needs
+    # to know which rows compete with each other.
+    groups_test = df_test["commit_sha"].to_numpy() if "commit_sha" in df_test.columns else None
+    if groups_test is None:
+        logger.warning(
+            "Test split carries no commit_sha column, so budget recall will be reported as "
+            "undefined rather than pooled over a global ranking."
+        )
+
     tester = FlakinessStressTester(random_seed=42)
-    results = tester.run_stress_grid(X_train, y_train, X_val, y_val, X_test, y_test, noise_levels)
+    results = tester.run_stress_grid(
+        X_train, y_train, X_val, y_val, X_test, y_test, noise_levels,
+        groups_test=groups_test,
+    )
 
     logger.info("\n" + "=" * 90)
     logger.info("  ConfTest Flakiness Robustness Stress Test Results")
     logger.info("=" * 90)
-    logger.info(f"{'Noise Level':<12} | {'Std PR-AUC':<12} | {'Robust PR-AUC':<14} | {'Std Recall':<12} | {'Robust Recall':<14} | {'Advantage'}")
+    logger.info(
+        f"{'Noise Level':<12} | {'TrainPos%':<9} | {'Std PR-AUC':<11} | {'Robust PR-AUC':<13} | "
+        f"{'Std Recall':<11} | {'Robust Recall':<13} | Advantage"
+    )
     logger.info("-" * 90)
 
     for item in results:
@@ -98,10 +115,11 @@ def main():
         adv = item["robustness_advantage"]
         logger.info(
             f"{item['noise_rate_pct']:>4.1f}% Noise | "
-            f"{std['pr_auc']:<12.4f} | "
-            f"{rob['pr_auc']:<14.4f} | "
-            f"{std['failure_recall']:<12.4f} | "
-            f"{rob['failure_recall']:<14.4f} | "
+            f"{item['train_positive_rate'] * 100:>8.2f}% | "
+            f"{std['pr_auc']:<11.4f} | "
+            f"{rob['pr_auc']:<13.4f} | "
+            f"{std['failure_recall']:<11.4f} | "
+            f"{rob['failure_recall']:<13.4f} | "
             f"dRecall: {adv['delta_recall']:+.4f}"
         )
     logger.info("=" * 90)
@@ -109,7 +127,21 @@ def main():
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump({"stress_test_grid": results}, f, indent=2)
+        json.dump(
+            {
+                "labels_measured": True,
+                "noise_is_injected_into": "training labels only",
+                "evaluated_against": "clean held-out labels",
+                "recall_rule": "per-commit budget; see recall_denominator_* on each row",
+                "confound_to_read_first": "the dataset is about 5% positive, so flipping "
+                "labels mostly turns passes into failures and raises the training "
+                "prevalence. A metric that improves with the noise rate may be reporting "
+                "that prevalence change and not robustness to flakiness.",
+                "stress_test_grid": results,
+            },
+            f,
+            indent=2,
+        )
 
     logger.info(f"Robustness report saved to: {out_path}")
 

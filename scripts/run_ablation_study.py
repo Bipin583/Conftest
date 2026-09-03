@@ -64,7 +64,10 @@ def main():
     test_path = Path(args.test_data)
 
     if not (train_path.exists() and val_path.exists() and test_path.exists()):
-        logger.error(f"One or more split datasets missing ({train_path}, {val_path}, {test_path}). Run build_splits.py first.")
+        logger.error(
+            f"One or more split datasets missing ({train_path}, {val_path}, "
+            f"{test_path}). Run build_splits.py first."
+        )
         sys.exit(1)
 
     logger.info("Loading chronological dataset splits...")
@@ -78,15 +81,44 @@ def main():
 
     logger.info(f"Loaded {len(X_train)} train, {len(X_val)} val, {len(X_test)} test samples.")
 
+    if "commit_sha" not in df_test.columns:
+        logger.error(
+            "test split has no commit_sha column, so recall cannot be budgeted per "
+            "commit. Rebuild the splits with scripts/build_splits.py."
+        )
+        sys.exit(1)
+    groups_test = df_test["commit_sha"].to_numpy()
+
     study = FeatureAblationStudy(random_seed=42)
-    report = study.run_study(X_train, y_train, X_val, y_val, X_test, y_test)
+    report = study.run_study(
+        X_train, y_train, X_val, y_val, X_test, y_test, groups_test=groups_test
+    )
+    report["provenance"] = {
+        "labels_measured": True,
+        "label_provenance": (
+            "labels measured by executing test suites; splits built from "
+            "data/processed/real_features.csv"
+        ),
+        "recall_rule": (
+            "failure recall when each commit runs the top 25% of its own test "
+            "universe, pooled over commits that had at least one failure"
+        ),
+        "test_commits": int(len(set(groups_test.tolist()))),
+        "test_rows": int(len(df_test)),
+    }
 
     # Print Summary Tables
     full = report["full_model"]
     logger.info("\n" + "=" * 90)
     logger.info("  ConfTest Feature Ablation Study Results")
     logger.info("=" * 90)
-    logger.info(f"Full Model (32 feats)   | PR-AUC: {full['pr_auc']:.4f} | Calibrated ECE: {full['calibrated_ece']:.4f} | Recall@25%: {full['failure_recall_at_25budget']:.4f}")
+    logger.info(
+        f"Full Model ({full['feature_count']} feats, "
+        f"{full['informative_feature_count']} informative) | "
+        f"PR-AUC: {full['pr_auc']:.4f} | Calibrated ECE: {full['calibrated_ece']:.4f} | "
+        f"Recall@25%: {full['failure_recall_at_25budget']:.4f}"
+    )
+    logger.info(f"Recall denominator: {full['recall_denominator']}")
     logger.info("-" * 90)
 
     logger.info("--- Leave-One-Group-Out (LOGO) ---")
