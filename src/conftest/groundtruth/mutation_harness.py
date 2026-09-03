@@ -86,6 +86,13 @@ BROKE_SUITE_KILL_RATIO = 0.80
 # Outcome statuses that count as a killed test.
 FAILING_STATUSES = frozenset({"FAILED", "ERROR"})
 
+# Status for a mutant whose suite run outlived the timeout that was supposed to
+# bound it. Measured once, expensively: a 180s ceiling returned after 28,270s
+# because a grandchild held an inherited pipe, and the mutated tree stayed live
+# for 7h51m -- long enough for the suite to truncate one of its own fixtures.
+# Such a record is not a slow label, it is an unattributable one.
+TIMEOUT_BROKEN_STATUS = "timeout_broken"
+
 # Journal written while a mutation is on disk. Surviving the run means the
 # process died between applying a mutant and restoring the file, so the
 # checkout can no longer be assumed to hold the revision that was screened.
@@ -1017,7 +1024,22 @@ class MutationHarness:
 
         kill_ratio = len(killed) / len(universe) if universe else 0.0
 
-        if result.timed_out:
+        # A timeout that could not be enforced is its own status, and it
+        # outranks the others. `timed_out` says "this mutant was slow, drop the
+        # record"; this says "the tree under test was still alive when these
+        # outcomes were read, and the next mutant may inherit what it wrote".
+        # The first is a property of one record, the second contaminates the run.
+        enforced = getattr(result, "timeout_enforced", True)
+        if not enforced:
+            status = TIMEOUT_BROKEN_STATUS
+            logger.error(
+                f"{mutant.mutant_id}: the {self.suite_timeout}s suite timeout did "
+                f"not hold -- the run took {result.total_duration:.0f}s and the "
+                f"tree was live throughout. Labelling it "
+                f"{TIMEOUT_BROKEN_STATUS!r}: its outcomes were read against a "
+                f"checkout something else still had open."
+            )
+        elif result.timed_out:
             status = "timed_out"
         elif kill_ratio >= BROKE_SUITE_KILL_RATIO:
             status = "broke_suite"
@@ -1034,6 +1056,7 @@ class MutationHarness:
             "mutated_snippet": mutant.mutated_snippet,
             "status": status,
             "timed_out": result.timed_out,
+            "timeout_enforced": enforced,
             "exit_code": result.exit_code,
             "suite_duration": round(result.total_duration, 3),
             "universe_size": len(universe),
@@ -1127,6 +1150,7 @@ class MutationHarness:
         """
         totals: Dict[str, Any] = {
             "harvested": 0, "broke_suite": 0, "timed_out": 0, "error": 0,
+            TIMEOUT_BROKEN_STATUS: 0,
             "killed_none": 0, "total_kills": 0, "checkout_drifted": 0,
         }
         if not self.mutants_path.exists():
@@ -1197,6 +1221,7 @@ class MutationHarness:
 
         this_run = {
             "harvested": 0, "broke_suite": 0, "timed_out": 0,
+            TIMEOUT_BROKEN_STATUS: 0,
             "killed_none": 0, "total_kills": 0, "checkout_drifted": 0,
         }
         started = time.time()

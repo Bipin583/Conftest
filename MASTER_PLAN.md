@@ -11,7 +11,7 @@
 
 | Area | State |
 |---|---|
-| Code | ✅ 70+ modules, **460/460 tests passing**, well-architected |
+| Code | ✅ 70+ modules, **481/481 tests passing**, well-architected |
 | Feature pipeline | ✅ 34 features (diff / AST / dependency-graph / history) |
 | ML + calibration | ✅ LightGBM, isotonic + Platt + temperature, ECE, reliability diagrams |
 | Abstention | ✅ Threshold policy, full-suite fallback, policy tuning |
@@ -19,10 +19,10 @@
 | API + Dashboard | ✅ FastAPI (7 route modules), Streamlit (5 pages) |
 | Docs | ✅ 27 docs, IEEE paper, KTU LaTeX report, viva deck |
 | Mutation harness | ✅ 6 operator families, real pytest labels, **run end to end** (776 labelled rows from a 10-mutant smoke harvest) |
-| Subject repos | ✅ **5 stage-3 survivors** (G0 met), 0 flaky, harvest = 1.24 h estimated |
+| Subject repos | ✅ **5 stage-3 survivors** (G0 met), 0 flaky, harvest **measured at 2.11 h** of suite time (9.97 h including one run whose 180 s timeout did not hold) — the 1.24 h estimate was low by 70% (see log 2026-09-03e) |
 | Fabrication guards | ✅ AST label guard in CI; every invented fallback now raises |
 | Feature builder | ✅ **C2 done** — test-ID resolver validated on 1138 real testcases, causal history, 32 features |
-| **Real dataset** | ⬜ **Pilot green (21,293 real rows, 7.09% failures); the 250x5 harvest is what remains** |
+| **Real dataset** | ✅ **561,711 real rows** (1,213 mutants x 5 repos, 27,444 measured failures, 4.886% pooled) — G0/G2/G3 met, G1 met on pairs and on the pooled rate, but **validators at 0.75% is under the 1% floor** (see log 2026-09-03e) |
 | Published numbers | ❌ **Still rest on fabricated labels until C5 re-runs them** |
 | LLM review layer | ⬜ Does not exist (optional, deprioritized) |
 
@@ -357,7 +357,7 @@ Do not proceed past a gate until it is green.
 |---|---|
 | **G0** | 5 repos pass all screening criteria; 3 baseline runs identical |
 | **G1** | ≥ 5,000 labeled (mutant, test) pairs per repo; failure rate in **1–15%** |
-| **G2** | `grep -rn "random"` over the label path returns **zero** hits |
+| **G2** | No value on the label path is drawn or imputed — enforced by `scripts/check_no_fabricated_labels.py` (AST, not grep: mutant *sampling* is seeded, so a literal `grep -rn "random"` can never return zero) |
 | **G3** | Every mutated file restored — `git status` clean in all harvested repos |
 | **G4** | ML beats random baseline with **bootstrap 95% CI excluding zero** |
 | **G5** | Reduction @ 95% recall reported with CI, on a repo **never seen in training** |
@@ -435,7 +435,8 @@ Do not proceed past a gate until it is green.
 - [x] **C0.5** install declared functional extras — pyjwt ran 221 of 369 tests without them (see log 2026-09-02d)
 - [x] **C0.6** every harvest writes `harvest_summary.json`; the dataset builder refuses labels whose import provenance is missing, unverified, or points outside the checkout (see log 2026-09-02e)
 - [x] **C0.7** the checkout is treated as an instrument: a `pending_mutation.json` journal, a pristine-checkout assertion with `--restore-checkout` repair (`git checkout HEAD -- .`, never `git clean`), sample-membership verification on resume with off-sample records quarantined, per-run drift detection, and a `harvest.lock` that allows one harvest per output directory and is taken *before* any repair (see log 2026-09-03d)
-- [ ] **G1** first real dataset, gates verified
+- [x] **C0.8** the suite timeout is a containment boundary, and it was not one: `subprocess.run(stdout=PIPE, timeout=...)` kills only the direct child and then drains the pipe **with no timeout**, so one sqlparse mutant held a mutated checkout live for 7h51m under a 180 s ceiling and let the suite truncate one of its own tracked fixtures. The executor now captures to files with `stdin=DEVNULL`, kills the whole process tree, bounds the post-kill wait, and stamps `timeout_enforced` on every record; `timeout_broken` outranks `timed_out`; and the dataset builder refuses any `harvested` record carrying drift or an unenforced ceiling, listing exclusions by id and reason and raising past 2% (see log 2026-09-03e)
+- [ ] **G1** first real dataset, gates verified — **the dataset exists** (`data/processed/real_features.csv`, 561,711 rows, 1,213 mutants, 5 repos, 4.886% pooled, 0 unresolved test IDs, provenance verified x5) and G0/G2/G3 are met, but G1 itself is **not** met as written: every repo clears 5,000 pairs, yet **validators sits at 0.75% against a 1% floor** while contributing 39.7% of all rows. Not ticked until that repo is re-sampled or dropped on the record (see log 2026-09-03e)
 - [x] **C4.4** calibration selection must not pick a method on ECE alone — `src/conftest/models/calibrator_selection.py`, chosen on a validation half-split that is cut along **mutant** boundaries, on ECE + MCE + Brier jointly, each as a **paired bootstrap difference** against the uncalibrated model; a gain whose interval spans zero is not a gain (see log 2026-09-03b)
 - [x] **C4.5** bootstrap confidence intervals on all headline numbers: the resampling unit is the **commit**, not the test row; every one of the 5 metrics x 8 strategies carries a 95% interval; the headline comparison is reported as a *paired* difference against the ConfTest row (see log 2026-09-03a)
 - [x] **C4.6** relabel `synthetic_generator.py` as smoke-test-only: `acknowledge_synthetic=True` is required to construct it, every emitted commit and test run carries `data_origin=SYNTHETIC_FABRICATED_LABELS`, and the docstring quotes the coin flip (see log 2026-09-02f)
@@ -447,6 +448,150 @@ Do not proceed past a gate until it is green.
 ---
 
 ## 11. Build log — findings from implementation
+
+### 2026-09-03e · C0.8 + the real dataset · one broken timeout cost 79% of the harvest budget, and G1 misses on one repo
+
+**Test suite: 460 -> 481 passing** (21 new: 9 in tests/unit/test_executor.py, 9 in
+tests/unit/test_build_real_dataset.py, 3 in tests/unit/test_mutation_harness.py).
+`data/processed/real_features.csv` is on disk: **561,711 rows, 27,444 measured
+failures, 4.886%**. Every label is a pytest outcome under an AST mutation. Measured:
+`python -m pytest tests/ -q` reports `481 passed, 9 warnings in 73.36s`, and
+`scripts/check_no_fabricated_labels.py` reports `PASSED (108 files scanned)`.
+
+**`subprocess.run(timeout=...)` is not a timeout when you capture to a pipe.** The
+sqlparse harvest took 8.47 h. 7.85 h of it was one mutant. `mut_42bfc7db58b0`
+(`sqlparse/cli.py:197`, `cond_to_True`, `args.inplace` -> `True`) forced the CLI
+into in-place rewriting; the suite's ceiling was 180 s and its record says
+`suite_duration: 28269.997`. The mechanism is in CPython, not in sqlparse: on
+`TimeoutExpired`, `subprocess.run` kills **the direct child only**, then calls
+`communicate()` **with no timeout** to drain the pipe. A grandchild inherited the
+write handle and held it, so the drain never returned. The exception was caught
+7h51m late, which is why the log line reads `timed out after 180s` next to a
+duration of 28,270 s. The record was honest; the log line was not.
+
+**It cost more than the rest of the study combined.** Summing `suite_duration`
+over all 1,250 harvested records: **9.97 h of measured suite time, of which that
+single run was 7.85 h (79%)**. Excluding it, all five repos together cost 2.11 h.
+The status table above said `harvest = 1.24 h estimated`; the honest figure is
+2.11 h clean, and the estimate is now replaced by the measurement.
+
+**It is not a defect that fires on every timeout — it fires when a grandchild
+holds the handle.** Across the five harvests there were **12 timeouts; 11 held**
+(pathspec 1, tabulate 1, sqlparse 9, each stopping at 180 s) **and 1 did not**.
+That is why four earlier harvests completed in ~25 min each and nothing looked
+wrong. A fault that shows up once in twelve is exactly the kind that ships.
+
+**That window is when the checkout was damaged.** The single `checkout_drifted`
+event in all 1,250 records is that same mutant: `tests/files/function.sql`,
+truncated by sqlparse's own suite while the mutated tree sat live on disk for
+7h51m. The timeout was the containment boundary for D2, and it was the boundary
+that failed.
+
+**The fix, in `src/conftest/tests/executor.py`.** Capture to files rather than
+pipes, so no handle is shared with a descendant and there is nothing to drain.
+`stdin=subprocess.DEVNULL`, so a suite that reads stdin gets EOF instead of
+waiting on a terminal that will never answer. `Popen` + `proc.wait(timeout=...)`
+in place of `run`, and on `TimeoutExpired` a real tree kill: `taskkill /T /F /PID`
+on Windows, which has no process group to signal, and `killpg(SIGKILL)` on POSIX
+where the child is given its own session. The wait after the kill is bounded by
+`KILL_GRACE_SECONDS = 30` -- never unbounded, because unbounded is the defect it
+replaces. If the tree outlives that, `_kill_process_tree` returns False and says
+so. A final post-hoc check catches whatever the kill path believed: a run whose
+wall clock exceeds `timeout + BROKEN_TIMEOUT_SLACK_SECONDS` (60 s) sets
+`timeout_enforced = False` regardless.
+
+**A timeout that did not hold is now its own status.** `timed_out` reads as "this
+mutant was slow, drop the record". What actually happened needs different words,
+so `TIMEOUT_BROKEN_STATUS = "timeout_broken"` outranks every other status, and
+`timeout_enforced` is stamped on every record next to `timed_out`. Both tally
+dicts initialise the key at zero, so a summary reporting no broken timeouts says
+so explicitly rather than omitting the field -- the distinction between *none* and
+*not measured* is the whole reason the field exists.
+
+**The builder now refuses a `harvested` record it cannot trust.** `status:
+harvested` says the suite ran to completion under one mutation. It does not say
+the tree underneath was the screened revision. `contamination_reason` in
+`scripts/build_real_dataset.py` rejects two cases: a record carrying
+`checkout_drifted` (the suite edited its own tracked files, so its kills may be
+inherited damage), and a record carrying `timeout_enforced: false` (its outcomes
+were read while something was still writing). Excluded mutants are listed in the
+manifest **by id and reason**, not counted -- a count cannot be checked against the
+harvest file by a later reader. Past `MAX_CONTAMINATED_FRACTION = 2%` the build
+raises instead of quietly shrinking: one incident is an incident, one in fifty is
+a broken harvest, and training on the clean remainder while publishing a headline
+is precisely what this pipeline exists to stop.
+
+**On the real data it caught nothing, and that is the result.** Zero harvested
+records across all five repos carry `checkout_drifted`; the one that does is
+`timed_out`, so status had already excluded it. The guard is insurance for the
+next harvest, not a repair of this one.
+
+**What the absence of the field does not prove.** Three of the five harvests
+(pathspec, pyjwt, tabulate) predate the drift check entirely -- their summaries
+carry no `drift_detection` key, so a missing `checkout_drifted` there means *not
+measured*, not *clean*. Only validators and sqlparse record `drift_detection:
+git`. `contamination_reason` refuses what a harness observed and reported; it
+cannot speak for what was never checked, and it does not pretend to.
+
+#### G1: the dataset, and the one gate it does not clear
+
+| repo | mutants | universe | rows | failures | rate | in band |
+| --- | --- | --- | --- | --- | --- | --- |
+| tabulate | 232 | 349 | 80,968 | 7,651 | 9.45% | yes |
+| sqlparse | 236 | 507 | 119,652 | 9,628 | 8.05% | yes |
+| pathspec | 246 | 191 | 46,986 | 3,738 | 7.96% | yes |
+| pyjwt | 250 | 365 | 91,250 | 4,751 | 5.21% | yes |
+| validators | 249 | 895 | 222,855 | 1,676 | **0.75%** | **no** |
+| **pooled** | 1,213 | — | **561,711** | **27,444** | **4.886%** | yes |
+
+- **G0** — met: 5 stage-3 survivors, import provenance verified for all five.
+- **G1 pairs** — met: every repo clears 5,000 labelled pairs by an order of
+  magnitude; the smallest is pathspec at 46,986.
+- **G1 rate** — **pooled 4.886% is in band; validators at 0.75% is below the 1%
+  floor.** It is not a rounding matter: validators contributes **39.7% of all rows
+  and 6.1% of all failures**. Its 895-test universe is the largest and its mutants
+  kill the fewest tests, so it drags the pooled rate down by roughly two points.
+  The pooled figure passing does not make the repo pass.
+- **G2** — met by the guard, not by the literal grep. `grep -rn "random"` over the
+  label path is *not* zero and cannot be: mutant **sampling** is seeded
+  (`random.Random(self.seed)`, `mutation_harness.py:935`). The operative check is
+  `scripts/check_no_fabricated_labels.py`, an AST guard that distinguishes
+  choosing which mutants to run from deciding whether a test failed. **PASSED,
+  108 files scanned.** The plan's literal phrasing is superseded by it.
+- **G3** — met: `git status --porcelain` is empty in all five checkouts, and no
+  tracked file is modified anywhere. Getting there turned up one more instance of
+  the D2 class: sqlparse and tabulate each held an untracked file named `-`, 52 and
+  114 bytes, written by their own CLI tests -- formatted SQL and a rendered table.
+  On Windows `-` is a filename, not stdout. Untracked, so no label was touched,
+  and they return on the next suite run; this is exactly why the harness reports
+  untracked files separately from tracked drift rather than folding them together.
+
+**The gate was implemented weaker than it was written.** Section 9 defines G1 as
+">= 5,000 labelled pairs **per repo**" and a failure rate "in 1-15%", but the
+manifest reported one pooled `failure_rate` and one pooled verdict. Pooled, this
+dataset reads green. Per repo it does not. A gate that aggregates away the repo it
+would have failed on is not a gate, so the manifest now carries `g1_pairs_met` and
+`g1_failure_rate_in_band` on every repo, plus top-level
+`g1_pairs_met_by_every_repo`, `g1_failure_rate_in_band_for_every_repo` and
+`g1_repos_outside_the_band`, and the CLI prints `G1 per repo : OUT OF BAND for
+validators 0.75%` next to the pooled line rather than under it.
+`test_the_manifest_judges_g1_per_repo_and_not_only_on_the_pool` drives the builder
+end to end on a repo at 25% and asserts the repo is named in that list.
+
+**What this buys, and what it does not.** The dataset is real: 561,711 rows whose
+labels are pytest outcomes, 5 repos with verified import provenance, 0 unresolved
+test IDs, 0 contaminated exclusions, and a restore that is byte-exact in all five
+checkouts. The measured harvest cost is **2.11 h** of suite time excluding the
+pathological run and **9.97 h** including it -- the plan's `harvest = 1.24 h
+estimated` was optimistic by 70% even after the pathology is set aside, and that
+line is now the measurement. What it does not buy is a clean G1: validators sits at
+0.75% against a 1% floor, and 13 of the features are inert by construction because
+a mutant has no commit message and no wall-clock time. Both are recorded rather
+than smoothed. The next decision is validators' -- raise its rate by sampling
+mutants in the modules its 895 tests actually exercise, or drop it from the pool and
+say so -- and it is a decision about the subject, not about the number.
+
+---
 
 ### 2026-09-03d · C0.7 + C4.8 landed · the harvest was corrupting the checkout it measures, three ways
 

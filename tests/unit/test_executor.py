@@ -2,6 +2,8 @@
 Unit tests for Pytest Discovery, Safe Isolated Execution, and Timeout Protection.
 """
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -129,21 +131,235 @@ def test_executor_refuses_a_missing_interpreter(tmp_path):
         SafeTestExecutor(str(tmp_path), python_executable=str(missing))
 
 
+class FakePopen:
+    """
+    Stand-in for a pytest subprocess.
+
+    Records what the executor asked for, optionally writes to the handles it
+    was given, and either exits or refuses to.
+    """
+
+    def __init__(self, cmd, **kwargs):
+        self.cmd = cmd
+        self.kwargs = kwargs
+        self.pid = -1
+        self.killed = False
+        self.waits = []
+        if self.stdout_text:
+            kwargs["stdout"].write(self.stdout_text)
+        if self.stderr_text:
+            kwargs["stderr"].write(self.stderr_text)
+
+    stdout_text = ""
+    stderr_text = ""
+    hangs = False
+    returncode = 0
+
+    def wait(self, timeout=None):
+        self.waits.append(timeout)
+        if self.hangs and not self.killed:
+            raise subprocess.TimeoutExpired(self.cmd, timeout)
+        return self.returncode
+
+    def kill(self):
+        self.killed = True
+
+
+def _patch_popen(monkeypatch, factory, seen):
+    def fake_popen(cmd, **kwargs):
+        proc = factory(cmd, **kwargs)
+        seen.append(proc)
+        return proc
+
+    monkeypatch.setattr(executor_module.subprocess, "Popen", fake_popen)
+
+
 def test_executor_invokes_the_chosen_interpreter(tmp_path, monkeypatch):
-    captured = {}
+    seen = []
+    _patch_popen(monkeypatch, FakePopen, seen)
 
-    class FakeCompleted:
-        returncode = 0
-        stdout = ""
-        stderr = ""
-
-    def fake_run(cmd, **kwargs):
-        captured["cmd"] = cmd
-        return FakeCompleted()
-
-    monkeypatch.setattr(executor_module.subprocess, "run", fake_run)
     executor = SafeTestExecutor(str(tmp_path), python_executable=sys.executable)
     executor.run_tests(test_dir="tests")
 
-    assert captured["cmd"][0] == str(Path(sys.executable).resolve())
-    assert captured["cmd"][1:3] == ["-m", "pytest"]
+    assert seen[0].cmd[0] == str(Path(sys.executable).resolve())
+    assert seen[0].cmd[1:3] == ["-m", "pytest"]
+
+
+# --------------------------------------------------------------------------
+# Capture and timeout enforcement
+#
+# subprocess.run(stdout=PIPE, timeout=...) is not a timeout. On TimeoutExpired
+# CPython kills the direct child and then drains the pipe with no deadline, so
+# one grandchild holding the inherited handle suspends the drain forever. This
+# project paid 7h51m for that: a 180s suite timeout on mut_42bfc7db58b0
+# returned after 28,270s, and the mutated checkout stayed live throughout --
+# long enough for the suite under test to truncate one of its own fixtures.
+# --------------------------------------------------------------------------
+
+def test_executor_captures_to_files_never_to_pipes(tmp_path, monkeypatch):
+    seen = []
+    _patch_popen(monkeypatch, FakePopen, seen)
+
+    SafeTestExecutor(str(tmp_path)).run_tests(test_dir="tests")
+
+    kwargs = seen[0].kwargs
+    for stream in ("stdout", "stderr"):
+        assert kwargs[stream] is not subprocess.PIPE
+        assert hasattr(kwargs[stream], "write"), f"{stream} must be a real file handle"
+    assert kwargs["stdout"].name != kwargs["stderr"].name
+    # A suite that reads stdin must get EOF rather than block on a terminal.
+    assert kwargs["stdin"] is subprocess.DEVNULL
+
+
+def test_executor_reads_the_captures_back_and_removes_them(tmp_path, monkeypatch):
+    class Chatty(FakePopen):
+        stdout_text = "collected 3 items"
+        stderr_text = "a warning on stderr"
+
+    seen = []
+    _patch_popen(monkeypatch, Chatty, seen)
+
+    result = SafeTestExecutor(str(tmp_path)).run_tests(test_dir="tests")
+
+    assert "collected 3 items" in result.stdout
+    assert "a warning on stderr" in result.stderr
+    # The capture files are scratch space, not artefacts.
+    for stream in ("stdout", "stderr"):
+        assert not os.path.exists(seen[0].kwargs[stream].name)
+
+
+def test_executor_reports_an_enforced_timeout_on_the_happy_path(tmp_path, monkeypatch):
+    _patch_popen(monkeypatch, FakePopen, [])
+
+    result = SafeTestExecutor(str(tmp_path)).run_tests(test_dir="tests")
+
+    assert result.timed_out is False
+    assert result.timeout_enforced is True
+
+
+def test_executor_kills_the_tree_when_a_run_times_out(tmp_path, monkeypatch):
+    class Hanging(FakePopen):
+        hangs = True
+
+    seen = []
+    _patch_popen(monkeypatch, Hanging, seen)
+    killed = []
+    monkeypatch.setattr(
+        executor_module.SafeTestExecutor,
+        "_kill_process_tree",
+        lambda self, proc: killed.append(proc) or True,
+    )
+
+    result = SafeTestExecutor(str(tmp_path)).run_tests(test_dir="tests", timeout=1)
+
+    assert result.timed_out is True
+    assert result.exit_code == 124
+    assert killed == [seen[0]], "a timeout must reach the whole tree, not just the child"
+    assert result.timeout_enforced is True
+    assert "timed out after 1s" in result.stderr
+
+
+def test_executor_admits_a_timeout_it_could_not_enforce(tmp_path, monkeypatch):
+    """
+    A surviving tree is reported, not hidden.
+
+    The caller has to be able to tell "this mutant was slow" from "this mutant
+    is still running while I measure the next one", because only the second
+    invalidates every record that follows it.
+    """
+    class Hanging(FakePopen):
+        hangs = True
+
+    _patch_popen(monkeypatch, Hanging, [])
+    monkeypatch.setattr(
+        executor_module.SafeTestExecutor, "_kill_process_tree", lambda self, proc: False
+    )
+
+    result = SafeTestExecutor(str(tmp_path)).run_tests(test_dir="tests", timeout=1)
+
+    assert result.timed_out is True
+    assert result.timeout_enforced is False
+
+
+def test_executor_flags_a_run_that_outlived_its_own_ceiling(tmp_path, monkeypatch):
+    """
+    The post-hoc check, which is what the 28,270s run would have tripped.
+
+    Whatever the kill path believed, a wall clock longer than the timeout plus
+    the kill grace is proof the ceiling did not hold.
+    """
+    class Clock:
+        def __init__(self):
+            self.reads = 0
+
+        def time(self):
+            self.reads += 1
+            # First read is the start; every later read is well past the ceiling.
+            if self.reads == 1:
+                return 0.0
+            return 11.0 + executor_module.BROKEN_TIMEOUT_SLACK_SECONDS
+
+    _patch_popen(monkeypatch, FakePopen, [])
+    monkeypatch.setattr(executor_module, "time", Clock())
+
+    result = SafeTestExecutor(str(tmp_path)).run_tests(test_dir="tests", timeout=10)
+
+    assert result.timed_out is False, "it exited on its own, just far too late"
+    assert result.timeout_enforced is False
+    assert result.total_duration > 10
+
+
+# --------------------------------------------------------------------------
+# The tree kill itself. Stubbed at the platform call: a test that ran a real
+# taskkill /T /F on a fabricated pid could kill an unrelated live process.
+# --------------------------------------------------------------------------
+
+def _stub_platform_kill(monkeypatch):
+    """Neutralise taskkill and killpg, returning the calls they would have made."""
+    calls = {"taskkill": [], "killpg": []}
+    monkeypatch.setattr(
+        executor_module.subprocess, "run", lambda cmd, **kw: calls["taskkill"].append(cmd)
+    )
+    monkeypatch.setattr(
+        executor_module.os, "killpg", lambda pgid, sig: calls["killpg"].append(pgid),
+        raising=False,
+    )
+    monkeypatch.setattr(executor_module.os, "getpgid", lambda pid: pid, raising=False)
+    return calls
+
+
+def test_kill_process_tree_confirms_a_dead_tree(tmp_path, monkeypatch):
+    calls = _stub_platform_kill(monkeypatch)
+    proc = FakePopen(["pytest"], stdout=None, stderr=None)
+
+    assert SafeTestExecutor(str(tmp_path))._kill_process_tree(proc) is True
+    assert proc.killed is True
+    reached = calls["taskkill"] if os.name == "nt" else calls["killpg"]
+    assert reached, "the kill has to address the tree, not only the direct child"
+
+
+def test_kill_process_tree_reports_a_survivor(tmp_path, monkeypatch):
+    class Unkillable(FakePopen):
+        hangs = True
+
+        def kill(self):
+            # Deliberately does not die: this is the grandchild-holds-the-tree case.
+            pass
+
+    _stub_platform_kill(monkeypatch)
+    proc = Unkillable(["pytest"], stdout=None, stderr=None)
+
+    assert SafeTestExecutor(str(tmp_path))._kill_process_tree(proc) is False
+    assert proc.waits[-1] == executor_module.KILL_GRACE_SECONDS, "the wait must be bounded"
+
+
+def test_result_dict_carries_whether_the_timeout_held():
+    """The harness stamps records from to_dict, so the flag has to survive it."""
+    broken = executor_module.PytestExecutionResult(
+        exit_code=124, total_duration=28269.997, test_runs=[], timed_out=True,
+        timeout_enforced=False,
+    )
+
+    assert broken.to_dict()["timeout_enforced"] is False
+    assert broken.to_dict()["timed_out"] is True
+    assert executor_module.PytestExecutionResult(0, 1.0, []).to_dict()["timeout_enforced"] is True

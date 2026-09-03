@@ -33,6 +33,7 @@ from conftest.groundtruth.mutation_harness import (
     LOCK_FILENAME,
     PENDING_MUTATION_FILENAME,
     SUMMARY_FILENAME,
+    TIMEOUT_BROKEN_STATUS,
     BaselineProfile,
     CheckoutNotPristine,
     HarvestAlreadyRunning,
@@ -64,12 +65,14 @@ class FakeResult:
         timed_out: bool = False,
         duration: float = 1.0,
         exit_code: int = 0,
+        timeout_enforced: bool = True,
     ):
         self.test_runs = [
             {"test_id": tid, "status": st, "duration": 0.01, "failure_message": None}
             for tid, st in statuses.items()
         ]
         self.timed_out = timed_out
+        self.timeout_enforced = timeout_enforced
         self.total_duration = duration
         self.exit_code = exit_code
         self.stdout = ""
@@ -403,6 +406,51 @@ def test_timeout_is_flagged(tmp_path):
     record = harness._harvest_one(_mutant_for(repo), baseline)
 
     assert record["status"] == "timed_out"
+    assert record["timed_out"] is True
+    assert record["timeout_enforced"] is True, "it was slow, but the ceiling held"
+
+
+# --------------------------------------------------------------------------
+# A timeout that did not hold
+#
+# The 180s ceiling on mut_42bfc7db58b0 returned after 28,270s. `timed_out`
+# alone cannot express that: it reads as "slow mutant, dropped", when what
+# happened is that a live tree kept the checkout open for 7h51m and edited a
+# tracked fixture inside it. The distinction has to survive onto the record,
+# because everything measured after it is suspect too.
+# --------------------------------------------------------------------------
+
+def test_an_unenforced_timeout_gets_its_own_status(tmp_path):
+    repo = _make_repo(tmp_path)
+    harness = _make_harness(repo, tmp_path)
+    baseline = BaselineProfile(stable_passing=["t::a", "t::b"], n_runs=3)
+
+    harness.executor = FakeExecutor([
+        FakeResult({"t::a": "FAILED", "t::b": "PASSED"}, timeout_enforced=False),
+    ])
+
+    record = harness._harvest_one(_mutant_for(repo), baseline)
+
+    # It killed a test and stayed well under the broke-suite ratio, so without
+    # the flag this record would have been published as a label.
+    assert record["n_killed"] == 1
+    assert record["status"] == TIMEOUT_BROKEN_STATUS
+    assert record["timeout_enforced"] is False
+
+
+def test_a_broken_timeout_outranks_a_plain_one(tmp_path):
+    """Same event, more specific name: the record must carry the worse one."""
+    repo = _make_repo(tmp_path)
+    harness = _make_harness(repo, tmp_path)
+    baseline = BaselineProfile(stable_passing=["t::a"], n_runs=3)
+
+    harness.executor = FakeExecutor([
+        FakeResult({"t::a": "PASSED"}, timed_out=True, timeout_enforced=False),
+    ])
+
+    record = harness._harvest_one(_mutant_for(repo), baseline)
+
+    assert record["status"] == TIMEOUT_BROKEN_STATUS
     assert record["timed_out"] is True
 
 
@@ -1358,6 +1406,37 @@ def test_file_totals_credit_the_last_record_for_a_mutant(tmp_path):
     assert totals["timed_out"] == 0
     assert totals["total_kills"] == 4
     assert totals["killed_none"] == 1
+
+
+def test_file_totals_count_broken_timeouts_and_say_so_when_there_are_none(tmp_path):
+    """
+    A zero has to be printed, not omitted.
+
+    A summary that simply lacks the field is indistinguishable from one written
+    by a harness that could not detect the fault, and three of this project's
+    five harvests are exactly that -- pre-guard files whose silence means
+    unknown, not clean.
+    """
+    repo = _make_repo(tmp_path)
+    harness = _make_harness(repo, tmp_path)
+    NL = chr(10)
+    harness.mutants_path.write_text(NL.join([
+        json.dumps({"mutant_id": "mut_000", "status": "harvested", "n_killed": 3}),
+        json.dumps({
+            "mutant_id": "mut_001", "status": TIMEOUT_BROKEN_STATUS, "n_killed": 10,
+            "timeout_enforced": False,
+        }),
+    ]) + NL)
+
+    totals = harness.file_totals()
+
+    assert totals[TIMEOUT_BROKEN_STATUS] == 1
+    assert totals["harvested"] == 1
+    # Its kills still count towards the file's arithmetic; they just are not labels.
+    assert totals["total_kills"] == 13
+
+    empty = _make_harness(_make_repo(tmp_path / "clean"), tmp_path / "clean")
+    assert empty.file_totals()[TIMEOUT_BROKEN_STATUS] == 0
 
 
 def test_file_totals_of_an_empty_harvest(tmp_path):

@@ -2,10 +2,16 @@
 ConfTest Safe Isolated Test Execution Engine.
 
 Executes full test suites or selected test subsets in an isolated subprocess
-with strict timeouts, input sanitization against shell injection, and JUnit XML result parsing.
+with input sanitization against shell injection and JUnit XML result parsing.
+
+Timeouts are enforced by killing the whole process tree, not just the direct
+child, and the result carries `timeout_enforced` so a caller can tell a
+timeout that held from one that did not. That distinction is not theoretical:
+before the tree kill existed, a 180s timeout on this project measured 28,270s.
 """
 
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -18,6 +24,13 @@ from conftest.logging_config import get_logger
 from conftest.tests.discovery import validate_test_node_id
 
 logger = get_logger(__name__)
+
+# How long to wait for a killed pytest tree to actually be gone before giving up
+# on it and saying so. Never wait unbounded: that is the defect this replaced.
+KILL_GRACE_SECONDS = 30
+# A run is allowed to exceed its timeout by the kill grace plus a little; beyond
+# that the timeout did not hold, and the result has to admit it.
+BROKEN_TIMEOUT_SLACK_SECONDS = KILL_GRACE_SECONDS + 30
 
 
 class PytestExecutionResult:
@@ -33,6 +46,7 @@ class PytestExecutionResult:
         stdout: str = "",
         stderr: str = "",
         timed_out: bool = False,
+        timeout_enforced: bool = True,
     ):
         self.exit_code = exit_code
         self.total_duration = total_duration
@@ -40,6 +54,7 @@ class PytestExecutionResult:
         self.stdout = stdout
         self.stderr = stderr
         self.timed_out = timed_out
+        self.timeout_enforced = timeout_enforced
 
     @property
     def passed_count(self) -> int:
@@ -66,6 +81,7 @@ class PytestExecutionResult:
             "failed": self.failed_count,
             "skipped": self.skipped_count,
             "timed_out": self.timed_out,
+            "timeout_enforced": self.timeout_enforced,
             "test_runs": self.test_runs,
         }
 
@@ -169,6 +185,57 @@ class SafeTestExecutor:
 
         return runs
 
+    def _kill_process_tree(self, proc: subprocess.Popen) -> bool:
+        """
+        Kill a timed-out pytest and everything it spawned. False if it survived.
+
+        Killing the direct child is not enough. pytest's own children outlive
+        it, and a surviving grandchild is not merely wasted CPU: it holds the
+        checkout open and can keep writing to it, which is how a mutant run
+        ends up blamed for damage a previous one did. Windows has no process
+        group to signal, so the tree is walked by pid with taskkill; on POSIX
+        the child was given its own session and the group is signalled.
+        """
+        try:
+            proc.kill()
+        except Exception as exc:  # already dead, or unkillable
+            logger.warning(f"Direct kill of pytest {proc.pid} failed: {exc}")
+
+        if os.name == "nt":
+            try:
+                subprocess.run(
+                    ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=KILL_GRACE_SECONDS,
+                )
+            except Exception as exc:
+                logger.error(f"taskkill could not reach the pytest tree {proc.pid}: {exc}")
+        else:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except Exception as exc:
+                logger.error(f"Could not signal the pytest group for {proc.pid}: {exc}")
+
+        try:
+            proc.wait(timeout=KILL_GRACE_SECONDS)
+            return True
+        except subprocess.TimeoutExpired:
+            logger.error(
+                f"pytest {proc.pid} outlived its kill by {KILL_GRACE_SECONDS}s; "
+                f"abandoning it. Anything it writes to the checkout from here is "
+                f"drift, and the next mutant will be measured against it."
+            )
+            return False
+
+    def _read_capture(self, path: str) -> str:
+        """Read a capture file back, tolerating a subprocess that never wrote it."""
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                return handle.read()
+        except OSError:
+            return ""
+
     def run_tests(
         self,
         test_node_ids: Optional[List[str]] = None,
@@ -235,34 +302,69 @@ class SafeTestExecutor:
 
         start_time = time.time()
         timed_out = False
+        timeout_enforced = True
         exit_code = 1
         stdout = ""
         stderr = ""
 
+        # Capture to files, not pipes. A pipe is a shared handle: every
+        # grandchild inherits it and keeps it open, and subprocess.run drains
+        # the pipe *after* killing the direct child, with no timeout on the
+        # drain. Measured cost of that on 2026-09-03: mut_42bfc7db58b0 forced
+        # sqlparse's CLI to --inplace, a child kept the handle, and a 180s
+        # timeout became 28,270s -- 7h51m of a mutated tree live on disk, in
+        # which the suite truncated one of its own tracked fixtures.
+        out_path = xml_report_path + ".out"
+        err_path = xml_report_path + ".err"
+        session_kwargs = {} if os.name == "nt" else {"start_new_session": True}
+
         try:
-            logger.info(f"Running pytest ({len(sanitized_targets) if sanitized_targets else 'ALL'} tests, timeout: {exec_timeout}s)...")
-            proc = subprocess.run(
-                cmd,
-                cwd=str(self.repo_root),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=exec_timeout,
+            logger.info(
+                f"Running pytest ({len(sanitized_targets) if sanitized_targets else 'ALL'} "
+                f"tests, timeout: {exec_timeout}s)..."
             )
-            exit_code = proc.exitcode if hasattr(proc, 'exitcode') else proc.returncode
-            stdout = proc.stdout
-            stderr = proc.stderr
-        except subprocess.TimeoutExpired as exc:
-            timed_out = True
-            exit_code = 124  # Standard timeout exit code
-            stdout = exc.stdout or ""
-            stderr = exc.stderr or f"Execution timed out after {exec_timeout}s."
-            logger.error(f"Test execution timed out after {exec_timeout}s.")
+            with open(out_path, "w", encoding="utf-8", errors="replace") as out_fh:
+                with open(err_path, "w", encoding="utf-8", errors="replace") as err_fh:
+                    proc = subprocess.Popen(
+                        cmd,
+                        cwd=str(self.repo_root),
+                        stdout=out_fh,
+                        stderr=err_fh,
+                        # A suite that reads stdin must get EOF, not block on a
+                        # terminal that will never answer it.
+                        stdin=subprocess.DEVNULL,
+                        **session_kwargs,
+                    )
+                    try:
+                        exit_code = proc.wait(timeout=exec_timeout)
+                    except subprocess.TimeoutExpired:
+                        timed_out = True
+                        exit_code = 124  # Standard timeout exit code
+                        logger.error(f"Test execution timed out after {exec_timeout}s.")
+                        timeout_enforced = self._kill_process_tree(proc)
+            stdout = self._read_capture(out_path)
+            stderr = self._read_capture(err_path)
+            if timed_out and not stderr:
+                stderr = f"Execution timed out after {exec_timeout}s."
         except Exception as exc:
             logger.error(f"Test execution failed with error: {exc}")
             stderr = str(exc)
         finally:
             total_duration = max(0.001, time.time() - start_time)
+            for path in (out_path, err_path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+
+        if total_duration > exec_timeout + BROKEN_TIMEOUT_SLACK_SECONDS:
+            # Report the ceiling that actually held, not the one that was asked
+            # for: a harvest costed in suite-timeouts is costed wrongly here.
+            timeout_enforced = False
+            logger.error(
+                f"The {exec_timeout}s timeout did not hold: the run took "
+                f"{total_duration:.0f}s, and the tree under test was live for all of it."
+            )
 
         # Parse test outcomes from generated JUnit XML
         test_runs = self._parse_junit_xml(xml_report_path)
@@ -281,4 +383,5 @@ class SafeTestExecutor:
             stdout=stdout,
             stderr=stderr,
             timed_out=timed_out,
+            timeout_enforced=timeout_enforced,
         )

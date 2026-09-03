@@ -62,9 +62,31 @@ MUTATION_LINES_DELETED = 1
 
 # Only these mutants become training rows. `broke_suite` mutants kill nearly the
 # whole suite and describe a compilation-level break rather than a localized
-# fault; `timed_out` mutants have no trustworthy outcome at all. Both are kept
-# in the harvest file and counted in the manifest, never silently dropped.
+# fault; `timed_out` and `timeout_broken` mutants have no trustworthy outcome at
+# all. All of them are kept in the harvest file and counted in the manifest,
+# never silently dropped.
 USABLE_STATUS = "harvested"
+
+# Two ways a record can claim `harvested` and still not be a label:
+#
+#   * `checkout_drifted` -- the suite edited its own tracked files during that
+#     run, so the kills it reports may be inherited damage rather than effects
+#     of the mutation. Measured once on sqlparse: mut_42bfc7db58b0 left
+#     tests/files/function.sql truncated.
+#   * `timeout_enforced: false` -- the suite outlived the timeout meant to bound
+#     it, so its outcomes were read while a tree was still writing to the
+#     checkout.
+#
+# The harness records both and repairs what it can. Refusing them here is what
+# keeps them out of the training data.
+DRIFT_FIELD = "checkout_drifted"
+ENFORCED_FIELD = "timeout_enforced"
+
+# One contaminated record is an incident and is excluded. A repo where they are
+# common is a broken harvest, and quietly training on the other 98% while
+# publishing a headline would be exactly the fabrication this pipeline exists to
+# prevent -- so past this fraction the build stops and asks for a re-harvest.
+MAX_CONTAMINATED_FRACTION = 0.02
 
 # Recent-window size for hist_recent_10_failure_rate.
 RECENT_WINDOW = 10
@@ -84,8 +106,13 @@ MESSAGE_DERIVED_FEATURES = [
 ]
 
 # Gate G1 from the master plan: a realistic failure rate, not a degenerate one.
+# The plan states the band *per repository*, and the pooled rate can sit inside
+# it while a repo does not -- a large low-density repo pulls the pool towards
+# itself. Both are reported, and the pooled figure never stands in for the
+# per-repo one.
 G1_MIN_FAILURE_RATE = 0.01
 G1_MAX_FAILURE_RATE = 0.15
+G1_MIN_PAIRS_PER_REPO = 5_000
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +198,9 @@ class Harvest:
     # exists so unit tests can build a Harvest to exercise row construction alone.
     provenance: Dict[str, Any] = field(default_factory=dict)
     excluded_status: Dict[str, int] = field(default_factory=dict)
+    # Harvested records refused by contamination_reason. Listed, not counted:
+    # which mutants were dropped is the part a reader needs to check.
+    excluded_contaminated: List[Dict[str, str]] = field(default_factory=list)
 
 
 def load_provenance(repo: str, repo_root: Path, harvest_dir: Path) -> Dict[str, Any]:
@@ -227,6 +257,24 @@ def load_provenance(repo: str, repo_root: Path, harvest_dir: Path) -> Dict[str, 
     return provenance
 
 
+def contamination_reason(record: Dict[str, Any]) -> Optional[str]:
+    """
+    Why this harvested record is not a label, or None if it is one.
+
+    Absence of either field means the harvest predates the check, not that the
+    run was clean. That is a real limitation of the three harvests taken before
+    the guards existed and it is recorded as such in the manifest; what this
+    function can do is refuse the cases a harness did observe and report.
+    """
+    drifted = record.get(DRIFT_FIELD)
+    if drifted:
+        files = ", ".join(drifted) if isinstance(drifted, list) else str(drifted)
+        return f"suite modified tracked files during the run: {files}"
+    if record.get(ENFORCED_FIELD) is False:
+        return "the suite outlived the timeout meant to bound it"
+    return None
+
+
 def load_harvest(repo: str, repo_root: Path, harvest_dir: Path, commit_sha: str) -> Harvest:
     """Load and validate one repository's harvest. Missing inputs raise."""
     baseline_path = harvest_dir / "baseline.json"
@@ -254,6 +302,7 @@ def load_harvest(repo: str, repo_root: Path, harvest_dir: Path, commit_sha: str)
 
     usable: List[Dict[str, Any]] = []
     excluded: Dict[str, int] = {}
+    contaminated: List[Tuple[str, str]] = []
     with mutants_path.open(encoding="utf-8") as handle:
         for line_no, line in enumerate(handle, start=1):
             line = line.strip()
@@ -264,15 +313,38 @@ def load_harvest(repo: str, repo_root: Path, harvest_dir: Path, commit_sha: str)
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{repo}: corrupt harvest record at line {line_no}: {exc}") from exc
             status = record.get("status", "unknown")
-            if status == USABLE_STATUS:
-                usable.append(record)
-            else:
+            if status != USABLE_STATUS:
                 excluded[status] = excluded.get(status, 0) + 1
+                continue
+            reason = contamination_reason(record)
+            if reason:
+                contaminated.append((str(record.get("mutant_id", f"line_{line_no}")), reason))
+                continue
+            usable.append(record)
+
+    if contaminated:
+        listed = ", ".join(f"{mid} ({why})" for mid, why in contaminated[:5])
+        logger.error(
+            f"{repo}: excluding {len(contaminated)} harvested record(s) measured "
+            f"against a checkout that was not clean: {listed}"
+            f"{' ...' if len(contaminated) > 5 else ''}"
+        )
+        share = len(contaminated) / (len(contaminated) + len(usable))
+        if share > MAX_CONTAMINATED_FRACTION:
+            raise ValueError(
+                f"{repo}: {share:.1%} of harvested records ({len(contaminated)}) were "
+                f"measured against a contaminated checkout, over the "
+                f"{MAX_CONTAMINATED_FRACTION:.0%} ceiling. That is a broken harvest, "
+                f"not isolated incidents; re-harvest with scripts/harvest_mutations.py "
+                f"--repos {repo} --restore-checkout --reprofile-baseline rather than "
+                f"training on what survived."
+            )
 
     if not usable:
         raise ValueError(
-            f"{repo}: no mutants with status={USABLE_STATUS!r}. "
-            f"Statuses present: {excluded or 'none'}"
+            f"{repo}: no usable mutants with status={USABLE_STATUS!r}. "
+            f"Statuses present: {excluded or 'none'}; "
+            f"harvested but contaminated: {len(contaminated)}"
         )
 
     # Deterministic order. This is the order history accumulates in and the
@@ -289,6 +361,7 @@ def load_harvest(repo: str, repo_root: Path, harvest_dir: Path, commit_sha: str)
         mutants=usable,
         provenance=provenance,
         excluded_status=excluded,
+        excluded_contaminated=[{"mutant_id": mid, "reason": why} for mid, why in contaminated],
     )
 
 
@@ -553,6 +626,7 @@ def build_dataset(
             "repo_root": str(harvest.repo_root),
             "n_mutants_used": len(harvest.mutants),
             "n_mutants_excluded_by_status": harvest.excluded_status,
+            "mutants_excluded_as_contaminated": harvest.excluded_contaminated,
             "universe_size": len(harvest.universe),
             "n_tests_resolved": len(resolved),
             "n_tests_unresolved": len(unresolved),
@@ -560,8 +634,19 @@ def build_dataset(
             "n_rows": len(frame),
             "n_failures": n_fail,
             "failure_rate": round(rate, 6),
+            "g1_pairs_met": bool(len(frame) >= G1_MIN_PAIRS_PER_REPO),
+            "g1_failure_rate_in_band": bool(
+                G1_MIN_FAILURE_RATE <= rate <= G1_MAX_FAILURE_RATE
+            ),
             "import_provenance": harvest.provenance,
         })
+        if not (G1_MIN_FAILURE_RATE <= rate <= G1_MAX_FAILURE_RATE):
+            logger.warning(
+                f"  {repo}: failure rate {rate:.2%} is outside the G1 band of "
+                f"{G1_MIN_FAILURE_RATE:.0%}-{G1_MAX_FAILURE_RATE:.0%}. Its rows "
+                f"stay in the dataset and this stays in the manifest; the pooled "
+                f"rate does not excuse it."
+            )
 
     dataset = pd.concat(frames, ignore_index=True)
 
@@ -585,6 +670,15 @@ def build_dataset(
         "g1_failure_rate_in_band": bool(
             G1_MIN_FAILURE_RATE <= total_rate <= G1_MAX_FAILURE_RATE
         ),
+        "g1_min_pairs_per_repo": G1_MIN_PAIRS_PER_REPO,
+        "g1_pairs_met_by_every_repo": all(r["g1_pairs_met"] for r in manifest_repos),
+        "g1_failure_rate_in_band_for_every_repo": all(
+            r["g1_failure_rate_in_band"] for r in manifest_repos
+        ),
+        "g1_repos_outside_the_band": [
+            {"repo": r["repo"], "failure_rate": r["failure_rate"]}
+            for r in manifest_repos if not r["g1_failure_rate_in_band"]
+        ],
         "n_repos": len(manifest_repos),
         "repos": manifest_repos,
         "inert_features": inert,
@@ -650,7 +744,15 @@ def main() -> int:
     logger.info(f"Failures        : {manifest['n_failures']:,} ({manifest['failure_rate']:.2%})")
     band = manifest["g1_failure_rate_band"]
     verdict = "in band" if manifest["g1_failure_rate_in_band"] else "OUT OF BAND"
-    logger.info(f"G1 target band  : {band[0]:.0%}-{band[1]:.0%} -> {verdict}")
+    logger.info(f"G1 pooled rate  : {band[0]:.0%}-{band[1]:.0%} -> {verdict}")
+    outside = manifest["g1_repos_outside_the_band"]
+    if outside:
+        listed = ", ".join(f"{o['repo']} {o['failure_rate']:.2%}" for o in outside)
+        logger.warning(f"G1 per repo     : OUT OF BAND for {listed}")
+    else:
+        logger.info("G1 per repo     : every repo in band")
+    pairs = "met by every repo" if manifest["g1_pairs_met_by_every_repo"] else "NOT met"
+    logger.info(f"G1 min pairs    : {manifest['g1_min_pairs_per_repo']:,} -> {pairs}")
     logger.info(f"Inert features  : {len(manifest['inert_features'])} "
                 f"({', '.join(manifest['inert_features']) or 'none'})")
     logger.info(f"Dataset         : {out_path}")

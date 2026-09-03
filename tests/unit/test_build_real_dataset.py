@@ -30,6 +30,8 @@ from build_real_dataset import (  # noqa: E402
     MESSAGE_DERIVED_FEATURES,
     ORDER_EPOCH,
     RECENT_WINDOW,
+    G1_MIN_PAIRS_PER_REPO,
+    MAX_CONTAMINATED_FRACTION,
     USABLE_STATUS,
     Harvest,
     HistoryAccumulator,
@@ -37,6 +39,7 @@ from build_real_dataset import (  # noqa: E402
     accepted_repos,
     build_dataset,
     build_rows,
+    contamination_reason,
     load_harvest,
     load_provenance,
     resolve_test_id,
@@ -318,6 +321,125 @@ def test_unusable_statuses_are_excluded_and_counted(tmp_path):
     assert harvest.excluded_status == {"broke_suite": 2, "timed_out": 1}
 
 
+def test_an_unenforced_timeout_status_is_excluded_like_any_other(tmp_path):
+    hdir = _harvest_dir(tmp_path, _baseline(), [
+        _mutant("m1"),
+        _mutant("m2", status="timeout_broken", timeout_enforced=False),
+    ])
+    harvest = load_harvest("demo", tmp_path, hdir, "abc123")
+
+    assert [m["mutant_id"] for m in harvest.mutants] == ["m1"]
+    assert harvest.excluded_status == {"timeout_broken": 1}
+
+
+# --------------------------------------------------------------------------
+# Harvested, and still not a label
+#
+# `status: harvested` says the suite ran to completion under one mutation. It
+# does not say the checkout underneath it was the screened revision. sqlparse's
+# mut_42bfc7db58b0 held a mutated tree live for 7h51m past a 180s ceiling, and
+# the suite truncated tests/files/function.sql inside that window; a record
+# measured against a tree in that state reports kills that may belong to the
+# damage rather than to its own mutation.
+# --------------------------------------------------------------------------
+
+def test_contamination_reason_passes_a_clean_record(tmp_path):
+    assert contamination_reason(_mutant("m1")) is None
+    assert contamination_reason(_mutant("m1", checkout_drifted=[])) is None
+    assert contamination_reason(_mutant("m1", timeout_enforced=True)) is None
+
+
+def test_contamination_reason_names_the_drifted_files(tmp_path):
+    reason = contamination_reason(
+        _mutant("m1", checkout_drifted=["tests/files/function.sql"])
+    )
+
+    assert reason is not None
+    assert "tests/files/function.sql" in reason
+
+
+def _clean_base(n=None) -> list:
+    """Enough clean records that a single incident stays under the ceiling."""
+    n = n or int(1 / MAX_CONTAMINATED_FRACTION) + 1
+    return [_mutant(f"m{i:03d}") for i in range(n)]
+
+
+def test_a_drifted_harvested_record_is_refused_and_listed(tmp_path):
+    base = _clean_base()
+    bad = _mutant(
+        "m_drift", killed=("tests/test_a::test_x",), checkout_drifted=["tests/fx.sql"]
+    )
+    hdir = _harvest_dir(tmp_path, _baseline(), base + [bad])
+    harvest = load_harvest("demo", tmp_path, hdir, "abc123")
+
+    assert len(harvest.mutants) == len(base)
+    assert "m_drift" not in [m["mutant_id"] for m in harvest.mutants]
+    # Which mutant was dropped, and why, has to reach the manifest: a count
+    # alone cannot be checked against the harvest file by a later reader.
+    assert len(harvest.excluded_contaminated) == 1
+    assert harvest.excluded_contaminated[0]["mutant_id"] == "m_drift"
+    assert "tests/fx.sql" in harvest.excluded_contaminated[0]["reason"]
+    # It is not a status exclusion; it claimed to be harvested.
+    assert harvest.excluded_status == {}
+
+
+def test_a_harvested_record_whose_timeout_did_not_hold_is_refused(tmp_path):
+    """Belt and braces: the status logic could change, the field is the evidence."""
+    base = _clean_base()
+    hdir = _harvest_dir(
+        tmp_path, _baseline(), base + [_mutant("m_slow", timeout_enforced=False)]
+    )
+    harvest = load_harvest("demo", tmp_path, hdir, "abc123")
+
+    assert len(harvest.mutants) == len(base)
+    assert harvest.excluded_contaminated[0]["mutant_id"] == "m_slow"
+    assert "outlived" in harvest.excluded_contaminated[0]["reason"]
+
+
+def test_widespread_contamination_stops_the_build_instead_of_shrinking_it(tmp_path):
+    """
+    Isolated incidents are excluded; a pattern is a broken harvest.
+
+    Training on the clean remainder of a harvest that was mostly measured
+    against a damaged tree, and publishing the result, is the failure this
+    pipeline exists to prevent -- so the build refuses rather than quietly
+    getting smaller.
+    """
+    clean = _clean_base(20)
+    dirty = [_mutant("m_bad", checkout_drifted=["tests/fx.sql"])]
+    hdir = _harvest_dir(tmp_path, _baseline(), clean + dirty)
+
+    with pytest.raises(ValueError, match="contaminated checkout"):
+        load_harvest("demo", tmp_path, hdir, "abc123")
+
+
+def test_one_incident_in_a_large_harvest_is_tolerated_and_reported(tmp_path):
+    base = _clean_base()
+    hdir = _harvest_dir(
+        tmp_path, _baseline(), base + [_mutant("m_bad", checkout_drifted=["tests/fx.sql"])]
+    )
+
+    harvest = load_harvest("demo", tmp_path, hdir, "abc123")
+
+    assert len(harvest.mutants) == len(base)
+    assert len(harvest.excluded_contaminated) == 1
+
+
+def test_a_harvest_predating_the_checks_is_not_treated_as_contaminated(tmp_path):
+    """
+    Absence of the fields means unknown, not dirty.
+
+    Three of the five harvests were taken before the guards existed. Refusing
+    them here would be dishonest in the other direction: the limitation belongs
+    in the manifest and the build log, not in a silent exclusion.
+    """
+    hdir = _harvest_dir(tmp_path, _baseline(), [_mutant("m1"), _mutant("m2")])
+    harvest = load_harvest("demo", tmp_path, hdir, "abc123")
+
+    assert len(harvest.mutants) == 2
+    assert harvest.excluded_contaminated == []
+
+
 # --------------------------------------------------------------------------
 # Import provenance: the one thing that cannot be inferred from the labels
 # --------------------------------------------------------------------------
@@ -387,7 +509,7 @@ def test_provenance_comparison_ignores_separator_and_case(tmp_path):
 
 def test_a_harvest_of_only_unusable_mutants_raises(tmp_path):
     hdir = _harvest_dir(tmp_path, _baseline(), [_mutant("m1", status="broke_suite")])
-    with pytest.raises(ValueError, match="no mutants with status"):
+    with pytest.raises(ValueError, match="no usable mutants with status"):
         load_harvest("demo", tmp_path, hdir, "abc123")
 
 
@@ -617,6 +739,52 @@ def test_build_dataset_produces_a_labelled_frame_and_an_honest_manifest(tmp_path
     # produced the labels without going back to the harvest directory.
     assert repo_entry["import_provenance"]["verified"] is True
     assert manifest["import_provenance_verified_for_every_repo"] is True
+
+
+def test_the_manifest_judges_g1_per_repo_and_not_only_on_the_pool(tmp_path):
+    """
+    The plan states the band per repository; a pooled figure can hide a miss.
+
+    Measured on the real five: the pooled rate is 4.89% and inside the band
+    while validators sits at 0.75%, below the floor, on 40% of all rows. A
+    manifest reporting only the pool would have read as G1 green.
+    """
+    workspace = tmp_path / "repos"
+    workspace.mkdir()
+    _tiny_repo(workspace)
+    universe = ["tests/test_core::test_x", "tests/test_core::test_y"]
+    harvest_root = tmp_path / "harvest"
+    hdir = harvest_root / "demo"
+    hdir.mkdir(parents=True)
+    (hdir / "baseline.json").write_text(json.dumps(_baseline(universe)), encoding="utf-8")
+    NL = chr(10)
+    (hdir / "mutants.jsonl").write_text(
+        NL.join([
+            json.dumps(_mutant("m1", killed=[universe[0]])),
+            json.dumps(_mutant("m2")),
+        ]) + NL,
+        encoding="utf-8",
+    )
+    (hdir / SUMMARY_FILENAME).write_text(json.dumps(_summary(workspace)), encoding="utf-8")
+    report = _report(workspace, {
+        "demo": {
+            "name": "demo", "stage2_passed": True, "stage3_passed": True,
+            "commit_sha": "deadbeef",
+        }
+    })
+
+    _, manifest = build_dataset(["demo"], workspace, harvest_root, report)
+
+    # 1 failure in 4 rows: over the ceiling, and far under the pair minimum.
+    assert manifest["repos"][0]["g1_failure_rate_in_band"] is False
+    assert manifest["repos"][0]["g1_pairs_met"] is False
+    assert manifest["g1_failure_rate_in_band_for_every_repo"] is False
+    assert manifest["g1_pairs_met_by_every_repo"] is False
+    assert manifest["g1_min_pairs_per_repo"] == G1_MIN_PAIRS_PER_REPO
+    # Named, not just counted: a reader has to know which repo missed.
+    assert manifest["g1_repos_outside_the_band"] == [
+        {"repo": "demo", "failure_rate": 0.25}
+    ]
 
 
 def test_requesting_an_unscreened_repo_raises(tmp_path):
