@@ -68,6 +68,12 @@ data/splits/*
 models/baselines/*
 models/ensembles/*
 models/calibrated/*
+# The fitted calibrator lives at the models/ root because every consumer -- the API,
+# both dashboards, scripts/train_baseline.py, scripts/tune_policy.py -- defaults to
+# that path. It is a build product like the ensembles beside it: regenerate it with
+# scripts/calibrate_model.py, and read what it was fitted on out of
+# reports/calibration_report.json, which is tracked.
+models/*.joblib
 !models/README.md
 
 # Environment secrets

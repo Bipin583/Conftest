@@ -1,5 +1,5 @@
 {
-  "tau_abstain": 0.03,
+  "tau_abstain": 0.02,
   "tau_conf": 0.1,
   "budget_ratio": 0.25,
   "ood_file_limit": 15,
