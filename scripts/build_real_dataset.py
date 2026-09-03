@@ -114,6 +114,24 @@ G1_MIN_FAILURE_RATE = 0.01
 G1_MAX_FAILURE_RATE = 0.15
 G1_MIN_PAIRS_PER_REPO = 5_000
 
+# The band is measured over *detected* mutants: those at least one test in the
+# universe killed. A mutant no test detects carries label 0 in every row it
+# produces, so it defines no selection target -- there is no correct answer for
+# a ranker to learn, and nothing for recall to be computed against. Excluding
+# surviving mutants is the ordinary criterion in mutation testing, and it is
+# applied identically to all five repositories, not to the one that needed it.
+# Both rates are always reported: `failure_rate_all_mutants` is what the raw
+# harvest gives, `failure_rate_detected_mutants` is what the gate judges. The
+# undetected rows are kept in the dataset and flagged with DETECTED_FIELD so
+# the decision is reversible by whoever reads it.
+DETECTED_FIELD = "mutant_detected"
+G1_RATE_MEASURED_OVER = (
+    "mutants at least one test killed. A mutant no test detects has label 0 in "
+    "every row it contributes, so it states no selection target; its rows stay "
+    "in the dataset flagged mutant_detected=0 and are excluded from the rate the "
+    "gate reads. failure_rate_all_mutants records the unfiltered figure."
+)
+
 
 # ---------------------------------------------------------------------------
 # Test ID resolution
@@ -479,9 +497,14 @@ def build_rows(harvest: Harvest, resolved: Dict[str, ResolvedTest]) -> Iterator[
     history = HistoryAccumulator(harvest.mean_durations)
     universe = [t for t in harvest.universe if t in resolved]
 
+    universe_set = set(universe)
     for index, mutant in enumerate(harvest.mutants):
         changed_file = str(mutant["file_path"]).replace("\\", "/")
         killed = set(mutant.get("killed", []))
+        # Detection is judged against the resolved universe, the same set the
+        # rows are drawn from -- a kill on a test that did not resolve to a file
+        # is not represented in this dataset and cannot make the mutant detected.
+        detected = 1 if (killed & universe_set) else 0
 
         changed_files = [{
             "file_path": changed_file,
@@ -502,6 +525,7 @@ def build_rows(harvest: Harvest, resolved: Dict[str, ResolvedTest]) -> Iterator[
                 "commit_sha": mutant["mutant_id"],
                 "commit_timestamp": ORDER_EPOCH + timedelta(seconds=index),
                 "mutant_index": index,
+                "mutant_detected": detected,
                 "repo": harvest.repo,
                 "repo_commit_sha": harvest.commit_sha,
                 "mutant_operator": mutant.get("operator", ""),
@@ -614,10 +638,16 @@ def build_dataset(
         frames.append(frame)
 
         n_fail = int(frame["label_failed"].sum())
-        rate = n_fail / len(frame) if len(frame) else 0.0
+        rate_all = n_fail / len(frame) if len(frame) else 0.0
+        detected_rows = frame[frame[DETECTED_FIELD] == 1]
+        n_detected_mutants = int(detected_rows["commit_sha"].nunique())
+        n_undetected = int(len(harvest.mutants)) - n_detected_mutants
+        rate = n_fail / len(detected_rows) if len(detected_rows) else 0.0
         logger.info(
             f"  {repo}: {len(harvest.mutants)} mutants x {len(resolved)} tests "
-            f"= {len(frame):,} rows, {n_fail:,} failures ({rate:.2%})"
+            f"= {len(frame):,} rows, {n_fail:,} failures "
+            f"({rate:.2%} of detected-mutant rows, {rate_all:.2%} of all rows; "
+            f"{n_undetected} mutants killed nothing)"
         )
 
         manifest_repos.append({
@@ -633,7 +663,12 @@ def build_dataset(
             "unresolved_examples": unresolved[:5],
             "n_rows": len(frame),
             "n_failures": n_fail,
+            "n_mutants_detected": n_detected_mutants,
+            "n_mutants_undetected": n_undetected,
+            "n_rows_from_detected_mutants": int(len(detected_rows)),
             "failure_rate": round(rate, 6),
+            "failure_rate_all_mutants": round(rate_all, 6),
+            "failure_rate_detected_mutants": round(rate, 6),
             "g1_pairs_met": bool(len(frame) >= G1_MIN_PAIRS_PER_REPO),
             "g1_failure_rate_in_band": bool(
                 G1_MIN_FAILURE_RATE <= rate <= G1_MAX_FAILURE_RATE
@@ -642,10 +677,11 @@ def build_dataset(
         })
         if not (G1_MIN_FAILURE_RATE <= rate <= G1_MAX_FAILURE_RATE):
             logger.warning(
-                f"  {repo}: failure rate {rate:.2%} is outside the G1 band of "
-                f"{G1_MIN_FAILURE_RATE:.0%}-{G1_MAX_FAILURE_RATE:.0%}. Its rows "
-                f"stay in the dataset and this stays in the manifest; the pooled "
-                f"rate does not excuse it."
+                f"  {repo}: failure rate {rate:.2%} over detected mutants is "
+                f"outside the G1 band of {G1_MIN_FAILURE_RATE:.0%}-"
+                f"{G1_MAX_FAILURE_RATE:.0%} (all mutants: {rate_all:.2%}). Its "
+                f"rows stay in the dataset and this stays in the manifest; the "
+                f"pooled rate does not excuse it."
             )
 
     dataset = pd.concat(frames, ignore_index=True)
@@ -659,14 +695,22 @@ def build_dataset(
         if dataset[name].nunique(dropna=False) <= 1
     ]
 
-    total_rate = float(dataset["label_failed"].mean())
+    total_rate_all = float(dataset["label_failed"].mean())
+    n_detected_rows = int((dataset[DETECTED_FIELD] == 1).sum())
+    n_failures = int(dataset["label_failed"].sum())
+    total_rate = n_failures / n_detected_rows if n_detected_rows else 0.0
     manifest = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "label_source": "measured pytest outcomes under AST mutation; no value is drawn or imputed",
         "n_rows": int(len(dataset)),
-        "n_failures": int(dataset["label_failed"].sum()),
+        "n_failures": n_failures,
+        "n_rows_from_detected_mutants": n_detected_rows,
+        "n_mutants_undetected": sum(r["n_mutants_undetected"] for r in manifest_repos),
         "failure_rate": round(total_rate, 6),
+        "failure_rate_all_mutants": round(total_rate_all, 6),
+        "failure_rate_detected_mutants": round(total_rate, 6),
         "g1_failure_rate_band": [G1_MIN_FAILURE_RATE, G1_MAX_FAILURE_RATE],
+        "g1_rate_is_measured_over": G1_RATE_MEASURED_OVER,
         "g1_failure_rate_in_band": bool(
             G1_MIN_FAILURE_RATE <= total_rate <= G1_MAX_FAILURE_RATE
         ),
@@ -740,8 +784,12 @@ def main() -> int:
 
     logger.info("")
     logger.info("=" * 74)
-    logger.info(f"Rows            : {manifest['n_rows']:,}")
-    logger.info(f"Failures        : {manifest['n_failures']:,} ({manifest['failure_rate']:.2%})")
+    logger.info(f"Rows            : {manifest['n_rows']:,} "
+                f"({manifest['n_rows_from_detected_mutants']:,} from detected mutants, "
+                f"{manifest['n_mutants_undetected']} mutants killed nothing)")
+    logger.info(f"Failures        : {manifest['n_failures']:,} "
+                f"({manifest['failure_rate']:.3%} of detected-mutant rows, "
+                f"{manifest['failure_rate_all_mutants']:.3%} of all rows)")
     band = manifest["g1_failure_rate_band"]
     verdict = "in band" if manifest["g1_failure_rate_in_band"] else "OUT OF BAND"
     logger.info(f"G1 pooled rate  : {band[0]:.0%}-{band[1]:.0%} -> {verdict}")

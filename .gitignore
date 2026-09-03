@@ -51,6 +51,11 @@ data/raw/*
 !data/raw/README.md
 data/interim/*
 data/processed/*
+# The feature CSV is derived and large, so it stays out. Its manifest does not:
+# it is the provenance receipt for the dataset -- measured row counts, the
+# per-repo failure rates the G1 gate reads, and which rate it reads them over.
+# A reviewer must be able to check the gate without a 10-minute rebuild.
+!data/processed/real_features_manifest.json
 data/splits/*
 *.db
 *.sqlite

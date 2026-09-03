@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from build_real_dataset import (  # noqa: E402
+    DETECTED_FIELD,
     G1_MAX_FAILURE_RATE,
     G1_MIN_FAILURE_RATE,
     MESSAGE_DERIVED_FEATURES,
@@ -721,8 +722,10 @@ def test_build_dataset_produces_a_labelled_frame_and_an_honest_manifest(tmp_path
     assert int(dataset["label_failed"].sum()) == 1
     assert manifest["n_rows"] == 4
     assert manifest["n_failures"] == 1
-    assert manifest["failure_rate"] == 0.25
-    assert manifest["g1_failure_rate_in_band"] is False   # 25% > band ceiling
+    # The gate reads the detected-mutant rate; the raw one is published beside it.
+    assert manifest["failure_rate"] == 0.5
+    assert manifest["failure_rate_all_mutants"] == 0.25
+    assert manifest["g1_failure_rate_in_band"] is False   # 50% > band ceiling
     assert manifest["g1_failure_rate_band"] == [G1_MIN_FAILURE_RATE, G1_MAX_FAILURE_RATE]
     assert "measured pytest outcomes" in manifest["label_source"]
 
@@ -775,16 +778,31 @@ def test_the_manifest_judges_g1_per_repo_and_not_only_on_the_pool(tmp_path):
 
     _, manifest = build_dataset(["demo"], workspace, harvest_root, report)
 
-    # 1 failure in 4 rows: over the ceiling, and far under the pair minimum.
-    assert manifest["repos"][0]["g1_failure_rate_in_band"] is False
-    assert manifest["repos"][0]["g1_pairs_met"] is False
+    # m1 killed one of two tests, m2 killed nothing. The gate reads m1's rows
+    # alone: 1 failure in 2, not 1 in 4. Both figures are published.
+    repo = manifest["repos"][0]
+    assert repo["failure_rate"] == 0.5
+    assert repo["failure_rate_all_mutants"] == 0.25
+    assert repo["n_mutants_detected"] == 1
+    assert repo["n_mutants_undetected"] == 1
+    assert repo["n_rows"] == 4 and repo["n_rows_from_detected_mutants"] == 2
+    # 1 failure in 2 detected rows: over the ceiling, and under the pair minimum.
+    assert repo["g1_failure_rate_in_band"] is False
+    assert repo["g1_pairs_met"] is False
     assert manifest["g1_failure_rate_in_band_for_every_repo"] is False
     assert manifest["g1_pairs_met_by_every_repo"] is False
     assert manifest["g1_min_pairs_per_repo"] == G1_MIN_PAIRS_PER_REPO
     # Named, not just counted: a reader has to know which repo missed.
     assert manifest["g1_repos_outside_the_band"] == [
-        {"repo": "demo", "failure_rate": 0.25}
+        {"repo": "demo", "failure_rate": 0.5}
     ]
+    # The pooled figures follow the same rule and say which is which.
+    assert manifest["failure_rate"] == 0.5
+    assert manifest["failure_rate_all_mutants"] == 0.25
+    assert manifest["n_rows"] == 4
+    assert manifest["n_rows_from_detected_mutants"] == 2
+    assert manifest["n_mutants_undetected"] == 1
+    assert "mutant_detected=0" in manifest["g1_rate_is_measured_over"]
 
 
 def test_requesting_an_unscreened_repo_raises(tmp_path):
@@ -813,3 +831,53 @@ def test_only_fully_harvested_mutants_are_usable():
 
 def test_g1_band_is_a_realistic_failure_rate():
     assert 0.0 < G1_MIN_FAILURE_RATE < G1_MAX_FAILURE_RATE < 0.5
+
+
+def test_every_row_says_whether_any_test_detected_the_mutant(tmp_path):
+    """
+    A mutant no test kills produces rows that are all label 0.
+
+    Those rows are real measurements and stay in the dataset, but they state no
+    selection target: there is no correct answer for a ranker to return and
+    nothing for recall to be measured against. The flag is what lets a consumer
+    tell the two kinds of zero apart.
+    """
+    rows = _rows_for(tmp_path, [
+        _mutant("detected", killed=["tests/test_core::test_x"]),
+        _mutant("survivor"),
+    ])
+    by_mutant = {}
+    for row in rows:
+        by_mutant.setdefault(row["commit_sha"], []).append(row)
+
+    assert {r[DETECTED_FIELD] for r in by_mutant["detected"]} == {1}
+    assert {r[DETECTED_FIELD] for r in by_mutant["survivor"]} == {0}
+    # The flag is a property of the mutant, not of the row's own label: the
+    # detected mutant's passing test is still flagged 1.
+    passing = [r for r in by_mutant["detected"] if r["label_failed"] == 0]
+    assert passing and all(r[DETECTED_FIELD] == 1 for r in passing)
+
+
+def test_detection_is_judged_against_the_universe_that_produced_rows(tmp_path):
+    """
+    A kill on a test that is not in this dataset cannot make a mutant detected.
+
+    Otherwise a mutant whose only kill was an unresolvable test ID would be
+    counted as detected while contributing nothing but zeros -- the exact
+    accounting error the flag exists to prevent.
+    """
+    rows = _rows_for(tmp_path, [_mutant("m1", killed=["tests/test_gone::test_vanished"])])
+    assert rows, "the mutant still contributes a row per universe test"
+    assert {r[DETECTED_FIELD] for r in rows} == {0}
+    assert {r["label_failed"] for r in rows} == {0}
+
+
+def test_the_detection_flag_is_not_a_model_feature():
+    """
+    It is derived from the labels, so as a feature it would be pure leakage.
+
+    `mutant_detected` says "at least one row for this mutant is a 1". A model
+    given that would learn the label's own aggregate. It lives in the metadata
+    columns, and the trainers select features by explicit allowlist.
+    """
+    assert DETECTED_FIELD not in FEATURE_NAMES

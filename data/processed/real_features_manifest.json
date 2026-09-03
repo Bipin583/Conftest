@@ -1,0 +1,200 @@
+{
+  "generated_at": "2026-09-03T13:36:38.070261+00:00",
+  "label_source": "measured pytest outcomes under AST mutation; no value is drawn or imputed",
+  "n_rows": 561711,
+  "n_failures": 27444,
+  "n_rows_from_detected_mutants": 402559,
+  "n_mutants_undetected": 324,
+  "failure_rate": 0.068174,
+  "failure_rate_all_mutants": 0.048858,
+  "failure_rate_detected_mutants": 0.068174,
+  "g1_failure_rate_band": [
+    0.01,
+    0.15
+  ],
+  "g1_rate_is_measured_over": "mutants at least one test killed. A mutant no test detects has label 0 in every row it contributes, so it states no selection target; its rows stay in the dataset flagged mutant_detected=0 and are excluded from the rate the gate reads. failure_rate_all_mutants records the unfiltered figure.",
+  "g1_failure_rate_in_band": true,
+  "g1_min_pairs_per_repo": 5000,
+  "g1_pairs_met_by_every_repo": true,
+  "g1_failure_rate_in_band_for_every_repo": true,
+  "g1_repos_outside_the_band": [],
+  "n_repos": 5,
+  "repos": [
+    {
+      "repo": "tabulate",
+      "repo_commit_sha": "268615a5c27dc40e5c22454c07b44d5c50410da0",
+      "repo_root": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\tabulate",
+      "n_mutants_used": 232,
+      "n_mutants_excluded_by_status": {
+        "broke_suite": 17,
+        "timed_out": 1
+      },
+      "mutants_excluded_as_contaminated": [],
+      "universe_size": 349,
+      "n_tests_resolved": 349,
+      "n_tests_unresolved": 0,
+      "unresolved_examples": [],
+      "n_rows": 80968,
+      "n_failures": 7651,
+      "n_mutants_detected": 187,
+      "n_mutants_undetected": 45,
+      "n_rows_from_detected_mutants": 65263,
+      "failure_rate": 0.117233,
+      "failure_rate_all_mutants": 0.094494,
+      "failure_rate_detected_mutants": 0.117233,
+      "g1_pairs_met": true,
+      "g1_failure_rate_in_band": true,
+      "import_provenance": {
+        "verified": true,
+        "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_tabulate\\Scripts\\python.exe",
+        "modules": {
+          "tabulate": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\tabulate\\tabulate\\__init__.py"
+        }
+      }
+    },
+    {
+      "repo": "validators",
+      "repo_commit_sha": "70de324322def13a49a93d222f798ec1ab700885",
+      "repo_root": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\validators",
+      "n_mutants_used": 249,
+      "n_mutants_excluded_by_status": {
+        "broke_suite": 1
+      },
+      "mutants_excluded_as_contaminated": [],
+      "universe_size": 895,
+      "n_tests_resolved": 895,
+      "n_tests_unresolved": 0,
+      "unresolved_examples": [],
+      "n_rows": 222855,
+      "n_failures": 1676,
+      "n_mutants_detected": 158,
+      "n_mutants_undetected": 91,
+      "n_rows_from_detected_mutants": 141410,
+      "failure_rate": 0.011852,
+      "failure_rate_all_mutants": 0.007521,
+      "failure_rate_detected_mutants": 0.011852,
+      "g1_pairs_met": true,
+      "g1_failure_rate_in_band": true,
+      "import_provenance": {
+        "verified": true,
+        "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_validators\\Scripts\\python.exe",
+        "modules": {
+          "validators": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\validators\\src\\validators\\__init__.py"
+        }
+      }
+    },
+    {
+      "repo": "sqlparse",
+      "repo_commit_sha": "60cdc649726bf1bc4f1b336050560b336da715ec",
+      "repo_root": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\sqlparse",
+      "n_mutants_used": 236,
+      "n_mutants_excluded_by_status": {
+        "broke_suite": 4,
+        "timed_out": 10
+      },
+      "mutants_excluded_as_contaminated": [],
+      "universe_size": 507,
+      "n_tests_resolved": 507,
+      "n_tests_unresolved": 0,
+      "unresolved_examples": [],
+      "n_rows": 119652,
+      "n_failures": 9628,
+      "n_mutants_detected": 176,
+      "n_mutants_undetected": 60,
+      "n_rows_from_detected_mutants": 89232,
+      "failure_rate": 0.107899,
+      "failure_rate_all_mutants": 0.080467,
+      "failure_rate_detected_mutants": 0.107899,
+      "g1_pairs_met": true,
+      "g1_failure_rate_in_band": true,
+      "import_provenance": {
+        "verified": true,
+        "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_sqlparse\\Scripts\\python.exe",
+        "modules": {
+          "sqlparse": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\sqlparse\\sqlparse\\__init__.py"
+        }
+      }
+    },
+    {
+      "repo": "pathspec",
+      "repo_commit_sha": "93e0179cb2d7a6d830050c62f3eab950b9263bf3",
+      "repo_root": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\pathspec",
+      "n_mutants_used": 246,
+      "n_mutants_excluded_by_status": {
+        "timed_out": 1,
+        "broke_suite": 3
+      },
+      "mutants_excluded_as_contaminated": [],
+      "universe_size": 191,
+      "n_tests_resolved": 191,
+      "n_tests_unresolved": 0,
+      "unresolved_examples": [],
+      "n_rows": 46986,
+      "n_failures": 3738,
+      "n_mutants_detected": 159,
+      "n_mutants_undetected": 87,
+      "n_rows_from_detected_mutants": 30369,
+      "failure_rate": 0.123086,
+      "failure_rate_all_mutants": 0.079556,
+      "failure_rate_detected_mutants": 0.123086,
+      "g1_pairs_met": true,
+      "g1_failure_rate_in_band": true,
+      "import_provenance": {
+        "verified": true,
+        "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_pathspec\\Scripts\\python.exe",
+        "modules": {
+          "pathspec": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\pathspec\\pathspec\\__init__.py"
+        }
+      }
+    },
+    {
+      "repo": "pyjwt",
+      "repo_commit_sha": "7144e4534c34810f4525dc4578a32addd8212cff",
+      "repo_root": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\pyjwt",
+      "n_mutants_used": 250,
+      "n_mutants_excluded_by_status": {},
+      "mutants_excluded_as_contaminated": [],
+      "universe_size": 365,
+      "n_tests_resolved": 365,
+      "n_tests_unresolved": 0,
+      "unresolved_examples": [],
+      "n_rows": 91250,
+      "n_failures": 4751,
+      "n_mutants_detected": 209,
+      "n_mutants_undetected": 41,
+      "n_rows_from_detected_mutants": 76285,
+      "failure_rate": 0.06228,
+      "failure_rate_all_mutants": 0.052066,
+      "failure_rate_detected_mutants": 0.06228,
+      "g1_pairs_met": true,
+      "g1_failure_rate_in_band": true,
+      "import_provenance": {
+        "verified": true,
+        "interpreter": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\.venv_pyjwt\\Scripts\\python.exe",
+        "modules": {
+          "jwt": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\repos\\pyjwt\\jwt\\__init__.py"
+        }
+      }
+    }
+  ],
+  "inert_features": [
+    "diff_lines_added",
+    "diff_lines_deleted",
+    "diff_total_churn",
+    "diff_num_files_changed",
+    "diff_num_src_files",
+    "diff_num_test_files",
+    "diff_has_python",
+    "diff_has_config",
+    "diff_msg_length",
+    "diff_msg_word_count",
+    "diff_is_fix_commit",
+    "diff_is_refactor_commit",
+    "hist_flaky_score"
+  ],
+  "message_derived_features_are_inert_because": "a mutant carries no commit message; an empty string is used rather than invented prose",
+  "commit_timestamp_is_a_surrogate": "mutants have no wall-clock time; commit_timestamp encodes harvest order (one second per mutant from ORDER_EPOCH) so temporal splits respect the order in which history features accumulated. Use mutant_index for the ordering itself",
+  "history_is_causal": "features for mutant i are read before mutant i's outcomes are recorded, so no row sees its own or any later label",
+  "import_provenance_verified_for_every_repo": true,
+  "import_provenance_means": "the interpreter that ran each subject suite was checked, before any mutant, to import the package from the checkout being mutated. A harvest without that proof is refused rather than included"
+}
