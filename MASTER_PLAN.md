@@ -487,6 +487,18 @@ truncated by sqlparse's own suite while the mutated tree sat live on disk for
 7h51m. The timeout was the containment boundary for D2, and it was the boundary
 that failed.
 
+**The wall clock, since the record does not carry one.** From the harvest log:
+mutant `[55/227]` finished at `08:43:46`, `[56/227]` -- the broken one -- was
+started immediately after, and its `Test execution timed out after 180s.` line was
+emitted at `16:34:56`. 28,270 s between the start and the exception, and the
+harness's own ETA jumped from `54m` to `1492m` in one step. Drift detection then
+fired *correctly* and restored `tests/files/function.sql` in the same second: the
+guard was not missing, it was simply 7h51m downstream of the damage. Note also
+what is in that mutant's kill list -- `test_split_create_function[function.sql]`,
+the test for the fixture the run had just truncated. A drifted record can
+manufacture its own kills, which is why the exclusion is on the record and not on
+the individual test.
+
 **The fix, in `src/conftest/tests/executor.py`.** Capture to files rather than
 pipes, so no handle is shared with a descendant and there is nothing to drain.
 `stdin=subprocess.DEVNULL`, so a suite that reads stdin gets EOF instead of
