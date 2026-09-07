@@ -90,6 +90,13 @@ Thumbs.db
 data/repos/*
 !data/repos/screening_report.json
 
+# BugsInPy external validation (C3). The upstream metadata repository and the
+# per-bug checkouts and venvs are inputs, cloned by scripts/harvest_bugsinpy.py
+# and reproducible from the pinned commit recorded in the output. The measured
+# records and the run summary ARE tracked, same as the mutation harvest.
+data/groundtruth/bugsinpy/BugsInPy/
+data/groundtruth/bugsinpy/workspace/
+
 # Scratch: probe output from validating the test-ID resolver, and screener logs.
 .tmp_junit/
 .tmp_*.log
@@ -102,3 +109,4 @@ data/repos/*
 data/harvest_smoke/
 
 .claude/
+CONTINUUM/

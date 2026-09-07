@@ -1,0 +1,74 @@
+{
+  "produced_by": "python scripts/harvest_bugsinpy.py --survey",
+  "generated_at": "2026-09-03T17:41:59+00:00",
+  "bugsinpy_root": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\groundtruth\\bugsinpy\\BugsInPy",
+  "n_projects": 6,
+  "n_bugs": 96,
+  "n_with_readable_test_command": 96,
+  "pinned_python_versions": {
+    "3.6.9": 13,
+    "3.7.0": 42,
+    "3.7.3": 5,
+    "3.7.4": 33,
+    "3.8.1": 3
+  },
+  "profiled_projects": [
+    "PySnooper",
+    "cookiecutter",
+    "httpie",
+    "thefuck",
+    "tqdm",
+    "youtube-dl"
+  ],
+  "per_project": {
+    "PySnooper": {
+      "n_bugs": 3,
+      "python_versions": {
+        "3.8.1": 3
+      },
+      "n_with_readable_test_command": 3,
+      "has_run_profile": true
+    },
+    "cookiecutter": {
+      "n_bugs": 4,
+      "python_versions": {
+        "3.6.9": 4
+      },
+      "n_with_readable_test_command": 4,
+      "has_run_profile": true
+    },
+    "httpie": {
+      "n_bugs": 5,
+      "python_versions": {
+        "3.7.3": 5
+      },
+      "n_with_readable_test_command": 5,
+      "has_run_profile": true
+    },
+    "thefuck": {
+      "n_bugs": 32,
+      "python_versions": {
+        "3.7.0": 32
+      },
+      "n_with_readable_test_command": 32,
+      "has_run_profile": true
+    },
+    "tqdm": {
+      "n_bugs": 9,
+      "python_versions": {
+        "3.6.9": 9
+      },
+      "n_with_readable_test_command": 9,
+      "has_run_profile": true
+    },
+    "youtube-dl": {
+      "n_bugs": 43,
+      "python_versions": {
+        "3.7.0": 10,
+        "3.7.4": 33
+      },
+      "n_with_readable_test_command": 43,
+      "has_run_profile": true
+    }
+  }
+}

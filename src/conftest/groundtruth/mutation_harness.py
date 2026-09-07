@@ -273,6 +273,51 @@ def sample_digest(mutants: Sequence[Mutant]) -> str:
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
 
 
+def classify_runs(
+    per_run_status: Sequence[Dict[str, str]],
+) -> Tuple[List[str], Dict[str, str]]:
+    """
+    Split repeated runs of one revision into a stable universe and exclusions.
+
+    A test enters the universe only if it was collected in *every* run and
+    passed in every one of them. Everything else is excluded with the reason
+    recorded, because "excluded" and "failed" are different facts and a label
+    built on the second when the first is true is a fabricated label.
+
+    The reason strings are part of the published artifacts (`baseline.json`
+    here, the per-bug baselines under data/groundtruth/bugsinpy), so they live
+    in one function rather than in each harvest that needs them.
+
+    Args:
+        per_run_status: One {test_id: STATUS} mapping per run, in run order.
+
+    Returns:
+        (stable_passing sorted, {test_id: exclusion reason}).
+    """
+    all_test_ids: Set[str] = set()
+    for status_map in per_run_status:
+        all_test_ids |= set(status_map)
+
+    stable_passing: List[str] = []
+    excluded: Dict[str, str] = {}
+
+    for test_id in sorted(all_test_ids):
+        statuses = [status_map.get(test_id) for status_map in per_run_status]
+
+        if any(s is None for s in statuses):
+            excluded[test_id] = "not_collected_in_every_run"
+        elif all(s == "PASSED" for s in statuses):
+            stable_passing.append(test_id)
+        elif len(set(statuses)) > 1:
+            excluded[test_id] = f"flaky:{'/'.join(str(s) for s in statuses)}"
+        elif statuses[0] == "SKIPPED":
+            excluded[test_id] = "skipped"
+        else:
+            excluded[test_id] = f"failing_on_clean_checkout:{statuses[0]}"
+
+    return stable_passing, excluded
+
+
 @dataclass
 class BaselineProfile:
     """Deterministic pass/fail profile of a clean checkout."""
@@ -842,27 +887,7 @@ class MutationHarness:
                 f"{result.skipped_count} skipped ({result.total_duration:.1f}s)"
             )
 
-        # A test must appear, and pass, in every run to enter the universe.
-        all_test_ids: Set[str] = set()
-        for status_map in per_run_status:
-            all_test_ids |= set(status_map)
-
-        stable_passing: List[str] = []
-        excluded: Dict[str, str] = {}
-
-        for test_id in sorted(all_test_ids):
-            statuses = [status_map.get(test_id) for status_map in per_run_status]
-
-            if any(s is None for s in statuses):
-                excluded[test_id] = "not_collected_in_every_run"
-            elif all(s == "PASSED" for s in statuses):
-                stable_passing.append(test_id)
-            elif len(set(statuses)) > 1:
-                excluded[test_id] = f"flaky:{'/'.join(str(s) for s in statuses)}"
-            elif statuses[0] == "SKIPPED":
-                excluded[test_id] = "skipped"
-            else:
-                excluded[test_id] = f"failing_on_clean_checkout:{statuses[0]}"
+        stable_passing, excluded = classify_runs(per_run_status)
 
         mean_durations = {
             test_id: sum(d.get(test_id, 0.0) for d in per_run_duration) / len(per_run_duration)
