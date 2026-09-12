@@ -3,6 +3,8 @@
 **APJ Abdul Kalam Technological University (KTU) | Final-Year B.Tech Major Project Specification**  
 *Department of Computer Science and Engineering*
 
+> **Status note (added after implementation).** This is the original project *specification*, written before any measurement. The reduction figures below are the targets it set, not results. Measured on 183 held-out commits, the shipped operating point reached **100.0% failure recall with zero escaped commits** but only **3.11% test-execution reduction (0.0% wall-clock)**, because it abstains on 97.81% of commits; the 32.85%-reduction operating point falls to 87.69% recall. See [README -- Measured Results](README.md#-measured-results-and-what-they-do-not-show).
+
 ---
 
 ## 1. Executive Summary & Problem Disproof
@@ -17,7 +19,9 @@
    - Evaluates test failure probability using fast LightGBM models.
    - Measures prediction uncertainty via Venn-Abers calibration and temperature scaling.
    - If uncertainty on a pull request exceeds the safety threshold $\tau$, ConfTest **ABSTAINS** and triggers a safe fallback (100% full test suite).
-   - Achieves 40–50% test time reduction while mathematically bounding missed regressions.
+   - **Target at proposal time:** 40–50% test time reduction while bounding missed regressions.
+     *Measured outcome:* the bound held (zero escapes on held-out data) and the reduction target was
+     not met (3.11% of executions, 0.0% wall-clock, at 97.81% abstention).
 
 ---
 
@@ -84,7 +88,10 @@
 ## 5. Quick Viva Voce Defense
 
 - **What problem does ConfTest solve?**  
-  *Large CI test suites take 30–60 minutes per pull request. ConfTest cuts test execution time by 45% while preventing missed bugs through uncertainty-calibrated abstention.*
+  *Large CI test suites take 30–60 minutes per pull request. ConfTest aims to cut test execution time
+  while preventing missed bugs through uncertainty-calibrated abstention. In our evaluation the safety
+  half worked (100% failure recall, zero escapes on 183 held-out commits) and the saving half did not
+  (3.11% of executions, 0.0% wall-clock, because the policy abstained on 97.81% of commits).*
 - **Why not run all tests?**  
   *Running all tests costs thousands of dollars in CI runner fees and creates severe feedback delays for developers.*
 - **What is Abstention?**  

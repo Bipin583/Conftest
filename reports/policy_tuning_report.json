@@ -2,35 +2,35 @@
   "objective": "zero_escape",
   "recall_floor_pct": 95.0,
   "optimized_policy": {
-    "tau_abstain": 0.02,
+    "tau_abstain": 0.005,
     "tau_conf": 0.1,
     "budget_ratio": 0.25
   },
   "validation_evaluation": {
-    "tau_abstain": 0.02,
+    "tau_abstain": 0.005,
     "tau_conf": 0.1,
-    "test_reduction_trr_pct": 2.42,
+    "test_reduction_trr_pct": 0.0,
     "failure_recall_pct": 100.0,
-    "abstention_rate_pct": 98.34,
+    "abstention_rate_pct": 100.0,
     "escaped_commits": 0,
     "missed_failures": 0,
     "commits": 181,
     "failures_available": 4578,
     "tests_available": 83417,
-    "tests_executed": 81401
+    "tests_executed": 83417
   },
   "unseen_test_evaluation": {
-    "tau_abstain": 0.02,
+    "tau_abstain": 0.005,
     "tau_conf": 0.1,
-    "test_reduction_trr_pct": 3.11,
+    "test_reduction_trr_pct": 0.0,
     "failure_recall_pct": 100.0,
-    "abstention_rate_pct": 97.81,
+    "abstention_rate_pct": 100.0,
     "escaped_commits": 0,
     "missed_failures": 0,
     "commits": 183,
     "failures_available": 3208,
     "tests_available": 86469,
-    "tests_executed": 83781
+    "tests_executed": 86469
   },
   "frontiers": {
     "zero_escape": {
@@ -39,17 +39,17 @@
       "grid_points": 36,
       "eligible_points": 34,
       "selected": {
-        "tau_abstain": 0.02,
+        "tau_abstain": 0.005,
         "tau_conf": 0.1,
-        "test_reduction_trr_pct": 2.42,
+        "test_reduction_trr_pct": 0.0,
         "failure_recall_pct": 100.0,
-        "abstention_rate_pct": 98.34,
+        "abstention_rate_pct": 100.0,
         "escaped_commits": 0,
         "missed_failures": 0,
         "commits": 181,
         "failures_available": 4578,
         "tests_available": 83417,
-        "tests_executed": 81401
+        "tests_executed": 83417
       }
     },
     "recall_floor": {
@@ -60,15 +60,15 @@
       "selected": {
         "tau_abstain": 0.03,
         "tau_conf": 0.1,
-        "test_reduction_trr_pct": 5.18,
-        "failure_recall_pct": 99.98,
-        "abstention_rate_pct": 95.58,
+        "test_reduction_trr_pct": 0.35,
+        "failure_recall_pct": 99.96,
+        "abstention_rate_pct": 98.9,
         "escaped_commits": 1,
-        "missed_failures": 1,
+        "missed_failures": 2,
         "commits": 181,
         "failures_available": 4578,
         "tests_available": 83417,
-        "tests_executed": 79097
+        "tests_executed": 83129
       }
     }
   },
@@ -310,15 +310,15 @@
     {
       "tau_abstain": 0.02,
       "tau_conf": 0.1,
-      "test_reduction_trr_pct": 2.42,
+      "test_reduction_trr_pct": 0.0,
       "failure_recall_pct": 100.0,
-      "abstention_rate_pct": 98.34,
+      "abstention_rate_pct": 100.0,
       "escaped_commits": 0,
       "missed_failures": 0,
       "commits": 181,
       "failures_available": 4578,
       "tests_available": 83417,
-      "tests_executed": 81401
+      "tests_executed": 83417
     },
     {
       "tau_abstain": 0.02,
@@ -388,15 +388,15 @@
     {
       "tau_abstain": 0.03,
       "tau_conf": 0.1,
-      "test_reduction_trr_pct": 5.18,
-      "failure_recall_pct": 99.98,
-      "abstention_rate_pct": 95.58,
+      "test_reduction_trr_pct": 0.35,
+      "failure_recall_pct": 99.96,
+      "abstention_rate_pct": 98.9,
       "escaped_commits": 1,
-      "missed_failures": 1,
+      "missed_failures": 2,
       "commits": 181,
       "failures_available": 4578,
       "tests_available": 83417,
-      "tests_executed": 79097
+      "tests_executed": 83129
     },
     {
       "tau_abstain": 0.03,
@@ -466,15 +466,15 @@
     {
       "tau_abstain": 0.05,
       "tau_conf": 0.1,
-      "test_reduction_trr_pct": 45.29,
-      "failure_recall_pct": 80.65,
-      "abstention_rate_pct": 47.51,
-      "escaped_commits": 23,
-      "missed_failures": 886,
+      "test_reduction_trr_pct": 17.65,
+      "failure_recall_pct": 83.66,
+      "abstention_rate_pct": 75.69,
+      "escaped_commits": 18,
+      "missed_failures": 748,
       "commits": 181,
       "failures_available": 4578,
       "tests_available": 83417,
-      "tests_executed": 45639
+      "tests_executed": 68697
     },
     {
       "tau_abstain": 0.05,

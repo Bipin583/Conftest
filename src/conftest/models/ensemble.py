@@ -29,8 +29,14 @@ class EnsembleUncertaintyPredictor:
         seeds: Optional[List[int]] = None,
         n_estimators: int = 150,
         learning_rate: float = 0.05,
+        max_depth: int = 6,
+        num_leaves: int = 31,
         subsample: float = 0.8,
+        subsample_freq: int = 1,
         colsample_bytree: float = 0.8,
+        early_stopping_rounds: int = 25,
+        eval_metric: str = "average_precision",
+        use_class_weight: bool = True,
         ensemble_version: str = "ensemble_v1.0.0",
     ):
         """
@@ -40,17 +46,33 @@ class EnsembleUncertaintyPredictor:
             seeds: List of integer random seeds (defaults to 5 distinct seeds).
             n_estimators: Trees per ensemble member.
             learning_rate: Boosting learning rate.
-            subsample: Row subsample ratio per tree.
+            max_depth: Maximum tree depth.
+            num_leaves: Maximum leaves per tree.
+            subsample: Row subsample (bagging) ratio per tree.
+            subsample_freq: Bag every k iterations; 0 disables bagging and makes
+                `subsample` inert. This ensemble's epistemic spread comes from
+                seeds drawing different row bags, so 0 collapses the members
+                towards a single fit -- see LightGBMTestPredictor.
             colsample_bytree: Feature subsample ratio per tree.
+            early_stopping_rounds: Validation rounds without improvement before stopping.
+            eval_metric: Validation metric controlling early stopping.
+            use_class_weight: Whether to apply the training split's class ratio.
             ensemble_version: Semantic version tag.
         """
         self.seeds = seeds or DEFAULT_SEEDS
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
+        self.max_depth = max_depth
+        self.num_leaves = num_leaves
         self.subsample = subsample
+        self.subsample_freq = subsample_freq
         self.colsample_bytree = colsample_bytree
+        self.early_stopping_rounds = early_stopping_rounds
+        self.eval_metric = eval_metric
+        self.use_class_weight = use_class_weight
         self.ensemble_version = ensemble_version
         self.models: List[LightGBMTestPredictor] = []
+        self.training_diagnostics: List[Dict[str, Any]] = []
 
     @property
     def ensemble_size(self) -> int:
@@ -76,6 +98,7 @@ class EnsembleUncertaintyPredictor:
             Dictionary containing ensemble training summary.
         """
         self.models = []
+        self.training_diagnostics = []
         logger.info(f"Training {len(self.seeds)}-seed ensemble ({self.ensemble_version})...")
 
         for idx, seed in enumerate(self.seeds, 1):
@@ -84,18 +107,57 @@ class EnsembleUncertaintyPredictor:
                 random_seed=seed,
                 n_estimators=self.n_estimators,
                 learning_rate=self.learning_rate,
+                max_depth=self.max_depth,
+                num_leaves=self.num_leaves,
                 subsample=self.subsample,
+                subsample_freq=self.subsample_freq,
                 colsample_bytree=self.colsample_bytree,
                 model_version=f"{self.ensemble_version}_member_{idx}",
             )
-            predictor.train(X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val)
+            diagnostics = predictor.train(
+                X_train=X_train,
+                y_train=y_train,
+                X_val=X_val,
+                y_val=y_val,
+                early_stopping_rounds=self.early_stopping_rounds,
+                eval_metric=self.eval_metric,
+                use_class_weight=self.use_class_weight,
+            )
+            diagnostics["seed"] = int(seed)
+            self.training_diagnostics.append(diagnostics)
             self.models.append(predictor)
 
+        # Members differ only through the randomness the config actually enables.
+        # With bagging off they all see identical rows, and the disagreement this
+        # class reports as epistemic uncertainty largely disappears -- so the
+        # diagnostics say plainly whether that randomness was in force.
+        bagging_active = self.subsample_freq > 0 and self.subsample < 1.0
+        if not bagging_active:
+            logger.warning(
+                "Ensemble trained with row bagging DISABLED (subsample=%s, "
+                "subsample_freq=%s): every member sees all rows, so member "
+                "disagreement understates epistemic uncertainty.",
+                self.subsample,
+                self.subsample_freq,
+            )
         return {
             "ensemble_version": self.ensemble_version,
             "num_members": len(self.models),
             "seeds": self.seeds,
             "n_samples": len(y_train),
+            "configured_n_estimators": int(self.n_estimators),
+            "actual_num_trees": [d["actual_num_trees"] for d in self.training_diagnostics],
+            "eval_metric": self.eval_metric if X_val is not None and y_val is not None else None,
+            "early_stopping_rounds": (
+                int(self.early_stopping_rounds)
+                if X_val is not None and y_val is not None
+                else None
+            ),
+            "use_class_weight": bool(self.use_class_weight),
+            "member_diagnostics": self.training_diagnostics,
+            "subsample": float(self.subsample),
+            "subsample_freq": int(self.subsample_freq),
+            "bagging_active": bool(bagging_active),
         }
 
     def predict_with_uncertainty(self, X: np.ndarray) -> Dict[str, np.ndarray]:
@@ -172,9 +234,12 @@ class EnsembleUncertaintyPredictor:
         member_files = []
         for idx, model in enumerate(self.models, 1):
             fn = f"member_{idx}_seed_{model.random_seed}.joblib"
-            fp = out_dir / fn
-            model.save(str(fp))
-            member_files.append(str(fp))
+            model.save(str(out_dir / fn))
+            # Store the bare filename, not an absolute path. Members always live
+            # beside their metadata, and an absolute path bakes in one machine's
+            # checkout -- this repo already carries a training report pointing at
+            # a directory that does not exist here.
+            member_files.append(fn)
 
         meta = {
             "ensemble_version": self.ensemble_version,
@@ -183,6 +248,19 @@ class EnsembleUncertaintyPredictor:
             "member_files": member_files,
             "n_estimators": self.n_estimators,
             "learning_rate": self.learning_rate,
+            "max_depth": self.max_depth,
+            "num_leaves": self.num_leaves,
+            "early_stopping_rounds": self.early_stopping_rounds,
+            "eval_metric": self.eval_metric,
+            "use_class_weight": self.use_class_weight,
+            "member_diagnostics": self.training_diagnostics,
+            # Recorded so a reader can tell whether the members were actually
+            # trained on different row samples, rather than inferring it from a
+            # config value that LightGBM may have ignored.
+            "subsample": float(self.subsample),
+            "subsample_freq": int(self.subsample_freq),
+            "colsample_bytree": float(self.colsample_bytree),
+            "bagging_active": bool(self.subsample_freq > 0 and self.subsample < 1.0),
         }
 
         meta_path = out_dir / "ensemble_metadata.json"
@@ -203,12 +281,35 @@ class EnsembleUncertaintyPredictor:
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
 
+        # Metadata written before bagging was recorded has no subsample_freq
+        # key. Those ensembles were trained with LightGBM's default of 0, i.e.
+        # no bagging at all, so default to 0 here rather than to the current
+        # constructor default -- otherwise a loaded legacy ensemble would
+        # describe itself as bagged when it was not.
+        legacy_freq = meta.get("subsample_freq", 0)
         instance = cls(
             seeds=meta["seeds"],
             n_estimators=meta.get("n_estimators", 150),
             learning_rate=meta.get("learning_rate", 0.05),
+            max_depth=meta.get("max_depth", 6),
+            num_leaves=meta.get("num_leaves", 31),
+            subsample=meta.get("subsample", 0.8),
+            subsample_freq=legacy_freq,
+            colsample_bytree=meta.get("colsample_bytree", 0.8),
+            early_stopping_rounds=meta.get("early_stopping_rounds", 25),
+            eval_metric=meta.get("eval_metric", "average_precision"),
+            use_class_weight=meta.get("use_class_weight", True),
             ensemble_version=meta.get("ensemble_version", "ensemble_v1.0.0"),
         )
+        instance.training_diagnostics = meta.get("member_diagnostics", [])
+        if "subsample_freq" not in meta:
+            logger.warning(
+                "Ensemble at %s predates the row-bagging fix: its members were "
+                "trained on all rows despite a subsample=0.8 setting, so its "
+                "epistemic-uncertainty spread is narrower than a bagged "
+                "ensemble's. Retrain to obtain bagged members.",
+                in_dir,
+            )
 
         instance.models = []
         for fp in meta["member_files"]:

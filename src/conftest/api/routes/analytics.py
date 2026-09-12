@@ -50,9 +50,28 @@ def get_analytics_summary(db: Session = Depends(get_db)) -> AnalyticsSummarySche
         select(func.sum(Outcome.detected_failures))
     ).scalar() or 0
 
-    total_missed_fails = db.execute(
-        select(func.sum(Outcome.missed_failures))
+    # Escapes are countable only where the full suite ran. Summing the column
+    # across every outcome would add a NULL-as-nothing for each selective run,
+    # reading out as "no failures escaped" from runs that could not have seen
+    # one. Restrict to verified outcomes and say how many were left out.
+    verified_only = Outcome.ground_truth_complete.is_(True)
+    verified_outcomes = db.execute(
+        select(func.count(Outcome.id)).where(verified_only)
     ).scalar() or 0
+    unverified_outcomes = db.execute(
+        select(func.count(Outcome.id)).where(Outcome.ground_truth_complete.is_(False))
+    ).scalar() or 0
+
+    total_missed_fails = (
+        None
+        if verified_outcomes == 0
+        else int(
+            db.execute(
+                select(func.sum(Outcome.missed_failures)).where(verified_only)
+            ).scalar()
+            or 0
+        )
+    )
 
     # Recent decisions
     recent_stmt = (
@@ -87,7 +106,9 @@ def get_analytics_summary(db: Session = Depends(get_db)) -> AnalyticsSummarySche
             None if avg_savings is None else round(float(avg_savings), 2)
         ),
         total_failures_detected=int(total_detected_fails),
-        total_missed_failures=int(total_missed_fails),
+        total_missed_failures=total_missed_fails,
+        verified_outcomes=verified_outcomes,
+        unverified_outcomes=unverified_outcomes,
         average_uncertainty=(
             None if avg_uncertainty is None else round(float(avg_uncertainty), 4)
         ),

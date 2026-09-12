@@ -37,6 +37,12 @@ jobs:
       - name: 🚫 Reject Fabricated Failure Labels
         run: python scripts/check_no_fabricated_labels.py
 
+      # ConfTest's own test suite. Without this the pipeline could ship a
+      # broken selector and still report a green tick, because every step
+      # below exercises the engine rather than verifying it.
+      - name: ✅ Run ConfTest Unit & Integration Test Suite
+        run: python -m pytest tests/ -v --cov=src/conftest --cov-report=term-missing
+
       - name: 🧠 Run ConfTest Selective RTS Engine
         id: select_tests
         run: |
@@ -44,7 +50,7 @@ jobs:
             --repo-path . \
             --commit-sha "${{ github.event.pull_request.head.sha || 'HEAD' }}" \
             --budget 0.25 \
-            --output-report reports/conftest_selection_report.json
+            --output-json reports/conftest_selection_report.json
 
       - name: 🧪 Execute Selected Test Cases
         id: run_pytest
@@ -65,13 +71,21 @@ jobs:
             if (fs.existsSync('reports/conftest_selection_report.json')) {
               const data = JSON.parse(fs.readFileSync('reports/conftest_selection_report.json', 'utf8'));
               const mode = data.decision_mode || 'FAST_SELECTED';
-              const saved = data.test_reduction_pct || 0;
+              // test_reduction_pct is 1 - selected/total: a fraction of the
+              // test *count*. Calling it a time reduction asserts that every
+              // test costs the same, which is false for any real suite, and
+              // `|| 0` additionally turned a missing value into a reported 0%.
+              const reduction = data.test_reduction_pct;
+              const reductionLabel =
+                (reduction === null || reduction === undefined)
+                  ? 'reduction not reported'
+                  : `${reduction}% fewer tests`;
               const selected = data.selected_count || 0;
               const total = data.total_count || 0;
               
               const body = `## 🛡️ ConfTest CI Test Selection Report\n\n` +
                 `- **Execution Mode:** \`${mode}\`\n` +
-                `- **Tests Selected:** **${selected} / ${total}** (${saved}% time reduction)\n` +
+                `- **Tests Selected:** **${selected} / ${total}** (${reductionLabel})\n` +
                 `- **Model Confidence:** \`${(data.top_confidence * 100).toFixed(1)}%\`\n` +
                 `- **Epistemic Uncertainty:** \`${data.epistemic_uncertainty.toFixed(4)}\`\n\n` +
                 `*Executed via ConfTest GitHub Action.*`;

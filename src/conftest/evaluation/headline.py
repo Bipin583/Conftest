@@ -256,7 +256,7 @@ def calibration_headline(root: Optional[Path] = None) -> Headline:
 def uncertainty_headline(root: Optional[Path] = None) -> Headline:
     """Ensemble disagreement, with the tail the abstention threshold sits in."""
     try:
-        report = read_json(UNCERTAINTY_JSON, "python scripts/analyze_uncertainty.py", root)
+        report = read_json(UNCERTAINTY_JSON, "python scripts/uncertainty_eval.py", root)
     except MissingArtifact as exc:
         return Headline("Epistemic Disagreement", None, "not measured", exc.produced_by)
 

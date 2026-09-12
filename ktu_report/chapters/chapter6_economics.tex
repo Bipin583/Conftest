@@ -9,11 +9,30 @@ Enterprise testing expenditure is governed by two direct components:
 Skipping failing tests incurs production regression escape penalties ($C_{\text{escape}} = \$3,500/\text{bug}$).
 
 \section{ROI Analysis}
-For an engineering organization with 25 active developers generating 18,750 annual commits on a 45-minute test suite:
+Every figure in this section is a \emph{projection}: the measured reduction rate is applied to an assumed
+organization. \texttt{reports/economic\_analysis.json} records explicitly that no dollar amount here was
+observed. For an engineering organization with 25 active developers, 3 commits per developer per working
+day over 250 days ($18{,}750$ annual commits) and a 45-minute suite, at $\$0.016$ per runner-minute,
+$\$75.00$ per developer-hour and a wait-cost factor $\beta = 0.30$:
+
 \begin{itemize}
-    \item Full Suite Baseline Cost: $\$314,062/\text{year}$.
-    \item ConfTest Annual Cost: $\$73,746/\text{year}$.
-    \item \textbf{Net Annual Financial Benefit:} $\mathbf{\$240,316/\text{year}}$ with \textbf{\$0} escape penalty.
+    \item Projected annual CI compute: $\$13{,}500/\text{year}$.
+    \item Projected annual developer wait cost: $\$316{,}406/\text{year}$.
+    \item Measured wall-clock reduction at the shipped operating point: $\mathbf{0.0\%}$.
+    \item \textbf{Projected annual saving:} $\mathbf{\$0/\text{year}}$.
 \end{itemize}
 
-ConfTest delivers the highest risk-adjusted net benefit across all evaluated RTS techniques.
+The projection is zero because the measurement it scales is zero. ConfTest did escape zero regressions
+across the $183$ held-out commits, but \texttt{escape\_cost\_priced: false} in the artifact: no
+avoided-escape value is credited to ConfTest in this model, precisely because doing so would let an
+assumed $\$3{,}500$ penalty manufacture a return that the reduction measurement does not support. The
+break-even number of escaped bugs is $0$ --- there is no saving to offset, so there is nothing to break
+even against.
+
+\section{What Would Have to Change}
+The cost model is not the binding constraint; the reduction rate is. At the shipped threshold the policy
+abstains on $97.81\%$ of commits, so there is almost no subset execution to save money on. The
+higher-reduction threshold ($32.85\%$) would project a real saving, but it fails the $95\%$ recall floor
+on held-out data (Chapter~5), and pricing a saving that comes with $15$ escaped commits per $183$ would
+be dishonest. A useful ROI for this architecture requires a stronger ranker, not a different
+spreadsheet.

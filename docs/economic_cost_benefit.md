@@ -1,23 +1,49 @@
-# ConfTest Economic Cost-Benefit & CI/CD Financial Modeling
+# Economic Cost-Benefit Projection
 
-## 1. Enterprise Financial Problem Formulation
-Modern software engineering organizations run hundreds of test executions per day across continuous integration (CI) infrastructure. Running full test suites on every pull request incurs two primary enterprise costs:
-1. **Direct Cloud Infrastructure Compute Costs ($C_{\text{CI}}$):**
-   $$C_{\text{CI}} = N_{\text{commits}} \times T_{\text{suite}} \times r_{\text{runner}}$$
-2. **Indirect Developer Blocked Wait-Time Opportunity Cost ($C_{\text{dev}}$):**
-   $$C_{\text{dev}} = N_{\text{commits}} \times \left( \beta \cdot T_{\text{suite}} \right) \times r_{\text{dev}}$$
-   where $\beta \approx 0.30$ represents the fraction of CI execution time during which a developer waits for PR checks to pass before context switching.
+The economic report applies measured benchmark rates to a configurable organization scenario. Its dollar values are projections, not realized savings, invoices, or validated industry averages.
 
----
+## Model
 
-## 2. Regression Escape Risk Cost
-When an RTS algorithm unsafely skips a failing test, a regression escapes to staging/production, incurring triage, reproduction, patch development, and deployment costs:
-$$\text{Cost}_{\text{escapes}} = N_{\text{escaped\_bugs}} \times C_{\text{escape}}$$
-where $C_{\text{escape}} \approx \$3,500$ (industry benchmark, Ponemon Institute / NIST).
+For annual commits `N`, full-suite minutes `T`, runner price `r_ci`, developer hourly cost `r_dev`, and assumed blocked fraction `beta`:
 
----
+```text
+annual CI cost   = N * T * r_ci
+annual wait cost = N * (T / 60) * beta * r_dev
+gross savings    = projected CI savings + projected wait-cost savings
+```
 
-## 3. Net Economic Benefit Equation
-$$\text{Net Annual Benefit} = \Delta C_{\text{CI}} + \Delta C_{\text{dev}} - \Delta \text{Cost}_{\text{escapes}}$$
+`reports/economic_analysis.json` uses these scenario inputs: 25 developers, 3 commits per developer-day, 250 working days, a 45-minute suite, `$0.016` per runner-minute, `$75` per developer-hour, and a 30% wait fraction. These are editable assumptions, not measurements from a ConfTest deployment.
 
-ConfTest's calibrated selective prediction policy prevents false negatives, yielding maximal time reduction with zero regression escape penalty.
+## Measured inputs
+
+The producer reads duration reduction, failure recall, and escaped-commit counts from `reports/baseline_comparison.csv`, covering 183 held-out mutation observations. Only those benchmark rates and counts are measured. For the shipped selective point the input is:
+
+- 0.0% ETR after CSV rounding;
+- 100.0% observed failure recall;
+- 0 observed escaped observations out of 183.
+
+Applied to the scenario, this gives `$0` projected gross annual savings because measured wall-clock reduction rounds to zero. The point's 3.11% test-count reduction is not substituted for duration reduction.
+
+## Escape-cost treatment
+
+The scenario includes `$3,500` per escaped bug and four baseline annual escapes, but the report deliberately does not price or annually extrapolate benchmark escapes. An injected mutant is not a production regression, and 183 observations do not establish a reliable annual escape rate.
+
+Instead, each strategy reports:
+
+- observed escaped observations in the benchmark;
+- projected gross savings before escape cost; and
+- a break-even number of additional annual escaped bugs that would consume those savings.
+
+Therefore the report does not establish net annual benefit. In particular, zero observed escapes must not be converted into zero expected production escape cost.
+
+## Reading strategy comparisons
+
+Aggressive baselines show larger projected gross savings because they measured larger ETR, but they also missed many failures in the held-out benchmark. For example, random-k projects `$259,636.22` gross savings under the scenario while recording 133 escaped observations out of 183. That dollar amount is not a recommendation; it omits a priced escape consequence by design.
+
+## Reproduction
+
+```bash
+python scripts/evaluate.py --run economics
+```
+
+Change assumptions in the producer or its CLI inputs, then regenerate `reports/economic_analysis.json`. Report the assumptions, measured source rates, and unpriced risk together. See [Selective prediction](selective_prediction.md), [Experiments](experiments.md), and [Limitations](limitations.md).

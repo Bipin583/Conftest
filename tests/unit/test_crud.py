@@ -2,6 +2,7 @@
 Unit tests for ConfTest database CRUD operations and query helpers.
 """
 
+import pytest
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -122,22 +123,80 @@ def test_predictions_decisions_and_outcomes_crud(db_session: Session):
     )
     assert decision.abstained is False
 
-    # Save Outcome
+    # Save Outcome. The full suite ran alongside the selection here, so the
+    # full-suite fields are measurements and the outcome is verifiable.
     outcome = crud.save_outcome(
         db=db_session,
         commit_id=commit.id,
-        actual_failures=1,
         detected_failures=1,
+        selected_duration=15.0,
+        ground_truth_complete=True,
+        actual_failures=1,
         missed_failures=0,
         full_duration=100.0,
-        selected_duration=15.0,
         time_reduction_ratio=0.85,
     )
     assert outcome.detected_failures == 1
+    assert outcome.ground_truth_complete is True
 
     # Verify Summary Aggregates
     summary = crud.get_aggregate_metrics_summary(db_session)
     assert summary["total_commits"] == 1
+    assert summary["verified_commits"] == 1
+    assert summary["unverified_commits"] == 0
     assert summary["failure_recall"] == 1.0
     assert summary["missed_failure_rate"] == 0.0
     assert summary["average_time_reduction"] == 0.85
+
+
+def test_save_outcome_refuses_unmeasured_safety_fields(db_session: Session):
+    """A caller without a full-suite run must not be able to record 0 escapes."""
+    repo = crud.create_repository(
+        db=db_session,
+        full_name="sample/unverified-outcomes",
+        url="https://github.com/sample/unverified-outcomes",
+        local_path="./tests/sample_suite",
+    )
+    commit = crud.create_commit(
+        db=db_session, repository_id=repo.id, sha="c" * 40, timestamp=datetime.utcnow()
+    )
+
+    # Claiming zero escapes without the full suite is rejected, not stored.
+    with pytest.raises(ValueError, match="cannot record"):
+        crud.save_outcome(
+            db=db_session,
+            commit_id=commit.id,
+            detected_failures=0,
+            selected_duration=15.0,
+            ground_truth_complete=False,
+            missed_failures=0,
+        )
+
+    # And claiming verification without supplying the measurements is too.
+    with pytest.raises(ValueError, match="requires measured values"):
+        crud.save_outcome(
+            db=db_session,
+            commit_id=commit.id,
+            detected_failures=0,
+            selected_duration=15.0,
+            ground_truth_complete=True,
+        )
+
+    outcome = crud.save_outcome(
+        db=db_session,
+        commit_id=commit.id,
+        detected_failures=2,
+        selected_duration=15.0,
+        ground_truth_complete=False,
+    )
+    assert outcome.ground_truth_complete is False
+    assert outcome.missed_failures is None
+    assert outcome.actual_failures is None
+    assert outcome.time_reduction_ratio is None
+
+    # The unverified row must not read out as a perfect safety record.
+    summary = crud.get_aggregate_metrics_summary(db_session)
+    assert summary["verified_commits"] == 0
+    assert summary["unverified_commits"] == 1
+    assert summary["failure_recall"] is None
+    assert summary["missed_failure_rate"] is None

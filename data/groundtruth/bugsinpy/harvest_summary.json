@@ -1,29 +1,50 @@
 {
   "produced_by": "python scripts/harvest_bugsinpy.py",
-  "generated_at": "2026-09-03T17:43:18+00:00",
-  "elapsed_seconds": 65.5,
+  "generated_at": "2026-09-09T14:48:02+00:00",
+  "elapsed_seconds": 0.0,
   "bugsinpy_url": "https://github.com/soarsmu/BugsInPy",
   "bugsinpy_commit": "11c5f1eea954a42132cfd06bf257766a7963e0fd",
   "projects_requested": [
-    "tqdm"
+    "PySnooper",
+    "cookiecutter",
+    "httpie"
   ],
   "base_python": "C:\\Users\\bbipi\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe",
   "base_python_version": "3.11.9",
-  "allow_interpreter_mismatch": true,
+  "allow_interpreter_mismatch": false,
   "install_pinned_requirements": false,
   "baseline_runs": 2,
   "suite_timeout": 900,
-  "n_records": 1,
-  "n_attempted_this_run": 1,
+  "n_records": 4,
+  "n_attempted_this_run": 3,
   "n_labelled": 0,
   "labels_measured": false,
   "status_counts": {
-    "env_error": 1
+    "env_error": 1,
+    "interpreter_mismatch": 3
   },
   "projects_with_labels": [],
   "n_projects_with_labels": 0,
   "per_project": {
     "tqdm": {
+      "records": 1,
+      "harvested": 0,
+      "mean_universe_size": null,
+      "mean_n_killed": null
+    },
+    "PySnooper": {
+      "records": 1,
+      "harvested": 0,
+      "mean_universe_size": null,
+      "mean_n_killed": null
+    },
+    "cookiecutter": {
+      "records": 1,
+      "harvested": 0,
+      "mean_universe_size": null,
+      "mean_n_killed": null
+    },
+    "httpie": {
       "records": 1,
       "harvested": 0,
       "mean_universe_size": null,

@@ -49,16 +49,33 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure Cross-Origin Resource Sharing (CORS)
+# Configure Cross-Origin Resource Sharing (CORS).
+#
+# `allow_origins=["*"]` together with `allow_credentials=True` is the one
+# combination the CORS spec forbids, and browsers reject it outright -- so the
+# previous configuration was both unsafe in intent and broken in effect for the
+# credentialed requests it was trying to enable. Origins are now an explicit
+# per-deployment setting, and a wildcard is refused in production by
+# Settings._reject_insecure_production_defaults.
+_cors_origins = list(settings.cors_allow_origins)
+_wildcard = "*" in _cors_origins
+if _wildcard:
+    logger.warning(
+        "CORS is configured with a wildcard origin; credentials are disabled "
+        "because browsers refuse that combination. Set "
+        "CONFTEST_CORS_ALLOW_ORIGINS to the dashboard's real origins."
+    )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_credentials=not _wildcard,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-GitHub-Event", "X-Hub-Signature-256"],
 )
 
-# Register routes
+# Register routes.
+# Health is mounted twice on purpose: unprefixed for container/orchestrator
+# probes that expect /health, and under /api/v1 alongside everything else.
 app.include_router(health_router, prefix="", tags=["System & Diagnostics"])
 app.include_router(health_router, prefix="/api/v1", tags=["System & Diagnostics"])
 app.include_router(selection_router, prefix="/api/v1", tags=["Test Selection"])

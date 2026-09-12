@@ -34,7 +34,7 @@ COPY scripts/ ./scripts/
 COPY pyproject.toml ./
 
 ENV PYTHONPATH=/app/src:/app
-ENV CONFTEST_DB_URL=sqlite:////app/data/conftest.db
+ENV CONFTEST_DATABASE_URL=sqlite:////app/data/conftest.db
 ENV PYTHONUNBUFFERED=1
 
 RUN mkdir -p /app/data /app/reports /app/models

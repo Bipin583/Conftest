@@ -76,8 +76,15 @@ models/calibrated/*
 models/*.joblib
 !models/README.md
 
-# Environment secrets
+# Environment secrets.
+# A local .env goes stale as settings are added or removed -- ours still named
+# CONFTEST_ABSTENTION_THRESHOLD long after config.py stopped reading it -- so
+# refreshing it from the template leaves a dated backup behind. Those backups
+# hold whatever the developer had configured, so they are ignored for the same
+# reason .env is.
 .env
+.env.backup*
+.env.local
 !.env.example
 
 # OS generated files
@@ -110,3 +117,5 @@ data/harvest_smoke/
 
 .claude/
 CONTINUUM/
+.continuum/
+*.log

@@ -56,9 +56,22 @@ from conftest.groundtruth.mutation_harness import SUMMARY_FILENAME  # noqa: E402
 
 logger = get_logger(__name__)
 
-# A mutation rewrites exactly one line: one line removed, one added.
+# A mutation rewrites exactly one source line in one file: one line removed and
+# one added. Consequently the eight structural diff features below are constant
+# in this mutation corpus. That is a limitation of the mutation protocol, not a
+# failed Git-diff extractor; serving real commits can still vary these fields.
 MUTATION_LINES_ADDED = 1
 MUTATION_LINES_DELETED = 1
+MUTATION_STRUCTURAL_FEATURES = [
+    "diff_lines_added",
+    "diff_lines_deleted",
+    "diff_total_churn",
+    "diff_num_files_changed",
+    "diff_num_src_files",
+    "diff_num_test_files",
+    "diff_has_python",
+    "diff_has_config",
+]
 
 # Only these mutants become training rows. `broke_suite` mutants kill nearly the
 # whole suite and describe a compilation-level break rather than a localized
@@ -726,6 +739,30 @@ def build_dataset(
         "n_repos": len(manifest_repos),
         "repos": manifest_repos,
         "inert_features": inert,
+        "inert_feature_groups": {
+            "mutation_protocol_structural_diff": {
+                "features": MUTATION_STRUCTURAL_FEATURES,
+                "reason": (
+                    "each mutation changes one Python source line in one file: "
+                    "one line is removed and one is added. These are truthful "
+                    "constants of this mutation protocol, not a failed diff extractor"
+                ),
+            },
+            "unavailable_commit_message": {
+                "features": MESSAGE_DERIVED_FEATURES,
+                "reason": (
+                    "a mutant carries no commit message; an empty string is used "
+                    "rather than invented prose"
+                ),
+            },
+            "stable_baseline_history": {
+                "features": ["hist_flaky_score"],
+                "reason": (
+                    "the baseline universe includes only tests stable across every "
+                    "screening run, so no observed baseline flakiness remains"
+                ),
+            },
+        },
         "message_derived_features_are_inert_because":
             "a mutant carries no commit message; an empty string is used rather "
             "than invented prose",

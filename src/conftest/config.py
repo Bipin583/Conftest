@@ -7,13 +7,18 @@ Environment variables can override defaults, using the 'CONFTEST_' prefix.
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
-from pydantic import Field
+from typing import List, Optional
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 # Project root path resolution
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# The webhook secret shipped in .env.example. Fine for local development, fatal
+# in production, where it would let anyone who has read this public repository
+# forge a signed webhook. See Settings._reject_insecure_production_defaults.
+INSECURE_DEFAULT_WEBHOOK_SECRET = "development_secret_only_change_in_ci"
 
 
 class Settings(BaseSettings):
@@ -24,6 +29,10 @@ class Settings(BaseSettings):
         env_file=str(PROJECT_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
+        # `model_path` was removed below, but keep this explicit so a future
+        # `model_*` setting fails loudly rather than emitting a warning that
+        # everyone learns to ignore.
+        protected_namespaces=(),
     )
 
     # Application & Environment
@@ -45,28 +54,65 @@ class Settings(BaseSettings):
     )
     db_echo: bool = Field(default=False, description="SQLAlchemy query echoing")
 
-    # ML & Decision Policy
-    model_path: str = Field(
-        default="./models/ensembles/lgbm_ensemble.pkl",
-        description="Path to serialized ML model or ensemble artifact",
+    # ML Artifact Locations
+    #
+    # These replace paths that were hardcoded at three call sites (the selection
+    # route, the webhook route, and the engine's own defaults), which made the
+    # deployed model impossible to change without editing source.
+    ensemble_path: Path = Field(
+        default=PROJECT_ROOT / "models" / "ensembles" / "5_seed_lgbm",
+        description="Directory holding the serialized deep-ensemble members and metadata",
     )
-    default_risk_tolerance: float = Field(
-        default=0.18,
-        description="Default risk tolerance threshold for selective execution",
+    calibrator_path: Path = Field(
+        default=PROJECT_ROOT / "models" / "calibrator.joblib",
+        description="Serialized confidence calibrator fitted on the validation split",
     )
+    policy_config_path: Path = Field(
+        default=PROJECT_ROOT / "models" / "policy_config.json",
+        description=(
+            "Tuned selective-prediction thresholds. This file is the single source "
+            "of truth for tau_abstain, tau_conf and budget_ratio; it is written by "
+            "scripts/tune_policy.py and must not be duplicated as scalar settings."
+        ),
+    )
+    default_repo_root: Path = Field(
+        default=PROJECT_ROOT / "tests" / "sample_suite",
+        description="Repository analysed when a request does not name one",
+    )
+
+    # Decision Policy
+    #
+    # There is deliberately no `abstention_threshold` or `default_risk_tolerance`
+    # setting here. Both existed, neither was ever read, and both disagreed with
+    # the value actually in force: this config advertised an abstention threshold
+    # of 0.15 while the tuned policy ran at tau_abstain=0.02 -- a 7.5x difference
+    # a reader had no way to detect. Thresholds now come from
+    # `policy_config_path` alone, so there is nothing to fall out of sync.
     default_budget_ratio: float = Field(
         default=0.25,
-        description="Default test budget fraction (e.g. 0.25 = top 25% tests)",
-    )
-    abstention_threshold: float = Field(
-        default=0.15,
-        description="Epistemic uncertainty threshold triggering full-suite fallback",
+        ge=0.01,
+        le=1.0,
+        description="Fallback test budget fraction when a request omits one",
     )
 
     # Security & Integration
+    cors_allow_origins: List[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:8501",  # Streamlit dashboard
+            "http://127.0.0.1:8501",
+        ],
+        description=(
+            "Origins permitted to call the API with credentials. Set explicitly "
+            "per deployment (CONFTEST_CORS_ALLOW_ORIGINS as a JSON list); '*' is "
+            "rejected in production because it cannot be combined with cookies."
+        ),
+    )
     github_webhook_secret: str = Field(
-        default="development_secret_only_change_in_ci",
-        description="HMAC SHA-256 secret for GitHub webhook payload verification",
+        default=INSECURE_DEFAULT_WEBHOOK_SECRET,
+        description=(
+            "HMAC SHA-256 secret for GitHub webhook payload verification. The "
+            "default is public and is rejected when env is production."
+        ),
     )
     github_token: Optional[str] = Field(
         default=None,
@@ -82,6 +128,32 @@ class Settings(BaseSettings):
         default=PROJECT_ROOT / "models",
         description="Base directory for serialized ML models and calibration artifacts",
     )
+
+    @model_validator(mode="after")
+    def _reject_insecure_production_defaults(self) -> "Settings":
+        """
+        Refuse to run in production with the placeholder webhook secret.
+
+        The default secret is committed to .env.example, so in production it is
+        equivalent to no secret at all: anyone can compute a valid signature and
+        drive the selector. Failing at startup is the only outcome that cannot be
+        missed -- a warning in a log would be, and the webhook route would keep
+        returning 200 to forged payloads.
+        """
+        if self.is_production and "*" in self.cors_allow_origins:
+            raise ValueError(
+                "CONFTEST_CORS_ALLOW_ORIGINS contains '*', which cannot be used "
+                "with credentialed requests: any site a developer visits could "
+                "then call this API as them. List the dashboard origins instead."
+            )
+        if self.is_production and self.github_webhook_secret == INSECURE_DEFAULT_WEBHOOK_SECRET:
+            raise ValueError(
+                "CONFTEST_GITHUB_WEBHOOK_SECRET is still the placeholder from "
+                ".env.example, which is public. Set a real secret (e.g. "
+                "`python -c \"import secrets; print(secrets.token_hex(32))\"`) "
+                "before running with CONFTEST_ENV=production."
+            )
+        return self
 
     @property
     def is_production(self) -> bool:

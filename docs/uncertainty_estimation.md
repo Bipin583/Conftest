@@ -1,36 +1,61 @@
-# ConfTest Epistemic Uncertainty Estimation & Out-of-Distribution Protocol
+# Uncertainty Estimation
 
-## 1. Motivation: Epistemic vs. Aleatoric Uncertainty
-In Regression Test Selection (RTS), traditional machine learning models output overconfident point probabilities $\hat{p} \in [0, 1]$ even on unfamiliar code modifications, novel third-party libraries, or massive refactoring diffs.
+ConfTest uses disagreement among LightGBM ensemble members as an epistemic-uncertainty proxy. It does not directly estimate all sources of uncertainty, and a low disagreement value is not proof that a prediction is correct.
 
-ConfTest explicitly separates two modes of uncertainty:
-1. **Aleatoric Uncertainty (Data Noise / Non-Determinism):** Inherent flakiness in network calls, concurrency, or environment races (mitigated via historical flakiness discounting).
-2. **Epistemic Uncertainty (Model Ignorance / Out-of-Distribution):** Lack of knowledge due to sparse training data in regions of feature space $\mathbf{x} \in \mathbb{R}^{32}$. Epistemic uncertainty is high for unseen architectural changes, new source files, or cross-cutting refactoring.
+## Ensemble outputs
 
----
+For member probabilities `p_1 ... p_M` on one `(commit, test)` feature vector, `src/conftest/models/ensemble.py` computes:
 
-## 2. Mathematical Formulation: 5-Seed Deep Ensemble
+- mean score: `mean(p_m)`;
+- epistemic standard deviation: `std(p_m)`;
+- epistemic variance: `var(p_m)`; and
+- binary entropy of the mean score.
 
-Let $\mathcal{M} = \{f_1, f_2, f_3, f_4, f_5\}$ be an ensemble of $M=5$ gradient boosted decision trees trained with distinct random seeds $s \in \{42, 101, 2024, 777, 999\}$ and stochastic row/column bagging.
+The committed/default configuration uses five seeds (`42`, `101`, `2024`, `777`, `999`). At commit level, the implementation reports maximum, mean, and 95th-percentile test-level standard deviation plus maximum and mean failure score. The selective policy currently uses the maximum member standard deviation across candidate tests.
 
-### A. Mean Ensemble Prediction
-For candidate test $t$ on commit $c$:
-$$\bar{p}(c, t) = \frac{1}{M} \sum_{m=1}^M f_m(\mathbf{x}_{c, t})$$
+Predictive entropy and ensemble disagreement answer different questions. Entropy is high when the mean score is near 0.5 even if every member agrees; disagreement is high when members produce different scores. Neither measure isolates test flakiness or distribution shift by itself.
 
-### B. Epistemic Uncertainty (Model Disagreement)
-$$\sigma(c, t) = \sqrt{\frac{1}{M} \sum_{m=1}^M \left( f_m(\mathbf{x}_{c, t}) - \bar{p}(c, t) \right)^2}$$
-- When all 5 models agree ($\hat{p}_m \approx 0.95$), epistemic uncertainty is low ($\sigma \approx 0.01$).
-- When models disagree due to sparse training coverage ($\hat{p}_1 = 0.90, \hat{p}_2 = 0.10$), epistemic uncertainty spikes ($\sigma \approx 0.35$).
+## How diversity is created
 
-### C. Predictive Entropy
-$$\mathcal{H}(\bar{p}) = -\bar{p} \log_2(\bar{p}) - (1 - \bar{p}) \log_2(1 - \bar{p})$$
+The current trainer configures different random seeds, feature subsampling (`colsample_bytree`), and row bagging (`subsample` with a positive `subsample_freq`). Effective row bagging requires both `subsample < 1` and `subsample_freq > 0`; setting only `subsample` does not enable LightGBM bagging.
 
----
+### Committed-artifact caveat
 
-## 3. Commit-Level Aggregation & Abstention Policy
+The checked-in ensemble metadata predates the `subsample_freq` fix. Those members were trained on all rows even though a `subsample` ratio was recorded. Their remaining diversity comes from randomness that was actually enabled (including feature subsampling), and their disagreement may be narrower than that of a newly trained bagged ensemble. Current loading code detects legacy metadata and warns; published reports must not be described as measurements of the corrected trainer until the artifacts and evaluations are regenerated.
 
-To protect CI pipelines from silent test escapes, ConfTest computes the commit-level risk metric:
-$$U(c) = \max_{t \in \mathcal{T}} \sigma(c, t)$$
+## Policy use
 
-The **Selective Prediction Policy** operates as follows:
-$$\text{Mode}(c) = \begin{cases} \text{SAFE\_FULL\_SUITE} & \text{if } U(c) > \tau_{\text{abstain}} \text{ or } \text{is\_OOD}(c) \\ \text{FAST\_SELECTED} & \text{otherwise (run top budget-matched tests)} \end{cases}$$
+For candidate tests `T(c)`, the policy uses:
+
+```text
+U(c) = max(std(member predictions for test t)) for t in T(c)
+```
+
+It abstains to `SAFE_FULL_SUITE` if `U(c)` exceeds the tuned uncertainty threshold, if maximum calibrated confidence is below its threshold, or if the diff exceeds configured file/churn limits. Otherwise, it enters `FAST_SELECTED`. Exact shipped thresholds come from `models/policy_config.json`, not from constructor defaults or prose. See [Selective prediction](selective_prediction.md).
+
+## What the signal does not establish
+
+- Member agreement can be confidently wrong, especially when members share data, features, model family, and biases.
+- A constant or information-poor feature space can suppress meaningful diversity.
+- Static Python analysis misses dynamic imports, monkey patching, generated code, runtime dispatch, and environment behavior.
+- New repositories can map to familiar-looking vectors while still being out of distribution.
+- Aleatoric effects such as flaky tests are not removed merely by computing ensemble variance.
+
+For those reasons, thresholds are tuned empirically on validation data and evaluated on held-out commits. Results are observations for those artifacts/splits, not a universal uncertainty guarantee. See [Limitations](limitations.md), [Cross-repository generalization](cross_repo_generalization.md), and [Flakiness robustness](flakiness_robustness.md).
+
+## Reproduction
+
+The ensemble is produced by:
+
+```bash
+python scripts/train_ensemble.py
+```
+
+Uncertainty diagnostics are produced through the `uncertainty` stage listed by:
+
+```bash
+python scripts/evaluate.py
+python scripts/evaluate.py --run uncertainty
+```
+
+Retraining changes the uncertainty distribution, so policy thresholds must be retuned and held-out reports regenerated after replacing the ensemble.

@@ -1,7 +1,22 @@
 """
 ConfTest Dependency Graph & Static Call-Path Analyzer
 Maps static call paths and import hierarchies between modified classes/functions and test files.
+
+.. deprecated:: superseded
+
+    NOT AUTHORITATIVE. This module is an earlier implementation kept only so
+    that the tests written against it still run. The maintained implementation
+    is **conftest.features.dependency_graph** (DependencyGraphBuilder).
+
+    Two trees with the same responsibility is how a repository ends up
+    measuring one and shipping the other: fixes land in `src/conftest/` and are
+    invisible here, so a number produced by this module can silently disagree
+    with the published pipeline. Import the replacement in new code. Nothing
+    under `src/conftest/`, `scripts/`, or `dashboard/` imports this module, and
+    nothing new should.
 """
+__superseded_by__ = "conftest.features.dependency_graph"
+
 import ast
 import os
 from typing import Dict, List, Set

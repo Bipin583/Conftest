@@ -119,7 +119,7 @@ def load_shap_report() -> Dict[str, Any]:
     """Global and per-test SHAP attributions."""
     return read_json(
         Path("reports/explanations.json"),
-        "python scripts/explain_predictions.py",
+        "python scripts/generate_explanations.py",
         PROJECT_ROOT,
     )
 
@@ -128,7 +128,7 @@ def load_uncertainty_analysis() -> Dict[str, Any]:
     """Ensemble disagreement statistics and the measured risk-coverage curve."""
     return read_json(
         Path("reports/uncertainty_analysis.json"),
-        "python scripts/analyze_uncertainty.py",
+        "python scripts/uncertainty_eval.py",
         PROJECT_ROOT,
     )
 

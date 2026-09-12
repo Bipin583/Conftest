@@ -18,7 +18,22 @@ ExperimentRunner, which has raised ValueError on every call since the synthetic
 dataset generator started refusing to fabricate labels without
 acknowledge_synthetic=True -- so the one honest element of the page was dead
 while the fabricated cards above it still rendered.
+
+.. deprecated:: superseded
+
+    NOT AUTHORITATIVE. This module is an earlier implementation kept only so
+    that the tests written against it still run. The maintained implementation
+    is **conftest.api.main** (the served API; the dashboard UI is dashboard/app.py at the repo root).
+
+    Two trees with the same responsibility is how a repository ends up
+    measuring one and shipping the other: fixes land in `src/conftest/` and are
+    invisible here, so a number produced by this module can silently disagree
+    with the published pipeline. Import the replacement in new code. Nothing
+    under `src/conftest/`, `scripts/`, or `dashboard/` imports this module, and
+    nothing new should.
 """
+__superseded_by__ = "conftest.api.main"
+
 
 import csv
 import sys

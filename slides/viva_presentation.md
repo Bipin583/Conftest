@@ -48,15 +48,17 @@ style: |
 
 # 3. The Overconfidence Dilemma in ML-RTS
 - Standard gradient boosted trees output uncalibrated risk scores.
-- A model outputting **$80\%$ failure confidence** often corresponds to an empirical failure rate of **$<40\%$**.
-- **Result:** Critical regression failures slip through, costing \$3,500+ per escaped production incident.
+- Raw ensemble scores do not match empirical failure frequencies: on our validation split the
+  uncalibrated model has **ECE $0.0390$** and **worst-bin error $0.1235$**.
+- **Result:** a confidence threshold set on raw scores does not mean what it appears to mean, so an
+  abstention gate built on it cannot be trusted.
 
 ---
 
 # 4. The ConfTest Vision
 ConfTest bridges the gap between **ML efficiency** and **static safety**:
 1. **Uncertainty Quantification:** 5-seed Deep Ensemble measuring epistemic divergence ($\sigma$).
-2. **Post-Hoc Probability Calibration:** Temperature Scaling reducing ECE by $25.47\%$.
+2. **Post-Hoc Probability Calibration:** Temperature Scaling, $T^* = 0.7941$, ECE $0.0390 \to 0.0242$.
 3. **Selective Prediction Policy:** Fast subset execution when confident; automatic full-suite fallback when uncertain.
 
 ---
@@ -108,7 +110,12 @@ ConfTest bridges the gap between **ML efficiency** and **static safety**:
 # 10. Temperature Scaling Calibration
 - Minimizes Negative Log-Likelihood on held-out validation logits:
   $$T^* = \arg\min_{T > 0} -\frac{1}{N_{\text{val}}}\sum_{k=1}^{N_{\text{val}}} \left[ y_k \log \hat{p}_k(T) + (1-y_k)\log(1 - \hat{p}_k(T)) \right]$$
-- Reduces Expected Calibration Error (ECE) from **0.0631 to 0.0470** ($25.47\%$ reduction).
+- Fitted $T^* = \mathbf{0.7941}$ by bounded search over $\log T$ (17 iterations; validation NLL
+  $0.19290 \to 0.18345$ over $83{,}417$ rows). $T^* < 1$: the ensemble is *under*-confident here.
+- Reduces validation ECE from **0.0390 to 0.0242** (paired $\Delta = 0.0148$, 95% CI
+  $[0.0030, 0.0393]$, 2,000 bootstraps resampled by mutant).
+- **Isotonic regression was fitted and rejected:** lower mean ECE ($0.0166$) but worst-bin error
+  rose $0.1235 \to 0.2098$ ($+0.0863$, CI $[0.0299, 0.1135]$). The gate keys off the tail.
 
 ---
 
@@ -118,9 +125,9 @@ ConfTest bridges the gap between **ML efficiency** and **static safety**:
 
 ---
 
-# 12. Zero-Escape Safety Guarantee
-- If the model is uncertain about *any* aspect of a commit, it **refuses to guess** and executes the entire suite.
-- Guarantees **$100\%$ regression fault recall** across all evaluated production commits.
+# 12. Observed Safety at the Shipped Point
+- If uncertainty crosses the tuned gate, the policy refuses subset selection and executes the entire suite.
+- On the 183 held-out commits, the shipped operating point observed **100% failure recall and zero escaped commits**. This is an empirical result, not a formal guarantee for unseen repositories or future commits.
 
 ---
 
@@ -140,79 +147,182 @@ ConfTest bridges the gap between **ML efficiency** and **static safety**:
 
 # 15. Empirical Benchmark Comparison (8 RTS Strategies)
 
-| RTS Strategy | Failure Recall | Time Reduction | ECE | Wilcoxon $p$ |
+183 held-out commits, 86,469 (commit, test) pairs, labels by execution.
+Source: `reports/baseline_comparison.csv`
+
+| RTS Strategy | Recall | Test Red. | Time Red. | Escaped commits |
 | :--- | :---: | :---: | :---: | :---: |
-| **Full Suite** | 100.0% | 0.0% | — | — |
-| **Random-K (25%)** | 28.5% | 75.0% | — | $<0.00001$ |
-| **Changed File** | 78.4% | 68.0% | — | $<0.00001$ |
-| **Dependency Graph** | 89.2% | 58.0% | — | $<0.00001$ |
-| **Historical Failure** | 82.1% | 65.0% | — | $<0.00001$ |
-| **Uncalibrated ML** | 91.5% | 75.0% | 0.0631 | $<0.00001$ |
-| **Calibrated No-Abstain** | 94.8% | 75.0% | 0.0470 | $<0.00001$ |
-| **ConfTest (Ours)** | **100.0%** | **68.6%** | **0.0470** | — |
+| **Full Suite** | 100.0% | 0.0% | 0.0% | 0 |
+| **Random-K (25%)** | 25.2% | 75.1% | 78.7% | 133 |
+| **Changed File** | 42.3% | 83.6% | 86.1% | 69 |
+| **Static AST / Dependency** | 38.6% | 75.6% | 68.2% | 94 |
+| **Historical Failure** | 48.4% | 75.1% | 70.0% | 99 |
+| **Uncalibrated ML** | 51.8% | 75.1% | 27.7% | 69 |
+| **Calibrated No-Abstain** | 51.8% | 75.1% | 27.7% | 69 |
+| **ConfTest (Ours)** | **100.0%** | **3.1%** | **0.0%** | **0** |
+
+**Read this honestly:** ConfTest is the only row with zero escapes *and* the row that saves least.
+It abstains on 97.8% of commits. Rows 6 and 7 are identical because temperature scaling is monotone
+and cannot change a top-$k$ ranking.
+
+---
+
+# 15b. The 95% Recall Gate Is Not Met
+
+| Operating point | Test Red. | Recall | Abstention | Escaped commits |
+| :--- | :---: | :---: | :---: | :---: |
+| **A — shipped** ($\tau_\text{abstain} = 0.020$) | 3.11% | **100.00%** | 97.81% | **0 / 183** |
+| **B — validation pick** ($\tau_\text{abstain} = 0.044$) | 32.85% | 96.02% | 66.85% | 11 |
+| **B — same $\tau$, held out** | 32.85% | **87.69%** | 66.12% | 15 |
+
+- `reports/g5_recall_floor.json`: **`gate_met: false`**. Missed at the point estimate *and* at the
+  95% CI lower bound (recall CI $[75.77, 95.81]$).
+- Validation-to-held-out recall gap: **8.33 pp**.
+- A post-hoc sweep of the *test* split contains 5 thresholds that would clear 95%. Using one would
+  forfeit the held-out guarantee, so it is recorded as a diagnostic and **not** used.
+- **The abstention mechanism works. The ranker is not yet strong enough to exploit it**
+  (PR-AUC 0.1393 against a 3.71% positive rate — about 4x no-skill, far from sufficient).
 
 ---
 
 # 16. Statistical Hypothesis Testing
-- **Wilcoxon Signed-Rank Test:** $p < 0.00001$ across all baselines ($\alpha = 0.05$).
-- **Cliff's Delta Effect Size:** $\delta = 0.7088\text{--}1.0000$ (Large Effect Size vs. heuristic baselines).
-- **1,000-Iteration Bootstrap 95% CI:** ConfTest Recall $\in [98.5\%, 100.0\%]$.
+Source: `reports/statistical_significance.json`. Resampling unit is the **commit** (2,000
+bootstraps) — not the row, so the intervals are not inflated by 86,469 correlated pairs.
+
+- **Failure recall, 95% CI:** $[100.0\%, 100.0\%]$ over the $n = 135$ commits that had a failure.
+- **Wall-clock time reduction, 95% CI:** mean $1.05\%$, $[0.25\%, 2.10\%]$ ($n = 183$).
+  **Median $= -0.0\%$** — the typical commit saves nothing.
+- **Cliff's $\delta$ on recall:** $0.5111$–$0.9852$ vs the subset baselines (large), $0.0$ vs Full
+  Suite ($p = 1.0$, identical by construction).
+- **Cliff's $\delta$ on time reduction:** $-0.906$ to $-0.998$ — **negative against every subset**
+  **baseline.** Showing the recall effect sizes without this line would be cherry-picking.
 
 ---
 
 # 17. Feature Ablation Study (LOGO)
-- **Historical Telemetry Removal:** $\Delta\text{PR-AUC} = -0.1171$, $\Delta\text{Recall} = -20.0\%$.
-- **Call-Graph Removal:** $\Delta\text{PR-AUC} = -0.0837$.
-- **Conclusion:** Graph Coupling + Historical Telemetry provide $>70\%$ of regression failure predictive signal.
+Source: `reports/ablation_study.json`. Recall is at a 25% budget with abstention off, over the 135
+held-out commits that had a failure. Full model: PR-AUC **0.1393**, recall **48.19%**.
+
+| Leave-one-group-out | PR-AUC | Recall @ 25% |
+| :--- | :---: | :---: |
+| Full model (32 features, 19 informative) | 0.1393 | 48.19% |
+| **without dependency graph** | **0.0674** | **32.67%** |
+| without AST complexity | 0.1515 | 50.87% |
+| without history telemetry | 0.2214 | 52.34% |
+| without diff churn | 0.1393 | 48.19% |
+
+- **Static call-graph reachability is the only load-bearing family** — removing it costs 15.5 pp of
+  recall. This contradicts the earlier claim that history carries most of the signal.
+- **Removing history or AST *improves* the ranking.** Reported as measured.
+- **13 of 32 features are constant in training**, including all 12 diff-churn columns — which is why
+  removing that group reproduces the full model exactly and the group alone scores ROC-AUC 0.5000.
+  That is almost certainly a **diff-mining defect**, not a finding about code churn.
 
 ---
 
 # 18. Flakiness Stress Testing & Noise Robustness
-- Injected $0\%\text{--}30\%$ synthetic label flip noise.
-- **Flakiness Downweighting ($w_i = 1 - 0.7 \cdot \text{flaky}_i$):**
-  - At $10\%$ noise: ConfTest maintains **$60.0\%$ recall** vs **$40.0\%$** for unweighted ML ($+20\%$ advantage).
+Source: `reports/flakiness_robustness.json`. Noise is injected into **training labels only**;
+evaluation uses clean held-out labels.
+
+| Noise | Standard recall | Flakiness-weighted recall | Advantage |
+| :---: | :---: | :---: | :---: |
+| 0% | 48.19% | 48.19% | 0.0 |
+| 5% | 52.77% | 53.71% | +0.94 pp |
+| 10% | 54.40% | 53.65% | **−0.75 pp** |
+| 20% | 54.86% | 54.05% | **−0.81 pp** |
+| 30% | 55.58% | 56.27% | +0.69 pp |
+
+- **The advantage is within noise: two of four points are negative.** No robustness claim is made.
+- **Confound to state before reading the table:** the dataset is ~5% positive, so flipping labels
+  mostly turns passes into failures and *raises* training prevalence (5.02% → 32.00% at 30% noise).
+  Recall rising with the noise rate is likely reporting that prevalence change, not robustness.
+- What *does* degrade cleanly is probability quality: standard Brier 0.0449 → 0.2089, while the
+  weighted variant holds calibrated ECE ≤ 0.0289 by driving $T$ down to 0.1235.
 
 ---
 
 # 19. Multi-Repository Cross-Project Generalization
-- Leave-One-Project-Out (LOPO) across `requests`, `flask`, `fastapi`, `click`.
-- **Zero-Shot Transfer Results:**
-  - Macro Mean PR-AUC: **0.8560**
-  - Macro Mean ROC-AUC: **0.9917**
-  - Macro Zero-Shot Recall@25%: **100.0%**
+Source: `reports/cross_repo_generalization.json`. LOPO across the five repositories actually
+harvested: `pathspec`, `pyjwt`, `sqlparse`, `tabulate`, `validators`.
+
+| Held-out repository | Recall @ 25% | ECE |
+| :--- | :---: | :---: |
+| validators | 88.42% | 0.0074 |
+| pyjwt | 55.46% | 0.2899 |
+| pathspec | 46.68% | 0.2957 |
+| sqlparse | 37.28% | 0.1184 |
+| tabulate | 30.00% | 0.0826 |
+| **Macro mean** | **51.57%** | **0.1588** |
+
+- Macro PR-AUC **0.1168**, macro ROC-AUC **0.7004**; on `tabulate`, ROC-AUC is **0.4747 — below
+  chance**.
+- **Zero-shot transfer does not work.** A new repository must be treated as out-of-distribution
+  until it has its own execution history.
+- Held-out ECE reaches 0.2957 against 0.0242 in-distribution: the *calibration* does not transfer
+  either, so the abstention gate cannot be trusted on an unseen project.
 
 ---
 
 # 20. Online Continuous Learning & Drift Adaptation
-- Streaming CI/CD commits with Page-Hinkley statistical drift detector.
-- Circular experience replay buffer ($W=500$).
-- Concept drift detected and model seamlessly adapted with zero downtime.
+Source: `reports/continuous_learning.json`. Page-Hinkley over a mutant-ordered stream; shifts are
+constructed by concatenating two repositories, so the crossing step is known by construction.
+
+| PH threshold | Shifts detected | Median latency (mutants) | False alarms / 600 stationary |
+| :---: | :---: | :---: | :---: |
+| 0.5 | 4 / 5 | 4.5 | 11 |
+| 1.0 | 3 / 5 | 18.0 | 6 |
+| 2.0 | 2 / 5 | 33.5 | 4 |
+| 5.0 | 2 / 5 | 44.5 | 0 |
+| 10.0 | 0 / 5 | — | 0 |
+
+- **No threshold is selected.** The grid is published so the false-alarm cost of a sensitive
+  setting is visible next to the detection latency it buys. There is no free point.
+- **The detector is one-sided by construction:** PH accumulates error above a running minimum, so a
+  crossing into an *easier* project lowers error and is invisible. That is the 1/5 miss.
+- **Adaptation did not help.** On the three repositories where the comparison is well-defined, the
+  most-adapting configuration had *higher* mean error than the non-adapting one (Δ +0.076, +0.124,
+  +0.178). Retraining on a small recent buffer is worse than not retraining. Stated, not buried.
 
 ---
 
 # 21. Micro-Latency Profiling (<100ms SLA)
-- **Feature Vector Prep:** $0.041\text{ms}$
-- **Deep Ensemble Inference:** $2.244\text{ms}$
-- **Temperature Scaling:** $0.027\text{ms}$
-- **Policy Decision:** $0.032\text{ms}$
-- **Total End-to-End Latency:** $\mathbf{2.344\text{ms}}$ (**$100\%$ SLA Compliance**).
+Source: `reports/latency_benchmark.json`; 150 iterations scoring a 50-test commit, warm-up excluded.
+
+- **Array sanitisation:** $0.033\text{ms}$
+- **5-Seed Ensemble Inference:** $\mathbf{3.246\text{ms}}$ (~97% of the cost)
+- **Temperature Scaling:** $0.036\text{ms}$
+- **Policy Decision:** $0.029\text{ms}$
+- **Total scoring latency:** $\mathbf{3.345\text{ms}}$ mean, P99 $4.435\text{ms}$
+  ($100\%$ under the $100\text{ms}$ budget).
+
+**Two things this figure is not.** It is **scoring only** — git diff mining, AST parsing,
+call-graph construction and history lookup all run *before* the timed region and dominate real
+per-commit cost. And a cold process pays **$1321.8\text{ms}$** on its first batch, which is what a
+CI runner that scores one commit and exits actually pays.
 
 ---
 
 # 22. Enterprise Financial ROI Analysis
-- **Team Size:** 25 Developers | 18,750 Annual Commits | 45-min Suite.
-- **Direct CI Compute Savings:** \$9,261 / year
-- **Developer Productivity Gain:** \$217,055 / year
-- **Regression Escape Penalties:** \$0 (Zero Escapes)
-- **Net Annual Financial Benefit:** $\mathbf{\$240,316\text{ / year}}$
+Source: `reports/economic_analysis.json`. **Every figure here is a projection from the measured
+reduction rate onto an assumed team; no dollar amount below was observed.**
+
+- **Assumed model:** 25 developers, 3 commits/dev/day, 250 days = 18,750 commits/yr, 45-min suite,
+  \$0.016/runner-min, \$75/hr developer time, \$3,500/escaped bug, wait-cost factor $\beta = 0.30$.
+- **Projected annual CI compute:** \$13,500 | **projected developer wait cost:** \$316,406
+- **Measured test-execution reduction at the shipped operating point:** $\mathbf{0.0\%}$ wall-clock
+- **Projected annual saving:** $\mathbf{\$0}$
+- **Escaped-bug penalty avoided:** \$0 measured escapes on 183 commits — but
+  `escape_cost_priced: false`, i.e. avoided-escape value is **not** credited to ConfTest here.
+- **Break-even escaped bugs:** $0$. There is no saving to offset, so there is nothing to break even
+  against. **The honest headline is \$0/year, not \$240,316/year.**
 
 ---
 
-# 23. Production REST API Suite (FastAPI)
-- 7 modular routes with strict Pydantic V2 validation:
+# 23. Research Prototype REST API (FastAPI)
+- Modular routes with strict Pydantic V2 validation:
   - `POST /api/v1/select`: Core RTS selection.
-  - `POST /api/v1/explain`: SHAP & Rule explainability.
-  - `GET /api/v1/calibration/diagnostics`: Live ECE diagnostics.
+  - `POST /api/v1/explain`: SHAP and rule explainability.
+  - `GET /api/v1/calibration`: Report-backed calibration diagnostics.
   - `POST /api/v1/github/webhook`: Webhook ingestion.
 
 ---
@@ -234,17 +344,26 @@ ConfTest bridges the gap between **ML efficiency** and **static safety**:
 
 ---
 
-# 26. Production Dockerization Stack
-- Multi-stage `Dockerfile` with minimal runtime image footprint.
-- `docker-compose.yml` orchestrating API (8000), Dashboard (8501), and shared SQLite volume.
+# 26. Dockerized Prototype Stack
+- Multi-stage `Dockerfile` with a minimal runtime image.
+- `docker-compose.yml` orchestrates the API (8000), dashboard (8501), and shared SQLite volume.
 
 ---
 
 # 27. Summary of Contributions
-1. First framework to integrate **Deep Ensemble Epistemic Uncertainty** into RTS.
-2. First system to demonstrate **Temperature Scaling** eliminates RTS overconfidence.
-3. Formulated a **Cost-Optimal Selective Prediction Policy** with zero-escape guarantees.
-4. Comprehensive empirical benchmark across 8 strategies with statistical hypothesis tests.
+1. An **execution-labelled RTS dataset**: 561,711 (commit, test) pairs over 1,213 mutant-derived
+   commits in 5 repositories, split chronologically on mutant boundaries.
+2. A **selective-prediction policy for RTS** combining deep-ensemble epistemic uncertainty, post-hoc
+   calibration and an OOD guard, which achieved **100.0% failure recall with 0 escaped commits** on
+   183 held-out commits.
+3. The finding that **temperature scaling beats isotonic regression here for the reason that matters
+   to a gate**: isotonic wins on mean ECE and loses badly on worst-bin error.
+4. A benchmark against 7 RTS baselines with commit-level bootstrap intervals and Cliff's $\delta$
+   reported in **both** directions — recall and time.
+5. **A negative result, stated as such:** at the shipped operating point the system saves 0.0% of
+   wall-clock time, and the threshold that would save a third of executions misses our 95% recall
+   floor by 7.3 pp on held-out data. The binding constraint is ranker accuracy, not the
+   selective-prediction machinery — which is exactly what makes the machinery reusable.
 
 ---
 
@@ -259,7 +378,7 @@ ConfTest bridges the gap between **ML efficiency** and **static safety**:
 - **IEEE/ACM 8-Page Conference Paper:** `paper/main.tex` & `references.bib`
 - **Official KTU B.Tech Major Project Report:** `ktu_report/`
 - **Interactive Google Colab Demonstration:** `notebooks/conftest_colab_demo.ipynb`
-- **110/110 Automated Tests Passing (100% Pass Rate)**
+- **Automated validation:** run `python -m pytest tests/ -q` for the current suite; the count is not frozen in the presentation.
 
 ---
 

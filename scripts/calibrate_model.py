@@ -16,13 +16,14 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 # Add src to pythonpath
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from conftest.models.ensemble import EnsembleUncertaintyPredictor
+from conftest.logging_config import get_logger
 from conftest.models.calibration import ConfidenceCalibrator, compute_ece
 from conftest.models.calibrator_selection import (
     score_calibrators,
@@ -30,8 +31,8 @@ from conftest.models.calibrator_selection import (
     split_clusters_for_selection,
     split_for_selection,
 )
+from conftest.models.ensemble import EnsembleUncertaintyPredictor
 from conftest.models.trainer import prepare_feature_arrays
-from conftest.logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -266,21 +267,23 @@ def main():
 
     cal_path = Path(args.output_calibrator)
     cal_path.parent.mkdir(parents=True, exist_ok=True)
-    if best_cal is not None:
-        best_cal.save(str(cal_path))
-    else:
-        # Declining to calibrate is a real outcome. Leave no stale artifact behind
-        # that a later stage would silently load as if a method had been chosen.
-        if cal_path.exists():
-            cal_path.unlink()
+    if best_cal is None:
+        # Declining fitted calibration is a real selected outcome, not an absent
+        # prerequisite. Persist an explicitly named identity transform so downstream
+        # producers can reproduce that outcome without substituting a rejected method.
+        best_cal = ConfidenceCalibrator(method="uncalibrated")
         logger.warning(
-            "No calibrator saved: no method improved validation ECE without "
-            "degrading worst-case calibration. Downstream stages must treat the "
-            "model as uncalibrated."
+            "Validation selected the uncalibrated model; saving an explicit identity "
+            "artifact for downstream reproducibility."
         )
+    best_cal.save(str(cal_path))
 
     report = {
         "best_method": best_method,
+        "produced_by": "python scripts/calibrate_model.py",
+        "selection_split": "validation",
+        "held_out_test_used_for_selection": False,
+        "output_calibrator": str(cal_path.as_posix()),
         # The fitted temperature belongs with the numbers it produced. The API
         # previously served a literal 0.9275 regardless of what was fitted, so a
         # rerun that landed on a different T went unreported.

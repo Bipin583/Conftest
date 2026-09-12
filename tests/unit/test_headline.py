@@ -396,7 +396,7 @@ def test_uncertainty_headline_is_unmeasured_without_the_report(tmp_path):
     headline = uncertainty_headline(tmp_path)
 
     assert not headline.measured
-    assert headline.source == "python scripts/analyze_uncertainty.py"
+    assert headline.source == "python scripts/uncertainty_eval.py"
 
 
 # --------------------------------------------------------------------------

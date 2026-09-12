@@ -1,10 +1,12 @@
 .PHONY: help install install-dev test test-cov run-api run-dashboard lint format clean init-db docker-build docker-up
 
 PYTHON ?= python
-PIP ?= pip
-UVICORN ?= uvicorn
-STREAMLIT ?= streamlit
-PYTEST ?= pytest
+PIP := $(PYTHON) -m pip
+UVICORN := $(PYTHON) -m uvicorn
+STREAMLIT := $(PYTHON) -m streamlit
+PYTEST := $(PYTHON) -m pytest
+RUFF := $(PYTHON) -m ruff
+BLACK := $(PYTHON) -m black
 
 help:
 	@echo "ConfTest Developer Commands:"
@@ -15,8 +17,8 @@ help:
 	@echo "  make test-cov       - Run Pytest with test coverage report"
 	@echo "  make run-api        - Start FastAPI backend server (port 8000)"
 	@echo "  make run-dashboard  - Start Streamlit interactive dashboard (port 8501)"
-	@echo "  make lint           - Run ruff and mypy code quality checks"
-	@echo "  make format         - Auto-format code with black and ruff"
+	@echo "  make lint           - Run Ruff code quality checks"
+	@echo "  make format         - Format with Black and apply Ruff fixes"
 	@echo "  make docker-build   - Build Docker container image"
 	@echo "  make docker-up      - Run API and Dashboard via Docker Compose"
 	@echo "  make clean          - Remove caches and temporary build artifacts"
@@ -45,11 +47,11 @@ run-dashboard:
 	$(STREAMLIT) run dashboard/app.py
 
 lint:
-	ruff check src/ tests/ dashboard/
+	$(RUFF) check src/ tests/ dashboard/
 
 format:
-	black src/ tests/ dashboard/
-	ruff check --fix src/ tests/ dashboard/
+	$(BLACK) src/ tests/ dashboard/
+	$(RUFF) check --fix src/ tests/ dashboard/
 
 docker-build:
 	docker build -t conftest:latest .

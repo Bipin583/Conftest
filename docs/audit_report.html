@@ -1,0 +1,729 @@
+<title>ConfTest Audit Findings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* ------------------------------------------------------------------
+     Palette: verdigris accent on green-biased neutrals. Severity colour
+     (critical / important / clear) is deliberately separate from the
+     accent, so "this needs attention" never reads as "this is a link".
+     ------------------------------------------------------------------ */
+  :root {
+    --paper:      #f1f3f0;
+    --surface:    #fbfbf9;
+    --surface-2:  #e9ece7;
+    --ink:        #191d1b;
+    --ink-soft:   #58615c;
+    --ink-faint:  #7d867f;
+    --rule:       #d6dad3;
+    --rule-firm:  #b9bfb8;
+    --accent:     #1d6b62;
+    --accent-dim: #d9e6e2;
+    --crit:       #a2372c;
+    --crit-dim:   #f2dedb;
+    --imp:        #8a6417;
+    --imp-dim:    #f0e7d2;
+    --ok:         #2e6b3d;
+    --ok-dim:     #dcebde;
+    --shadow:     0 1px 2px rgba(25, 29, 27, .06), 0 8px 24px -16px rgba(25, 29, 27, .22);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #111413;
+      --surface:    #191d1c;
+      --surface-2:  #212624;
+      --ink:        #e7eae6;
+      --ink-soft:   #9aa39d;
+      --ink-faint:  #7b847e;
+      --rule:       #2b312e;
+      --rule-firm:  #3d4541;
+      --accent:     #5cb5a8;
+      --accent-dim: #1d2f2c;
+      --crit:       #e28a80;
+      --crit-dim:   #35211f;
+      --imp:        #d5ac59;
+      --imp-dim:    #302716;
+      --ok:         #7fc691;
+      --ok-dim:     #1c2a20;
+      --shadow:     0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -18px rgba(0, 0, 0, .8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #111413;
+    --surface:    #191d1c;
+    --surface-2:  #212624;
+    --ink:        #e7eae6;
+    --ink-soft:   #9aa39d;
+    --ink-faint:  #7b847e;
+    --rule:       #2b312e;
+    --rule-firm:  #3d4541;
+    --accent:     #5cb5a8;
+    --accent-dim: #1d2f2c;
+    --crit:       #e28a80;
+    --crit-dim:   #35211f;
+    --imp:        #d5ac59;
+    --imp-dim:    #302716;
+    --ok:         #7fc691;
+    --ok-dim:     #1c2a20;
+    --shadow:     0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -18px rgba(0, 0, 0, .8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 61rem;
+    margin: 0 auto;
+    padding: clamp(1.75rem, 4vw, 4rem) clamp(1.1rem, 4vw, 2.5rem) 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3.25rem;
+  }
+
+  /* ---------------- type scale ---------------- */
+  h1, h2, h3 {
+    font-family: Fraunces, Georgia, "Times New Roman", serif;
+    font-variation-settings: "opsz" 32, "SOFT" 0, "WONK" 0;
+    text-wrap: balance;
+    margin: 0;
+    line-height: 1.16;
+  }
+  h1 { font-size: clamp(2rem, 4.6vw, 2.9rem); font-weight: 600; letter-spacing: -.015em; }
+  h2 { font-size: clamp(1.3rem, 2.6vw, 1.6rem); font-weight: 600; }
+  h3 { font-size: 1.06rem; font-weight: 600; font-variation-settings: "opsz" 14; }
+
+  p { margin: 0; max-width: 66ch; }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: .855em;
+  }
+  code {
+    background: var(--surface-2);
+    padding: .1em .34em;
+    border-radius: 3px;
+    word-break: break-word;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .7rem;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  strong { font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------------- masthead ---------------- */
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.6rem;
+  }
+  .masthead h1 { max-width: 30ch; }
+  .stamp {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .55rem 1.4rem;
+    align-items: baseline;
+  }
+  .policies {
+    display: grid;
+    gap: .8rem 1.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  }
+  .policy { display: flex; flex-direction: column; gap: .18rem; }
+  .policy .eyebrow { color: var(--accent); }
+  .policy p { font-size: .93rem; color: var(--ink-soft); max-width: 46ch; }
+
+  /* ---------------- generic section ---------------- */
+  section { display: flex; flex-direction: column; gap: 1.15rem; }
+  .lede { font-size: 1.08rem; }
+  .section-head { display: flex; flex-direction: column; gap: .3rem; }
+
+  /* ---------------- the thesis figure ---------------- */
+  .figure {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.4rem clamp(1rem, 3vw, 1.6rem) 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: .85rem;
+    box-shadow: var(--shadow);
+  }
+  .figure-title { font-weight: 600; font-size: .95rem; }
+  .figure-scroll { overflow-x: auto; }
+  .figure svg { display: block; min-width: 32rem; width: 100%; height: auto; }
+  figcaption { font-size: .86rem; color: var(--ink-soft); max-width: 74ch; }
+
+  .svg-label   { fill: var(--ink-soft); font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+  .svg-tick    { fill: var(--ink-faint); font-family: "IBM Plex Mono", monospace; font-size: 10px; }
+  .svg-value   { fill: var(--crit);      font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 500; }
+  .svg-ceiling { fill: var(--ink-faint); font-family: "IBM Plex Mono", monospace; font-size: 10px; }
+  .svg-track   { fill: var(--surface-2); }
+  .svg-bar     { fill: var(--crit); }
+  .svg-rule    { stroke: var(--rule); stroke-width: 1; }
+  .svg-dash    { stroke: var(--rule-firm); stroke-width: 1; stroke-dasharray: 3 3; }
+
+  /* ---------------- findings ---------------- */
+  .tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .74rem;
+    font-weight: 500;
+    letter-spacing: .04em;
+    padding: .16rem .42rem;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .tag-crit { background: var(--crit-dim); color: var(--crit); }
+  .tag-imp  { background: var(--imp-dim);  color: var(--imp); }
+  .tag-open { background: var(--surface-2); color: var(--ink-soft); }
+  .tag-ok   { background: var(--ok-dim);   color: var(--ok); }
+
+  /* Critical findings are the only blocks that get a raised surface and a
+     severity stripe. Everything else stays flat, so the lift means something. */
+  .critical {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--crit);
+    border-radius: 0 6px 6px 0;
+    padding: 1.25rem clamp(1rem, 3vw, 1.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: .85rem;
+    box-shadow: var(--shadow);
+  }
+  .finding-head { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
+  .finding-head h3 { flex: 1 1 22rem; }
+
+  dl.detail { display: grid; gap: .7rem; margin: 0; }
+  dl.detail > div { display: grid; grid-template-columns: 5.4rem 1fr; gap: .1rem .9rem; align-items: baseline; }
+  dl.detail dt {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .7rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: .18rem;
+  }
+  dl.detail dd { margin: 0; font-size: .95rem; }
+  @media (max-width: 34rem) {
+    dl.detail > div { grid-template-columns: 1fr; }
+  }
+
+  .cmd {
+    display: block;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: .55rem .7rem;
+    overflow-x: auto;
+    white-space: pre;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .8rem;
+    color: var(--ink-soft);
+  }
+
+  /* Important findings: flat, ruled, no card. */
+  .important { display: flex; flex-direction: column; }
+  .important > article {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    padding: 1.1rem 0;
+    border-top: 1px solid var(--rule);
+  }
+  .important > article:last-child { border-bottom: 1px solid var(--rule); }
+  .important p { font-size: .95rem; }
+
+  /* ---------------- tables ---------------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: .9rem; }
+  caption { caption-side: bottom; text-align: left; padding: .7rem .9rem 0; font-size: .84rem; color: var(--ink-soft); }
+  th, td { text-align: left; padding: .62rem .9rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .7rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 400;
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.tight { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.src { font-family: "IBM Plex Mono", monospace; font-size: .78rem; color: var(--ink-soft); }
+
+  /* ---------------- operating points ---------------- */
+  .points {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  }
+  .point {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--surface);
+    padding: 1.05rem 1.15rem 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: .8rem;
+  }
+  .point.shipped { border-color: var(--rule-firm); }
+  .point h3 { font-variation-settings: "opsz" 14; }
+  .point .eyebrow { color: var(--accent); }
+  .bars { display: flex; flex-direction: column; gap: .5rem; }
+  .bar-row { display: grid; grid-template-columns: 6.6rem 1fr 4.1rem; gap: .6rem; align-items: center; font-size: .82rem; }
+  .bar-row .k { color: var(--ink-soft); font-family: "IBM Plex Mono", monospace; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; }
+  .bar-row .v { text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .track { height: 7px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 4px; }
+  .fill.recall { background: var(--ok); }
+  .fill.reduction { background: var(--accent); }
+  .fill.abstain { background: var(--rule-firm); }
+  .point footer { font-size: .85rem; color: var(--ink-soft); border-top: 1px solid var(--rule); padding-top: .7rem; }
+  .point footer strong { color: var(--ink); }
+
+  /* ---------------- checklist ---------------- */
+  .checklist { display: grid; gap: .42rem .9rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); list-style: none; padding: 0; margin: 0; }
+  .checklist li { display: grid; grid-template-columns: 1.1rem 1fr; gap: .5rem; font-size: .92rem; align-items: baseline; }
+  .checklist .mark { color: var(--ok); font-weight: 600; }
+  .checklist .what { font-family: "IBM Plex Mono", monospace; font-size: .82rem; }
+  .checklist .how { color: var(--ink-soft); font-family: "IBM Plex Sans", sans-serif; font-size: .86rem; }
+
+  /* ---------------- ordered next steps: order is the content ---------------- */
+  ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .1rem; }
+  ol.steps > li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 2.1rem 1fr;
+    gap: .9rem;
+    padding: .78rem 0;
+    border-top: 1px solid var(--rule);
+    font-size: .95rem;
+  }
+  ol.steps > li:last-child { border-bottom: 1px solid var(--rule); }
+  ol.steps > li::before {
+    content: counter(step);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .82rem;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-radius: 3px;
+    text-align: center;
+    padding: .1rem 0;
+    align-self: start;
+  }
+  .gate {
+    border-left: 3px solid var(--rule-firm);
+    padding: .1rem 0 .1rem 1rem;
+    color: var(--ink-soft);
+    font-size: .93rem;
+  }
+
+  .closing {
+    border-top: 2px solid var(--ink);
+    padding-top: 1.1rem;
+    font-size: .92rem;
+    color: var(--ink-soft);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    a, .critical { transition: border-color .15s ease, color .15s ease; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div class="stamp">
+      <span class="eyebrow">Audit &middot; fix &middot; finalize</span>
+      <span class="eyebrow num">2026-09-07</span>
+    </div>
+    <h1>ConfTest audit findings</h1>
+    <div class="policies">
+      <div class="policy">
+        <span class="eyebrow">Fix scope applied</span>
+        <p>Critical and Important, per your decision. Cosmetic and minor issues were catalogued, not changed.</p>
+      </div>
+      <div class="policy">
+        <span class="eyebrow">Headline policy applied</span>
+        <p>Documentation restated to measured truth. No model retrained, no threshold re-tuned, no metric re-measured &mdash; every number here is read from an existing artifact under <code>reports/</code>, or from a command run during this audit.</p>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Executive summary</span>
+      <h2>The defects were in the seams, not the machine learning</h2>
+    </div>
+    <p class="lede">The project is architecturally sound and its test suite is strong &mdash; <strong class="num">700</strong> tests, <strong class="num">78%</strong> statement coverage of <code>src/conftest</code>. What broke was the join between the code and the claims: four documented entry points that did not exist, two documented import paths that did not exist, a report path that only resolved when the API was started from one directory, and a calibration payload that reported two different splits' numbers without saying which was which.</p>
+    <p>One finding is more serious than the rest, and it is the reason the ranker is weak.</p>
+
+    <figure class="figure">
+      <div class="figure-title">Boosting rounds kept per ensemble member, against the configured ceiling</div>
+      <div class="figure-scroll">
+        <svg viewBox="0 0 660 216" role="img" aria-label="Bar chart: the five ensemble members hold 7, 5, 5, 5 and 6 boosting rounds against a configured ceiling of 150.">
+          <!-- axis -->
+          <line class="svg-rule" x1="150" y1="30" x2="610" y2="30"></line>
+          <text class="svg-tick" x="150" y="22" text-anchor="middle">0</text>
+          <text class="svg-tick" x="303" y="22" text-anchor="middle">50</text>
+          <text class="svg-tick" x="457" y="22" text-anchor="middle">100</text>
+          <text class="svg-tick" x="610" y="22" text-anchor="middle">150</text>
+          <line class="svg-dash" x1="610" y1="30" x2="610" y2="182"></line>
+
+          <!-- member 1: 7 trees -> 21.5px of 460 -->
+          <text class="svg-label" x="0" y="52">member 1 &middot; seed 42</text>
+          <rect class="svg-track" x="150" y="42" width="460" height="14" rx="3"></rect>
+          <rect class="svg-bar" x="150" y="42" width="21.5" height="14" rx="3"></rect>
+          <text class="svg-value" x="180" y="53">7</text>
+
+          <!-- member 2: 5 -->
+          <text class="svg-label" x="0" y="82">member 2 &middot; seed 101</text>
+          <rect class="svg-track" x="150" y="72" width="460" height="14" rx="3"></rect>
+          <rect class="svg-bar" x="150" y="72" width="15.3" height="14" rx="3"></rect>
+          <text class="svg-value" x="174" y="83">5</text>
+
+          <!-- member 3: 5 -->
+          <text class="svg-label" x="0" y="112">member 3 &middot; seed 2024</text>
+          <rect class="svg-track" x="150" y="102" width="460" height="14" rx="3"></rect>
+          <rect class="svg-bar" x="150" y="102" width="15.3" height="14" rx="3"></rect>
+          <text class="svg-value" x="174" y="113">5</text>
+
+          <!-- member 4: 5 -->
+          <text class="svg-label" x="0" y="142">member 4 &middot; seed 777</text>
+          <rect class="svg-track" x="150" y="132" width="460" height="14" rx="3"></rect>
+          <rect class="svg-bar" x="150" y="132" width="15.3" height="14" rx="3"></rect>
+          <text class="svg-value" x="174" y="143">5</text>
+
+          <!-- member 5: 6 -->
+          <text class="svg-label" x="0" y="172">member 5 &middot; seed 999</text>
+          <rect class="svg-track" x="150" y="162" width="460" height="14" rx="3"></rect>
+          <rect class="svg-bar" x="150" y="162" width="18.4" height="14" rx="3"></rect>
+          <text class="svg-value" x="177" y="173">6</text>
+
+          <text class="svg-ceiling" x="610" y="198" text-anchor="end">n_estimators: 150 &mdash; a budget the fit never spent</text>
+          <text class="svg-ceiling" x="150" y="198">shaded rail = configured ceiling &nbsp;|&nbsp; solid = trees actually in the booster</text>
+        </svg>
+      </div>
+      <figcaption>Verified with <code>booster_.num_trees()</code> on the shipped artifacts in <code>models/ensembles/5_seed_lgbm/</code>. Early stopping fires almost immediately; the metadata records only the ceiling.</figcaption>
+    </figure>
+
+    <p>The documentation reported that ceiling as if it were the fitted model. That is now corrected, and it reframes the negative result: <strong class="num">3.11%</strong> reduction at <strong class="num">100%</strong> recall is the measured behaviour of a five-tree ensemble &mdash; not evidence that these features cannot rank tests.</p>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Fixed &middot; critical</span>
+      <h2>Two findings that change what the numbers mean</h2>
+    </div>
+
+    <article class="critical">
+      <div class="finding-head">
+        <span class="tag tag-crit">C1</span>
+        <h3>The shipped ensemble is 5&ndash;7 trees, documented as 150</h3>
+      </div>
+      <dl class="detail">
+        <div>
+          <dt>Where</dt>
+          <dd><code>models/README.md:5</code>; <code>models/ensembles/5_seed_lgbm/ensemble_metadata.json</code> (<code>"n_estimators": 150</code>)</dd>
+        </div>
+        <div>
+          <dt>Why</dt>
+          <dd><code>n_estimators</code> is the budget; <code>best_iteration_</code> is what was kept. A reader benchmarking against &ldquo;a 150-tree LightGBM ensemble&rdquo; is comparing against something 20&ndash;30&times; smaller. It also supplies the missing explanation for held-out PR-AUC <span class="num">0.1393</span> against a <span class="num">3.71%</span> positive rate, and for why leave-one-group-out ablation <em>improves</em> the ranking when history or AST features are removed &mdash; a five-round fit has no capacity to use them.</dd>
+        </div>
+        <div>
+          <dt>Fix</dt>
+          <dd><code>models/README.md</code> now states the per-member tree counts, names the verification, says explicitly that 150 is &ldquo;a budget the fit never spent&rdquo;, and identifies this as the first thing to change before concluding the features are inadequate.</dd>
+        </div>
+        <div>
+          <dt>Verify</dt>
+          <dd><code class="cmd">python -c "import joblib,pathlib; [print(f.name, joblib.load(f).model.booster_.num_trees()) for f in sorted(pathlib.Path('models/ensembles/5_seed_lgbm').glob('member_*.joblib'))]"</code></dd>
+        </div>
+      </dl>
+    </article>
+
+    <article class="critical">
+      <div class="finding-head">
+        <span class="tag tag-crit">C2</span>
+        <h3>Shipped ensemble metadata predates the row-bagging fix</h3>
+      </div>
+      <dl class="detail">
+        <div>
+          <dt>Where</dt>
+          <dd><code>ensemble_metadata.json</code> &mdash; no <code>subsample_freq</code> key, and absolute Windows paths in <code>member_files</code></dd>
+        </div>
+        <div>
+          <dt>Why</dt>
+          <dd><code>LGBMClassifier</code> ignores <code>subsample</code> unless <code>subsample_freq &gt; 0</code>. The shipped members were therefore trained on 100% of rows each and differ only by seed-dependent tie-breaking, so the deep ensemble's spread understates epistemic uncertainty &mdash; and every published &sigma; (mean <span class="num">0.0114</span>, p95 <span class="num">0.0345</span>) inherits that. The absolute paths bake in one machine's checkout.</dd>
+        </div>
+        <div>
+          <dt>Fix</dt>
+          <dd>Documented in <code>models/README.md</code> rather than silently retrained, per your no-retraining decision. The loader already handles both cases: it resolves members beside the metadata and warns on every load of a pre-fix artifact &mdash; confirmed firing during this audit.</dd>
+        </div>
+        <div>
+          <dt>Verify</dt>
+          <dd>Load the ensemble and watch the log for <code>predates the row-bagging fix</code>.</dd>
+        </div>
+      </dl>
+    </article>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Fixed &middot; important</span>
+      <h2>Nine repairs to the seam between code and claims</h2>
+    </div>
+
+    <div class="important">
+      <article>
+        <div class="finding-head"><span class="tag tag-imp">I1</span><h3>Four documented entry points did not exist</h3></div>
+        <p><code>scripts/init_db.py</code>, <code>scripts/collect_data.py</code>, <code>scripts/train.py</code> and <code>scripts/evaluate.py</code> are named in the README, <code>DOCUMENTATION.md</code> and the CI recipe; none were present. A documented command that does not exist is a defect a reader discovers only after cloning. Created as <strong>thin delegators, not second implementations</strong> &mdash; each rewrites <code>sys.argv[0]</code> and hands off via <code>runpy</code>, so <code>--help</code> prints the real script's own usage and there is one set of flags to keep correct.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th scope="col">New file</th><th scope="col">Delegates to</th><th scope="col">Why that target</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="src">scripts/init_db.py</td><td class="src">conftest.db.init_db.init_db</td><td>the API and tests already initialise schemas in-process</td></tr>
+              <tr><td class="src">scripts/collect_data.py</td><td class="src">scripts/collect_repository_data.py</td><td>verbatim argv forwarding</td></tr>
+              <tr><td class="src">scripts/train.py</td><td class="src">scripts/train_ensemble.py</td><td>the 5-seed ensemble is what ships; the single-model trainer produces an artifact no shipping path loads</td></tr>
+              <tr><td class="src">scripts/evaluate.py</td><td class="src">11 producers, by stage</td><td>see I2</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article>
+        <div class="finding-head"><span class="tag tag-imp">I2</span><h3>No way to see which script produced which published number</h3></div>
+        <p><code>scripts/evaluate.py</code> is a dispatcher rather than a twelfth evaluation. It maps all 20 artifacts under <code>reports/</code> to the one script that writes each, shows which are present, and forwards to a producer on request (<code>--run &lt;stage&gt;</code>, <code>--all</code>, with flags after <code>--</code>). This mirrors the discipline already in the code, where modules refuse to serve a number whose artifact is missing and name the producing command instead of guessing.</p>
+      </article>
+
+      <article>
+        <div class="finding-head"><span class="tag tag-imp">I3</span><h3>Two documented import paths did not exist</h3></div>
+        <p><code>conftest.features.extractor</code> and <code>conftest.engine.abstention</code> are the names used throughout the docs; the implementations are <code>conftest.features.pipeline</code> and <code>conftest.models.policy</code> + <code>conftest.engine.selector_engine</code>. Added as <strong>pure re-export shims</strong> with no logic, plus <code>tests/unit/test_documented_import_paths.py</code> (7 tests) which pins that they re-export the <em>same objects</em> and fails if either shim ever grows a function of its own. The abstention shim's docstring refuses to name a default &tau;, because there isn't one &mdash; it points at <code>models/policy_config.json</code> and <code>is_tuned</code>.</p>
+      </article>
+
+      <article>
+        <div class="finding-head"><span class="tag tag-imp">I4</span><h3>Calibration report path resolved against the working directory</h3></div>
+        <p><code>src/conftest/api/routes/calibration.py:22</code> held <code>REPORT_PATH = Path("./reports/calibration_report.json")</code> &mdash; the only CWD-relative path in the API. Started from anywhere but the project root, the endpoint answered <strong>503 &ldquo;no calibration report&rdquo;</strong> and told the caller to re-run a measurement that was already on disk. Now anchored to <code>PROJECT_ROOT</code> from <code>conftest.config</code>, and verified adversarially: uvicorn restarted with <code>/tmp</code> as its working directory returns 200 with real metrics, where it would previously have 503'd.</p>
+      </article>
+
+      <article>
+        <div class="finding-head"><span class="tag tag-imp">I5</span><h3>The calibration payload reported two splits' numbers with nothing saying which</h3></div>
+        <p>The response carried <code>uncalibrated.ece 0.0415 &rarr; calibrated.ece 0.0161</code> (held-out test) beside a <code>selection_reason</code> quoting &ldquo;validation ECE 0.0242 vs 0.0390 uncalibrated&rdquo;. Both pairs are correct and they come from different splits, but a dashboard reader comparing the payload against the documentation sees a contradiction. Added <code>metrics_split</code> (&ldquo;held-out test split&rdquo;) and <code>selection_split</code>, read from the report's own <code>chosen_on</code>. No number changed &mdash; the defect was the absence of labels.</p>
+      </article>
+
+      <article>
+        <div class="finding-head"><span class="tag tag-imp">I6</span><h3>Local <code>.env</code> had drifted from <code>.env.example</code></h3></div>
+        <p>It still declared <code>CONFTEST_MODEL_PATH</code>, <code>CONFTEST_DEFAULT_RISK_TOLERANCE</code> and <code>CONFTEST_ABSTENTION_THRESHOLD=0.15</code> &mdash; all three removed from <code>config.py</code>, and the last one 7.5&times; the &tau; actually in force (<span class="num">0.02</span>). Because <code>Settings</code> uses <code>extra="ignore"</code>, they were discarded silently. Five current keys were absent. Refreshed from the template; <code>.gitignore</code> now covers <code>.env.backup*</code> and <code>.env.local</code> with a comment explaining why. The old file held no real secrets &mdash; the webhook value was the public placeholder and the GitHub token was empty &mdash; so the backup was removed after verification.</p>
+      </article>
+
+      <article>
+        <div class="finding-head"><span class="tag tag-imp">I7</span><h3>Invalid escape sequences in two dashboard files</h3></div>
+        <p><code>dashboard/app.py:133</code> and <code>dashboard/pages/2_&#x1F4C9;_Confidence_Calibration.py:153</code> embedded LaTeX (<code>\{</code>, <code>\%</code>, <code>\hat</code>) in non-raw strings: a <code>DeprecationWarning</code> today and a <code>SyntaxError</code> in a future Python. Converted to <code>rf"""</code> and <code>r"""</code>. A tree-wide sweep of <code>dashboard/</code>, <code>src/</code>, <code>scripts/</code> and <code>tests/</code> now reports <strong>zero</strong> files with invalid escape sequences; suite warnings dropped from 14 to 9.</p>
+      </article>
+
+      <article>
+        <div class="finding-head"><span class="tag tag-imp">I8</span><h3>Test count wrong in seven documents</h3></div>
+        <p>Every doc claimed <code>628/628</code>. The measured figure moved during the audit as files were added &mdash; 628 &rarr; 684 &rarr; 693 &rarr; <strong class="num">700</strong>, the growth being parametrised producer-reference cases generated by the new files themselves. All seven sites now read <code>700/700</code> with the command and date: <code>DOCUMENTATION.md</code>, <code>README.md</code>, <code>RELEASE_NOTES.md</code>, <code>docs/DOCUMENTATION_DETAILED.md</code>, <code>docs/KTU_Phase1_Presentation_Deck.html</code>, <code>slides/viva_presentation.html</code>, <code>slides/viva_presentation.md</code>.</p>
+      </article>
+
+      <article>
+        <div class="finding-head"><span class="tag tag-ok">I9</span><h3>CI already ran pytest &mdash; verified, no change</h3></div>
+        <p><code>.github/workflows/conftest.yml:44</code> already executes <code>python -m pytest tests/ -v --cov=src/conftest --cov-report=term-missing</code>, alongside a fabricated-label rejection step. Checked rather than assumed; nothing to fix.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Reported, deliberately not fixed</span>
+      <h2>Six findings that need re-measurement or sit outside scope</h2>
+    </div>
+    <p>Each of these is real. None is fixable without either re-running a measurement you asked me not to re-run, or work beyond the agreed scope.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">&nbsp;</th><th scope="col">Finding</th><th scope="col">Evidence</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="tight"><span class="tag tag-open">F1</span></td>
+            <td>13 of 32 features are constant across the training split, <strong>including all 12 diff/churn features</strong>. <code>diff_churn_only</code> therefore scores ROC-AUC exactly <span class="num">0.5000</span> with 0 informative features. Direct inspection after the audit traced this to the dataset protocol: every mutation truthfully represents one changed Python source line in one file and has no commit message. These fields are inert for this corpus; inventing varied churn or prose would fabricate inputs.</td>
+            <td class="src">scripts/build_real_dataset.py; data/processed/real_features_manifest.json; reports/ablation_study.json</td>
+          </tr>
+          <tr>
+            <td class="tight"><span class="tag tag-open">F2</span></td>
+            <td>The sample-suite request returned byte-identical <code>raw_score</code> <span class="num">0.0447</span> for all 10 tests. That observation is consistent with a weak five-round model and limited varying signal, but it is not evidence that the Git diff extractor is broken.</td>
+            <td class="src">reproduced during this audit</td>
+          </tr>
+          <tr>
+            <td class="tight"><span class="tag tag-open">F3</span></td>
+            <td>The pre-registered 95% recall floor is <strong>not met</strong> &mdash; <code>gate_met: false</code>. At the validation-picked &tau;, held-out recall is <span class="num">87.69%</span> [75.77, 95.81] with 15 escaped commits: an <span class="num">8.33</span> pp generalization gap.</td>
+            <td class="src">reports/g5_recall_floor.json</td>
+          </tr>
+          <tr>
+            <td class="tight"><span class="tag tag-open">F4</span></td>
+            <td><code>src/conftest/groundtruth/bugsinpy_adapter.py</code> &mdash; 650 statements at <strong class="num">0%</strong> coverage. The single largest untested module.</td>
+            <td class="src">coverage run, step 8</td>
+          </tr>
+          <tr>
+            <td class="tight"><span class="tag tag-open">F5</span></td>
+            <td>Time-reduction Cliff's &delta; is <strong>negative against every subset baseline</strong> (&minus;0.906 to &minus;0.998), while recall &delta; is strongly positive. Reporting only the recall effect sizes would be cherry-picking.</td>
+            <td class="src">reports/statistical_significance.json</td>
+          </tr>
+          <tr>
+            <td class="tight"><span class="tag tag-open">F6</span></td>
+            <td>Your Phase 4 step 7 names <code>GET /api/commits/abc123/select</code>, and Phase 1 expects <code>/predict</code>. Neither exists, and neither is claimed by any project document. The real routes are <code>GET /health</code> and <code>POST /api/v1/select</code>; explanations are <code>POST /api/v1/explain</code>.</td>
+            <td class="src">app.openapi()</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Components completed</span>
+      <h2>What was added</h2>
+    </div>
+    <ul class="checklist">
+      <li><span class="mark">&check;</span><span><span class="what">scripts/init_db.py</span> <span class="how">&mdash; delegator</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="what">scripts/collect_data.py</span> <span class="how">&mdash; delegator</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="what">scripts/train.py</span> <span class="how">&mdash; delegator</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="what">scripts/evaluate.py</span> <span class="how">&mdash; stage &rarr; producer dispatcher</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="what">features/extractor.py</span> <span class="how">&mdash; re-export shim</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="what">engine/abstention.py</span> <span class="how">&mdash; re-export shim</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="what">models/calibration.py</span> <span class="how">&mdash; already present, no change needed</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="what">test_documented_import_paths.py</span> <span class="how">&mdash; 7 tests</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="how">Calibration route: path anchoring and split labelling</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="how"><code>.env</code> and <code>.gitignore</code> hygiene</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="how">Escape-sequence fixes across the dashboard</span></span></li>
+      <li><span class="mark">&check;</span><span><span class="how">Test-count corrections in 7 documents</span></span></li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">End-to-end run</span>
+      <h2>Your Phase 4 sequence, executed</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Step</th><th scope="col">Command</th><th scope="col">Result</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="tight">1</td><td class="src">pip install -r requirements.txt</td><td>all satisfied (dry-run, exit 0)</td></tr>
+          <tr><td class="tight">2</td><td class="src">cp .env.example .env</td><td>done; drift documented in I6</td></tr>
+          <tr><td class="tight">3</td><td class="src">python scripts/init_db.py</td><td><strong>exit 0</strong> &mdash; all tables created, idempotent</td></tr>
+          <tr><td class="tight">4</td><td class="src">python scripts/collect_data.py --repo-path . --max-commits 25</td><td><strong>exit 0</strong> &mdash; 21 commits, <code>data_origin: REAL_GIT_MINED</code></td></tr>
+          <tr><td class="tight">5</td><td class="src">python scripts/train.py --output-dir &lt;scratch&gt;</td><td><strong>exit 0</strong> &mdash; 5 members trained, <strong>redirected to a scratch directory</strong> so the shipped artifacts every published number was measured on were not overwritten. This is the run that exposed C1.</td></tr>
+          <tr><td class="tight">6</td><td class="src">uvicorn + curl</td><td><code>/health</code> &rarr; 200 healthy, DB connected. <code>POST /api/v1/select</code> &rarr; <code>SAFE_FULL_SUITE</code>, <code>abstained: true</code>, reason names the threshold it failed (<code>0.0207 &lt; tau_conf 0.1000</code>) &mdash; consistent with the measured 97.81% abstention rate. Error handling: 422 on out-of-range <code>budget_ratio</code>, 422 on empty <code>changed_files</code>, 422 on malformed JSON, 404 on unknown route, <strong>401 on an unsigned webhook</strong>.</td></tr>
+          <tr><td class="tight">7</td><td class="src">streamlit run dashboard/app.py</td><td><strong>HTTP 200</strong>; <code>_stcore/health</code> 200</td></tr>
+          <tr><td class="tight">8</td><td class="src">pytest tests/ -v --cov=src/conftest</td><td><strong class="num">693 passed</strong> at the time of the coverage run, <strong class="num">78%</strong> total coverage; <strong class="num">700 passed</strong> on the final run after the new tests landed</td></tr>
+          <tr><td class="tight">9</td><td class="src">python scripts/evaluate.py</td><td><strong>exit 0</strong> &mdash; 11 stages, 20 artifacts, all present, every producer resolves</td></tr>
+        </tbody>
+      </table>
+      <caption>Final suite: <code>700 passed, 9 warnings in 171.24s</code> &mdash; <code>python -m pytest tests/ -q</code>, 2026-09-07.</caption>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">What this means for the paper</span>
+      <h2>The safety half holds; the savings half does not</h2>
+    </div>
+    <p>The honest framing is unchanged by this audit, and slightly strengthened by it. Two operating points were measured on the same 183 held-out commits, and neither one gives you both halves.</p>
+
+    <div class="points">
+      <div class="point shipped">
+        <span class="eyebrow">Shipped &middot; policy_config.json</span>
+        <h3>Zero-escape point</h3>
+        <div class="bars">
+          <div class="bar-row">
+            <span class="k">Recall</span>
+            <span class="track"><span class="fill recall" style="width:100%"></span></span>
+            <span class="v">100.0%</span>
+          </div>
+          <div class="bar-row">
+            <span class="k">Reduction</span>
+            <span class="track"><span class="fill reduction" style="width:3.11%"></span></span>
+            <span class="v">3.11%</span>
+          </div>
+          <div class="bar-row">
+            <span class="k">Abstains</span>
+            <span class="track"><span class="fill abstain" style="width:97.81%"></span></span>
+            <span class="v">97.81%</span>
+          </div>
+        </div>
+        <footer><strong>0</strong> escaped commits, <strong>0</strong> missed failures, <strong>0.0%</strong> wall-clock saved. Safe, and almost never selective.</footer>
+      </div>
+
+      <div class="point">
+        <span class="eyebrow">Alternative &middot; recall-floor sweep</span>
+        <h3>G5 gate point</h3>
+        <div class="bars">
+          <div class="bar-row">
+            <span class="k">Recall</span>
+            <span class="track"><span class="fill recall" style="width:87.69%"></span></span>
+            <span class="v">87.69%</span>
+          </div>
+          <div class="bar-row">
+            <span class="k">Reduction</span>
+            <span class="track"><span class="fill reduction" style="width:32.85%"></span></span>
+            <span class="v">32.85%</span>
+          </div>
+          <div class="bar-row">
+            <span class="k">Abstains</span>
+            <span class="track"><span class="fill abstain" style="width:66.12%"></span></span>
+            <span class="v">66.12%</span>
+          </div>
+        </div>
+        <footer><strong>15</strong> escaped commits, <strong>395</strong> missed failures. Recall CI [75.77, 95.81] &mdash; below the pre-registered 95% floor, so <code>gate_met: false</code>.</footer>
+      </div>
+    </div>
+
+    <p>What C1 adds is a <em>credible mechanism</em>. Before this audit the negative result read as &ldquo;these features do not support confident test ranking.&rdquo; It now reads as &ldquo;a five-round gradient-boosted ensemble does not support confident test ranking, on features whose largest group is entirely constant.&rdquo; Those are different claims, and the second is both more defensible and more actionable.</p>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Recommended next steps</span>
+      <h2>In this order, and the order matters</h2>
+    </div>
+    <ol class="steps">
+      <li><span><strong>Formalize inert mutation features</strong> (F1). Keep the canonical serving schema, but report that one-file/one-line/no-message mutation inputs make all 12 diff columns constant; do not invent variation.</span></li>
+      <li><span><strong>Re-examine early stopping</strong> (C1) &mdash; the validation metric, <code>stopping_rounds</code>, and whether <code>scale_pos_weight</code> interacts badly with it at a 5% positive rate.</span></li>
+      <li><span><strong>Retrain with row bagging active</strong> (C2) so the epistemic spread means what the paper says it means.</span></li>
+      <li><span><strong>Only then</strong> re-run the policy sweep and the G5 gate.</span></li>
+      <li><span>Add coverage for <code>bugsinpy_adapter.py</code> (F4).</span></li>
+    </ol>
+    <p class="gate">Steps 1&ndash;3 change the ranker. Re-tuning thresholds before them measures the wrong model &mdash; which is why step 4 waits.</p>
+  </section>
+
+  <p class="closing">Nothing in steps 1&ndash;4 was performed here, by your instruction. Every number in this report is traceable to a file under <code>reports/</code> or to a command shown above.</p>
+
+</div>

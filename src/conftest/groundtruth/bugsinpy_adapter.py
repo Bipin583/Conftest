@@ -166,13 +166,17 @@ def parse_run_test(text: str) -> Tuple[List[str], List[str]]:
                 if len(parts) < 2:
                     unreadable.append(line)
                     continue
-                # Walk from the right: the trailing parts that begin with a capital or
-                # with `test` are the class and method; the rest is the module path.
-                split_at = len(parts) - 1
-                while split_at > 1 and (
-                    parts[split_at - 1][:1].isupper() or parts[split_at - 1].startswith("test")
-                ):
-                    split_at -= 1
+                # A unittest target is normally package.module.Class.method, but
+                # module-level functions (package.module.test_x) also occur. The
+                # first capitalised segment identifies the class when present;
+                # names such as ``test_black`` before it are still modules and
+                # must not be mistaken for test functions.
+                class_at = next(
+                    (index for index, part in enumerate(parts[1:-1], start=1)
+                     if part[:1].isupper()),
+                    None,
+                )
+                split_at = class_at if class_at is not None else len(parts) - 1
                 module = "/".join(parts[:split_at])
                 node_ids.append("::".join([module] + parts[split_at:]))
             continue

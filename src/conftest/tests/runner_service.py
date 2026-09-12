@@ -118,38 +118,68 @@ class TestRunnerService:
         if test_run_payload:
             crud.record_test_runs(db, commit_id, test_run_payload)
 
-        # 4. Calculate evaluation metrics
-        actual_failures = full_res.failed_count if full_res else selected_res.failed_count
+        # 4. Calculate evaluation metrics.
+        #
+        # The full-suite figures are real measurements only when the full suite
+        # actually ran. Without it, substituting the selective run's own numbers
+        # would define the escape count as 0 by construction: actual would equal
+        # detected because it *is* detected. Those fields stay None instead, and
+        # the outcome is flagged unverified.
         detected_failures = selected_res.failed_count
-        missed_failures = max(0, actual_failures - detected_failures)
-        full_duration = full_res.total_duration if full_res else selected_res.total_duration
         selected_duration = selected_res.total_duration
 
-        reduction_ratio = max(
-            0.0, 1.0 - (selected_duration / full_duration)
-        ) if full_duration > 0 else 0.0
+        # Two paths give a verifiable outcome: an explicit full-suite benchmark
+        # alongside the selection, or a run with no selection at all -- which is
+        # the full suite, and so is its own ground truth.
+        oracle: Optional[PytestExecutionResult] = full_res or (
+            selected_res if not selected_node_ids else None
+        )
+        ground_truth_complete = oracle is not None
+
+        actual_failures: Optional[int] = None
+        missed_failures: Optional[int] = None
+        full_duration: Optional[float] = None
+        reduction_ratio: Optional[float] = None
+
+        if oracle is not None:
+            actual_failures = oracle.failed_count
+            missed_failures = max(0, actual_failures - detected_failures)
+            full_duration = oracle.total_duration
+            reduction_ratio = max(
+                0.0, 1.0 - (selected_duration / full_duration)
+            ) if full_duration > 0 else 0.0
 
         # 5. Persist Outcome
         outcome = crud.save_outcome(
             db=db,
             commit_id=commit_id,
-            actual_failures=actual_failures,
             detected_failures=detected_failures,
+            selected_duration=selected_duration,
+            ground_truth_complete=ground_truth_complete,
+            actual_failures=actual_failures,
             missed_failures=missed_failures,
             full_duration=full_duration,
-            selected_duration=selected_duration,
             time_reduction_ratio=reduction_ratio,
         )
+
+        if not ground_truth_complete:
+            logger.warning(
+                "Outcome for commit_id=%s recorded as UNVERIFIED: the full suite was "
+                "not run, so escaped failures and time saving are unmeasured.",
+                commit_id,
+            )
 
         return {
             "exit_code": selected_res.exit_code,
             "selected_count": selected_res.total_count,
             "total_suite_count": len(all_tests),
+            "ground_truth_complete": ground_truth_complete,
+            # None (JSON null) where the full suite did not run.
             "actual_failures": actual_failures,
             "detected_failures": detected_failures,
             "missed_failures": missed_failures,
             "selected_duration": round(selected_duration, 3),
-            "full_duration": round(full_duration, 3),
-            "time_reduction_ratio": round(reduction_ratio, 4),
+            "full_duration": None if full_duration is None else round(full_duration, 3),
+            "time_reduction_ratio": None if reduction_ratio is None else round(reduction_ratio, 4),
             "outcome_id": outcome.id,
         }

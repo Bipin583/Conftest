@@ -1,14 +1,37 @@
 \chapter{Conclusion and Future Scope}
 
 \section{Summary of Contributions}
-In this project, we designed, implemented, and empirically validated \textbf{ConfTest}, an uncertainty-aware, confidence-calibrated Selective Regression Test Selection framework. ConfTest successfully bridges the gap between machine learning efficiency and static safety guarantees by:
+In this project, we designed, implemented, and empirically validated \textbf{ConfTest}, an uncertainty-aware, confidence-calibrated Selective Regression Test Selection framework. ConfTest combines machine-learning efficiency with a conservative full-suite fallback policy by:
 \begin{enumerate}
     \item Mining a canonical 32-feature dataset covering AST, Call-Graph, Churn, and Historical telemetry.
     \item Quantifying epistemic uncertainty ($\sigma$) using 5-seed deep ensembles.
-    \item Calibrating failure probabilities via Temperature Scaling, reducing ECE by $25.47\%$.
-    \item Enforcing a zero-escape selective policy that delivers $68.6\%$ test time reduction and $100\%$ bug recall.
-    \item Deploying a production microservices suite with FastAPI, Streamlit, and GitHub PR bot webhooks.
+    \item Calibrating failure probabilities via Temperature Scaling at $T^* = 0.7941$, reducing validation ECE from $0.0390$ to $0.0242$, and rejecting isotonic regression because it nearly doubles worst-bin error even while lowering mean ECE.
+    \item Enforcing a selective policy that observed $100.0\%$ failure recall with \emph{zero} escaped commits on $183$ held-out commits; this is an empirical result, not a formal guarantee for future commits or unseen repositories.
+    \item Implementing a research-prototype service stack with FastAPI, Streamlit, and GitHub PR bot webhooks.
 \end{enumerate}
+
+\section{An Honest Statement of What Was and Was Not Achieved}
+The shipped operating point met the empirical failure-recall objective on the held-out sample; the economic objective was not met. Neither result is a formal guarantee beyond that experiment.
+
+At the shipped operating point the policy escaped zero regressions across $183$ held-out commits, because
+it declines to select whenever ensemble disagreement or distributional novelty exceeds a tuned threshold.
+That is a real, measured property. It also abstains on $97.81\%$ of commits, which means it reduces test
+executions by $3.11\%$ and wall-clock time by $0.0\%$: the projected annual saving is $\$0$, not the
+figure earlier drafts of this report carried. Tightening the threshold to reach a $32.85\%$ reduction
+drops held-out failure recall to $87.69\%$ with $15$ escaped commits, missing the $95\%$ recall floor this
+project pre-registered, with an $8.33$ percentage-point gap between the validation and held-out splits.
+
+The binding constraint is the accuracy of the underlying ranker --- PR-AUC $0.1393$ against a $3.71\%$
+positive rate, roughly four times a no-skill baseline but far from sufficient --- and not the
+selective-prediction machinery built around it. Three specific weaknesses are documented rather than
+omitted: $13$ of the $32$ canonical features are constant in training (including all $12$ diff-churn
+columns, which indicates a diff-mining defect); zero-shot cross-repository transfer does not work
+(macro recall $51.57\%$, below chance on one project); and every committed artifact predates the
+correction of a LightGBM row-bagging misconfiguration that made the ensemble less diverse than intended.
+
+We regard this as a useful negative result. The abstention gate is a reusable component for any future
+RTS ranker strong enough to exploit it, and reporting the measured frontier is more valuable than
+selecting a threshold on the test split in order to publish a larger number.
 
 \section{Future Scope}
 Future extensions of this work include:

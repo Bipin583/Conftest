@@ -22,7 +22,7 @@
 \email{bbipin@ktu.ac.in}
 
 \begin{abstract}
-Regression Test Selection (RTS) accelerates Continuous Integration (CI/CD) pipelines by executing only the subset of tests likely affected by incoming code commits. However, existing Machine Learning (ML)-based RTS techniques suffer from poor probability calibration and overconfidence on out-of-distribution refactorings, causing silent regression escapes. In this paper, we propose \textbf{ConfTest}, an uncertainty-aware, confidence-calibrated selective regression test selection framework. ConfTest extracts a 32-dimensional canonical feature vector spanning AST syntactic structure, static call-graph coupling, code churn, and historical failure telemetry. We employ a 5-seed deep ensemble to quantify epistemic uncertainty ($\sigma$) and apply post-hoc Temperature Scaling to eliminate systematic miscalibration, reducing Expected Calibration Error (ECE) by $25.47\%$. ConfTest introduces an economic selective prediction policy that executes fast test subsets when confident, but automatically falls back to full suite execution upon detecting elevated epistemic divergence or high-churn refactorings. Evaluated across benchmark suites, ConfTest achieves a \textbf{68.6\% test execution time reduction} while guaranteeing \textbf{100\% regression fault recall} (zero escaped bugs).
+Regression Test Selection (RTS) accelerates Continuous Integration (CI/CD) pipelines by executing only the subset of tests likely affected by incoming code commits. However, existing Machine Learning (ML)-based RTS techniques suffer from poor probability calibration and overconfidence on out-of-distribution refactorings, causing silent regression escapes. In this paper, we propose \textbf{ConfTest}, an uncertainty-aware, confidence-calibrated selective regression test selection framework. ConfTest extracts a 32-dimensional canonical feature vector spanning AST syntactic structure, static call-graph coupling, code churn, and historical failure telemetry. We employ a 5-seed deep ensemble to quantify epistemic uncertainty ($\sigma$) and apply post-hoc Temperature Scaling, which reduces Expected Calibration Error from $0.0390$ to $0.0242$ on a held-out temporal validation split (paired improvement $0.0148$, 95\% CI $[0.0030, 0.0393]$). ConfTest introduces a selective prediction policy that executes budget-matched test subsets when confident and falls back to full-suite execution upon detecting elevated epistemic divergence or high-churn refactorings. Our findings are mixed, and we report them as such. On $183$ held-out commits ($86{,}469$ commit--test pairs, labels obtained by execution) the shipped operating point attains \textbf{$100.0\%$ failure recall with zero escaped commits}, but it abstains on $97.81\%$ of commits and therefore reduces test executions by only $3.11\%$, with a wall-clock reduction of $0.0\%$. Tightening the abstention threshold to reach a $32.85\%$ reduction drops held-out recall to $87.69\%$ with $15$ escaped commits, an $8.33$ percentage-point degradation from the validation split and a failure of our pre-registered $95\%$ recall floor. We conclude that the selective-prediction scaffolding is sound and reusable, while the underlying ranker (PR-AUC $0.1393$ against a $3.71\%$ positive rate) is not yet accurate enough to convert abstention into useful savings---a negative result we believe is more useful to the RTS community than the alternative of tuning on the test split.
 \end{abstract}
 
 \keywords{Regression Test Selection, Confidence Calibration, Uncertainty Estimation, Continuous Integration, Machine Learning for Software Engineering}
@@ -34,12 +34,12 @@ Modern software development relies heavily on Continuous Integration (CI) and Co
 
 Machine Learning-based Regression Test Selection (ML-RTS) frames test selection as a binary classification problem: predicting whether test $t_j$ will fail on commit $c_i$. While promising, conventional ML-RTS models suffer from three fundamental deficiencies:
 \begin{enumerate}
-    \item \textbf{Overconfident Miscalibration:} Tree-based models output poorly calibrated scores, where a nominal predicted failure probability of $80\%$ corresponds to a true empirical failure rate of under $40\%$.
+    \item \textbf{Miscalibration:} Tree-based models output scores that do not match empirical failure frequencies. On our validation split the uncalibrated ensemble has expected calibration error $0.0390$ and worst-bin error $0.1235$, so a confidence threshold set from raw scores does not mean what it appears to mean.
     \item \textbf{Epistemic Blindness:} Standard models cannot distinguish between confident predictions and predictions on out-of-distribution (OOD) architectural refactorings.
-    \item \textbf{Uncontrolled Regression Escapes:} Unlike static safe RTS algorithms, ML-RTS lacks a formal zero-escape fallback mechanism, risking production outages.
+    \item \textbf{Uncontrolled Regression Escapes:} ML-RTS can skip failing tests unless it includes a conservative fallback, risking production outages.
 \end{enumerate}
 
-To resolve these challenges, we present \textbf{ConfTest}, a calibrated selective prediction system that bridges the gap between ML efficiency and static safety guarantees.
+To resolve these challenges, we present \textbf{ConfTest}, a calibrated selective prediction system that combines ML-based ranking with an empirical full-suite fallback policy. Its safety results are observed on held-out data, not formal guarantees for future commits or unseen repositories.
 
 \section{System Architecture \& Methodology}
 \subsection{Canonical 32-Feature Mining Pipeline}
@@ -66,6 +66,15 @@ To ensure predicted probabilities match empirical failure likelihoods, we optimi
     \hat{p}(c_i, t_j) = \sigma_{\text{sigmoid}}\left( \frac{z(c_i, t_j)}{T} \right)
 \end{equation}
 
+We search $\log T$ with a bounded scalar minimiser, which converges in $17$ iterations to
+$T^* = 0.7941$ (validation NLL $0.19290 \rightarrow 0.18345$). $T^* < 1$ means our ensemble is
+\emph{under}-confident on this split, the opposite of the overconfidence usually reported for deep
+networks. We also fitted isotonic regression and rejected it: it attains a lower mean ECE
+($0.0166$) but raises worst-bin error from $0.1235$ to $0.2098$ (paired degradation $+0.0863$,
+$95\%$ CI $[0.0299, 0.1135]$). An abstention gate is thresholded on the tail of the confidence
+distribution, so a method that is better on average and much worse in its worst bin is the wrong
+trade.
+
 \subsection{Selective Prediction Policy}
 ConfTest operates under a cost-optimal risk-coverage policy. For a commit $c_i$:
 \begin{equation}
@@ -76,6 +85,19 @@ ConfTest operates under a cost-optimal risk-coverage policy. For a commit $c_i$:
 \end{equation}
 
 \section{Empirical Evaluation \& Results}
+
+\subsection{Dataset and Protocol}
+Ground truth is obtained by execution rather than by proxy. We generate semantic mutants in five
+open-source Python repositories, run each repository's suite against each mutant, and record the
+per-test outcome; a (commit, test) pair is positive when that test fails on that mutant and passes
+on the unmutated baseline. This yields $561{,}711$ labelled pairs over $1{,}213$ commits.
+
+Splits are chronological and cut on mutant boundaries, so no mutant contributes rows to more than
+one split: $849$ commits / $391{,}825$ rows for training ($5.017\%$ positive), $181$ / $83{,}417$
+for validation ($5.488\%$), and $183$ / $86{,}469$ held out for test ($3.710\%$). The temperature
+and every policy threshold are fitted on validation only; the held-out split is scored once per
+reported configuration. Confidence intervals are bootstrap intervals over $2{,}000$ resamples with
+the \emph{commit} as the resampling unit, because the $86{,}469$ rows are not independent.
 \begin{table}[t]
 \centering
 \caption{Empirical Benchmark Comparison Against 8 RTS Baselines}
@@ -83,24 +105,40 @@ ConfTest operates under a cost-optimal risk-coverage policy. For a commit $c_i$:
 \small
 \begin{tabular}{lcccc}
 \toprule
-\textbf{RTS Strategy} & \textbf{Recall} & \textbf{Time Red.} & \textbf{ECE} & \textbf{Wilcoxon $p$} \\
+\textbf{RTS Strategy} & \textbf{Recall} & \textbf{Test Red.} & \textbf{Time Red.} & \textbf{Escapes} \\
 \midrule
-Full Suite & 100.0\% & 0.0\% & — & — \\
-Random-K (25\%) & 28.5\% & 75.0\% & — & $<0.00001$ \\
-Changed File & 78.4\% & 68.0\% & — & $<0.00001$ \\
-Dependency Graph & 89.2\% & 58.0\% & — & $<0.00001$ \\
-Historical Failure & 82.1\% & 65.0\% & — & $<0.00001$ \\
-Uncalibrated ML & 91.5\% & 75.0\% & 0.0631 & $<0.00001$ \\
-Calibrated No-Abstain & 94.8\% & 75.0\% & 0.0470 & $<0.00001$ \\
-\textbf{ConfTest (Ours)} & \textbf{100.0\%} & \textbf{68.6\%} & \textbf{0.0470} & — \\
+Full Suite & 100.0\% & 0.0\% & 0.0\% & 0 \\
+Random-K (25\%) & 25.2\% & 75.1\% & 78.7\% & 133 \\
+Changed File & 42.3\% & 83.6\% & 86.1\% & 69 \\
+Static AST / Dependency & 38.6\% & 75.6\% & 68.2\% & 94 \\
+Historical Failure & 48.4\% & 75.1\% & 70.0\% & 99 \\
+Uncalibrated ML & 51.8\% & 75.1\% & 27.7\% & 69 \\
+Calibrated No-Abstain & 51.8\% & 75.1\% & 27.7\% & 69 \\
+\textbf{ConfTest (Ours)} & \textbf{100.0\%} & \textbf{3.1\%} & \textbf{0.0\%} & \textbf{0} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-As shown in Table~\ref{tab:baselines}, ConfTest achieves $100.0\%$ regression failure recall while delivering a $68.6\%$ reduction in test execution time. Post-hoc calibration reduces ECE from $0.0631$ to $0.0470$ ($25.47\%$ improvement).
+Table~\ref{tab:baselines} reports the $183$ held-out commits. ConfTest is the only configuration with zero escaped commits, and also the one that saves least: it abstains on $97.81\%$ of commits, so its $3.1\%$ reduction in test executions yields no measurable wall-clock saving (bootstrap mean $1.05\%$, $95\%$ CI $[0.25\%, 2.10\%]$, median $-0.0\%$; $2{,}000$ resamples by commit). Every subset baseline reduces executions by $75$--$84\%$ and loses half to three quarters of the failures doing so. Cliff's $\delta$ on recall is large and positive against every baseline ($0.51$--$0.99$), and negative on time reduction against every one of them ($-0.91$ to $-1.00$); we report both directions.
+
+Two observations deserve emphasis. First, the \emph{Uncalibrated ML} and \emph{Calibrated No-Abstain} rows are numerically identical on every selection metric. Temperature scaling is a monotone transform of the score and therefore cannot alter a top-$k$ ranking: calibration contributes nothing to selection quality and earns its place solely by making the abstention gate's confidence estimates trustworthy. Second, \emph{Uncalibrated ML} reduces test count by $75.1\%$ but wall-clock by only $27.7\%$, because the tests it ranks highest are disproportionately slow---a budget expressed in test count is not a budget in time, and RTS papers that report only the former overstate their savings.
+
+\subsection{The Recall Floor Is Not Met at a Useful Reduction}
+
+We pre-registered a $95\%$ held-out failure-recall floor. Selecting $\tau_{\text{abstain}}=0.044$ on the validation split yields $32.85\%$ test reduction at $96.02\%$ recall; the same threshold on the held-out split yields $32.85\%$ reduction ($95\%$ CI $[26.50, 39.18]$) at $87.69\%$ recall ($[75.77, 95.81]$), with $15$ escaped commits and $395$ missed failures. The floor is missed at the point estimate and at the CI lower bound, and the validation-to-test recall gap is $8.33$ percentage points. A post-hoc sweep of the held-out split does contain five thresholds that would clear $95\%$ (best: $26.56\%$ reduction at $97.35\%$ recall), but selecting a threshold by its test-set score would forfeit the held-out guarantee, so we record that sweep as a diagnostic and do not use it.
+
+\subsection{Threats to Validity}
+
+\textbf{Feature degeneracy.} Thirteen of our $32$ canonical features are constant across the training split, including all twelve code-churn columns; removing the churn group reproduces the full model exactly, and the group alone achieves ROC-AUC $0.5000$. We attribute this to a defect in diff mining rather than to a property of code churn, and no claim about churn should be drawn from our results. Static call-graph reachability is the one load-bearing family: removing it costs $15.5$ points of recall at a fixed budget.
+
+\textbf{Stale artifacts.} Our ensemble was trained with LightGBM's \texttt{subsample} set but \texttt{subsample\_freq} left at its default of $0$, which silently disables row bagging. The seeds therefore differed only in column sampling and tie-breaking, making our epistemic $\sigma$ an underestimate of true ensemble diversity. Since $\sigma$ is precisely the quantity the abstention gate thresholds, the operating points reported here may shift once the ensemble is retrained.
+
+\textbf{Cross-project transfer.} Leave-one-project-out over five repositories gives a macro-average recall of $51.57\%$ at a $25\%$ budget, ranging from $30.00\%$ to $88.42\%$, with ROC-AUC below chance ($0.4747$) on one project and held-out ECE reaching $0.2957$ against $0.0242$ in-distribution. Zero-shot transfer does not work; a new repository must be treated as out-of-distribution until it accumulates its own execution history.
+
+\textbf{Latency scope.} Our reported $3.345$\,ms mean decision cost covers scoring only (sanitisation, ensemble inference, calibration, policy) and excludes diff mining, AST parsing, call-graph construction and history lookup, which dominate real per-commit cost. A cold process pays a further $1.32$\,s on its first batch.
 
 \section{Conclusion}
-ConfTest demonstrates that epistemic uncertainty quantification and post-hoc probability calibration enable safe, cost-optimal machine learning for regression test selection in industrial CI/CD environments.
+ConfTest shows that epistemic uncertainty quantification and post-hoc probability calibration can support conservative machine-learned regression test selection: on $183$ held-out commits the shipped policy escaped zero failures, because it declines to select whenever ensemble disagreement or distributional novelty exceeds a tuned threshold. This is an empirical outcome, not a formal safety guarantee for future commits or unseen repositories. It also shows that safety on this sample alone does not make such a system \emph{economical}. At the threshold that holds full recall, the policy abstains on $97.81\%$ of commits and saves no measurable wall-clock time; at a threshold that saves a third of test executions, held-out recall falls to $87.69\%$ and our $95\%$ floor is violated. The binding constraint is ranker accuracy---PR-AUC $0.1393$ against a $3.71\%$ positive rate, roughly four times a no-skill baseline but far from sufficient---and not the selective-prediction machinery around it. We therefore report a negative result on the economic claim and a positive one on the observed behavior of the abstention mechanism, and we identify the gate as directly reusable by any future RTS ranker strong enough to exploit it.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}

@@ -179,9 +179,9 @@ def test_load_baseline_data_raises_instead_of_inventing_a_table(fake_root):
 
 @pytest.mark.parametrize("loader, artifact, produced_by", [
     (load_calibration_data, "reports/calibration_report.json", "python scripts/calibrate_model.py"),
-    (load_shap_report, "reports/explanations.json", "python scripts/explain_predictions.py"),
+    (load_shap_report, "reports/explanations.json", "python scripts/generate_explanations.py"),
     (load_uncertainty_analysis, "reports/uncertainty_analysis.json",
-     "python scripts/analyze_uncertainty.py"),
+     "python scripts/uncertainty_eval.py"),
     (load_ensemble_metadata, "models/ensembles/5_seed_lgbm/ensemble_metadata.json",
      "python scripts/train_ensemble.py"),
     (load_policy_config, "models/policy_config.json", "python scripts/tune_policy.py"),

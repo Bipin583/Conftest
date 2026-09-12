@@ -1,43 +1,53 @@
-# ConfTest Post-Hoc Confidence Calibration Specification
+# Confidence Calibration
 
-## 1. The Calibration Imperative in CI/CD Test Selection
-Standard decision tree models (LightGBM, XGBoost) and neural networks are notorious for **empirical miscalibration**: their raw output scores do not reflect the true posterior probability of failure.
+Calibration maps a model score to an empirically interpretable failure probability. It does not improve ranking automatically and does not make an uncertain model safe by itself.
 
-A model is defined as **well-calibrated** if:
-$$P(Y = 1 \mid \hat{p} = p) = p, \quad \forall p \in [0, 1]$$
-*Example:* Among all test executions assigned a predicted failure risk of $\hat{p} = 0.80$, exactly $80\%$ must detect a true regression failure.
+## Methods implemented
 
----
+ConfTest evaluates:
 
-## 2. Post-Hoc Calibration Algorithms
+- **Temperature scaling**: fits one positive temperature to transform model log-odds while preserving score order.
+- **Isotonic regression**: fits a non-decreasing piecewise mapping with greater flexibility and greater overfitting risk.
+- **Uncalibrated**: a valid selection outcome when candidate improvements are not supported.
 
-### A. Isotonic Regression (Non-Parametric Monotonic Step Mapping)
-Fits a piecewise non-decreasing step function $m: [0, 1] \to [0, 1]$ by minimizing square error on the validation split:
-$$\min_m \sum_{i=1}^{N_{\text{val}}} (y_i - m(p_i))^2 \quad \text{subject to } m(p_i) \le m(p_j) \text{ whenever } p_i \le p_j$$
+The maintained calibration code is under `src/conftest/models/calibration.py`; `scripts/calibrate_model.py` fits candidates and writes `models/calibrator.joblib` and `reports/calibration_report.json`.
 
-### B. Temperature Scaling / Platt Scaling (Parametric Logit Transformation)
-Operates on the uncalibrated log-odds $z_i = \text{logit}(p_i) = \log\left(\frac{p_i}{1 - p_i}\right)$ and optimizes a single scalar temperature $T > 0$ via Negative Log-Likelihood:
-$$\hat{p}_{\text{cal}} = \sigma\left(\frac{z}{T}\right) = \frac{1}{1 + e^{-z / T}}$$
-- If $T > 1$: The uncalibrated model is overconfident; temperature scaling softens probabilities toward the base rate.
-- If $T < 1$: The model is underconfident; temperature scaling sharpens probabilities.
+## Split discipline
 
----
+The base model is trained on the training split. Candidate calibrators are fitted and selected on validation data. The chosen mapping is then measured on the held-out test split. Report consumers must distinguish:
 
-## 3. Calibration Evaluation Metrics
+- `selection_split`: where the method was chosen;
+- `metrics_split`: where its reported performance was measured; and
+- `resampling_unit`: the unit used for confidence intervals.
 
-### 1. Expected Calibration Error (ECE)
-Partitions the range $[0, 1]$ into $B = 10$ equal-width probability bins $B_b = \left(\frac{b-1}{B}, \frac{b}{B}\right]$:
-$$\text{ECE} = \sum_{b=1}^B \frac{|B_b|}{N} \left| \text{acc}(B_b) - \text{conf}(B_b) \right|$$
-where $\text{acc}(B_b) = \frac{1}{|B_b|} \sum_{i \in B_b} y_i$ and $\text{conf}(B_b) = \frac{1}{|B_b|} \sum_{i \in B_b} \hat{p}_i$.
+The API exposes these labels because a validation metric used for method selection is not interchangeable with a held-out metric.
 
-### 2. Maximum Calibration Error (MCE)
-Measures worst-case bin deviation:
-$$\text{MCE} = \max_{b \in \{1, \dots, B\}} \left| \text{acc}(B_b) - \text{conf}(B_b) \right|$$
+## Metrics
 
-### 3. Brier Score (Mean Squared Probability Error)
-$$\text{BS} = \frac{1}{N} \sum_{i=1}^N (\hat{p}_i - y_i)^2$$
+For binary outcomes `y_i` and probabilities `p_i`:
 
----
+- **Brier score** is the mean squared probability error.
+- **ECE** is a bin-weighted mean absolute gap between observed frequency and mean confidence.
+- **MCE** is the largest observed bin gap.
+- **Reliability bins** expose count, confidence, and observed frequency so aggregate scores can be inspected.
 
-## 4. Strict Temporal Anti-Leakage Protocol
-Calibration models are strictly fitted on the **Validation Split** (`val.csv`) and evaluated on the **Unseen Test Split** (`test.csv`). Calibrators are never trained on the base training set or evaluated on calibration data.
+ECE and MCE depend on binning and sample composition. A lower point estimate can arise from sampling variation. The committed report therefore records paired differences and bootstrap intervals where commit labels permit commit-level resampling.
+
+## Committed result
+
+The committed run selected temperature scaling. On validation, ECE changed from `0.0390` to `0.0242`; on the held-out test split the report records `0.0415` to `0.0161`. The validation pair explains selection, while the held-out pair describes evaluation. They must not be combined into one before/after claim.
+
+Point estimates alone do not establish a statistically reliable improvement: paired intervals in `reports/calibration_report.json` are part of the result and should be quoted alongside claims of superiority. The API deliberately serves no hard-coded defaults and returns 503 when the report is absent.
+
+## Reproduce or inspect
+
+```bash
+python scripts/calibrate_model.py
+python scripts/evaluate.py --run calibration
+```
+
+`python scripts/evaluate.py` lists the expected producer and artifacts without rerunning the stage. Any new ensemble requires a newly fitted calibrator and a retuned policy; a calibrator is not portable across arbitrary score distributions.
+
+## Limits
+
+Calibration quality is conditional on the validation/test distributions. Sparse positive outcomes, temporal drift, repository transfer, and flakiness can invalidate probability semantics. Temperature scaling changes score sharpness but cannot add missing predictive signal; isotonic calibration can overfit small or unrepresentative validation sets. See [Dataset](dataset.md), [Statistical methodology](statistical_methodology.md), and [Limitations](limitations.md).

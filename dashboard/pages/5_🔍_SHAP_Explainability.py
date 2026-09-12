@@ -59,7 +59,7 @@ global_imp = shap_data.get("global_shap_importance") or []
 if not global_imp:
     st.warning(
         "The explanation report carries no global importances. Re-run "
-        "`python scripts/explain_predictions.py`."
+        "`python scripts/generate_explanations.py`."
     )
 else:
     df_shap = pd.DataFrame(global_imp)

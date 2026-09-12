@@ -3,14 +3,15 @@ Unit tests for Confidence Calibration, ECE / MCE, and Reliability Diagrams.
 """
 
 from pathlib import Path
+
 import numpy as np
 import pytest
 
 from conftest.models.calibration import (
-    compute_ece,
-    TemperatureScalingCalibrator,
-    IsotonicCalibrator,
     ConfidenceCalibrator,
+    IsotonicCalibrator,
+    TemperatureScalingCalibrator,
+    compute_ece,
 )
 
 
@@ -19,7 +20,7 @@ def test_ece_computation_perfect_calibration():
     y_true = np.array([0]*90 + [1]*10)
     y_prob = np.array([0.10]*100)  # Average confidence exactly equals 10/100 = 0.10
 
-    ece, mce, bins = compute_ece(y_true, y_prob, n_bins=10)
+    ece, mce, _bins = compute_ece(y_true, y_prob, n_bins=10)
     assert ece == pytest.approx(0.0, abs=1e-3)
     assert mce == pytest.approx(0.0, abs=1e-3)
 
@@ -29,7 +30,7 @@ def test_ece_computation_severe_miscalibration():
     y_true = np.array([0]*90 + [1]*10)
     y_prob = np.array([0.95]*100)  # Extreme overconfidence (predicts 95% fail, but only 10% fail)
 
-    ece, mce, bins = compute_ece(y_true, y_prob, n_bins=10)
+    ece, mce, _bins = compute_ece(y_true, y_prob, n_bins=10)
     assert ece > 0.70  # |0.10 - 0.95| = 0.85
     assert mce > 0.70
 
@@ -63,6 +64,20 @@ def test_isotonic_calibrator_monotonicity():
 
     cal_probs = cal.calibrate(raw_probs)
     assert np.all(np.diff(cal_probs) >= 0.0)  # Monotonically non-decreasing
+
+
+def test_uncalibrated_calibrator_is_an_explicit_serializable_identity(tmp_path: Path):
+    """A declined calibration still produces a truthful downstream artifact."""
+    raw_probs = np.array([0.1, 0.3, 0.9], dtype=np.float64)
+    cal = ConfidenceCalibrator(method="uncalibrated")
+
+    np.testing.assert_allclose(cal.calibrate(raw_probs), raw_probs, rtol=1e-6)
+    save_path = tmp_path / "identity.joblib"
+    cal.save(str(save_path))
+
+    loaded = ConfidenceCalibrator.load(str(save_path))
+    assert loaded.method == "uncalibrated"
+    np.testing.assert_allclose(loaded.calibrate(raw_probs), raw_probs, rtol=1e-6)
 
 
 def test_confidence_calibrator_save_and_load(tmp_path: Path):

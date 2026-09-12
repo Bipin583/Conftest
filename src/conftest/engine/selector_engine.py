@@ -69,14 +69,30 @@ class ConfTestEngine:
             self.calibrator = None
             logger.warning(f"Calibrator not found at {calibrator_path}. Using identity calibration.")
 
-        # 4. Load or initialize selective policy
+        # 4. Load or initialize selective policy.
+        #
+        # Without a tuned artifact this used to fall back to tau_abstain=0.030,
+        # tau_conf=0.10 -- a permissive operating point that lets fast mode run
+        # on thresholds nobody measured, and that differed from every other
+        # threshold in the codebase. A missing artifact now yields a policy that
+        # always abstains, so a deployment with no tuning runs the full suite
+        # instead of quietly selecting a subset at an unvalidated threshold.
         if policy_config_path and Path(policy_config_path).exists():
             self.policy = SelectivePredictionPolicy.load(policy_config_path)
+            logger.info(
+                f"Loaded tuned policy from {policy_config_path} "
+                f"(tau_abstain={self.policy.tau_abstain}, tau_conf={self.policy.tau_conf})"
+            )
         else:
-            self.policy = SelectivePredictionPolicy(
-                tau_abstain=0.030,
-                tau_conf=0.10,
+            self.policy = SelectivePredictionPolicy.untuned_always_abstain(
                 budget_ratio=default_budget,
+            )
+            logger.warning(
+                "No tuned policy at %s. Falling back to unconditional abstention "
+                "(full suite every commit): subset selection needs a threshold "
+                "whose failure recall has been measured. Run "
+                "scripts/tune_policy.py to produce one.",
+                policy_config_path,
             )
 
     def analyze_and_select(
@@ -256,7 +272,21 @@ class ConfTestEngine:
                 selected_count=len(decision.selected_test_ids),
                 total_count=total_tests,
                 estimated_saving=decision.estimated_time_saved_pct,
-                reasons={"reasons": decision.reasons, "top_confidence": decision.top_confidence},
+                reasons={
+                    "reasons": decision.reasons,
+                    "top_confidence": decision.top_confidence,
+                    # Persist the full operating point and where it came from, so
+                    # a stored decision can be reproduced. threshold_used alone
+                    # records tau_abstain and silently omits tau_conf, the budget,
+                    # and whether any of them were ever tuned.
+                    "policy": {
+                        "tau_abstain": self.policy.tau_abstain,
+                        "tau_conf": self.policy.tau_conf,
+                        "budget_ratio": self.policy.budget_ratio,
+                        "source": self.policy.source,
+                        "is_tuned": self.policy.is_tuned,
+                    },
+                },
             )
 
         # 8. Optional Live Test Execution
@@ -294,17 +324,56 @@ class ConfTestEngine:
                 if test_run_payload:
                     crud.record_test_runs(db, commit_db_id, test_run_payload)
 
-                # Save Outcome
-                crud.save_outcome(
-                    db=db,
-                    commit_id=commit_db_id,
-                    actual_failures=run_res.failed_count,
-                    detected_failures=run_res.failed_count,
-                    missed_failures=0,
-                    full_duration=run_res.total_duration,
-                    selected_duration=run_res.total_duration,
-                    time_reduction_ratio=decision.estimated_time_saved_pct / 100.0,
-                )
+                # Save Outcome.
+                #
+                # This engine runs exactly one pass: the selected tests. When
+                # abstaining, "selected" is the whole suite, so the full-suite
+                # figures are observed and the outcome is verifiable. When it
+                # selects a strict subset, the unselected tests never ran, and
+                # three quantities are therefore unknown: how many failures the
+                # full suite would have shown, how many of them escaped, and how
+                # long it would have taken. Only a second, full run can settle
+                # them -- see tests/runner_service.py, which does exactly that.
+                #
+                # The previous version filled all three in anyway, recording
+                # missed_failures=0, full_duration=selected_duration, and the
+                # policy's *count*-based estimate in the time_reduction column.
+                # That turned every selective run into evidence of a perfect,
+                # free safety record. save_outcome now rejects those arguments
+                # unless ground_truth_complete says they were measured.
+                ran_full_suite = len(decision.selected_test_ids) >= total_tests > 0
+
+                if ran_full_suite:
+                    crud.save_outcome(
+                        db=db,
+                        commit_id=commit_db_id,
+                        detected_failures=run_res.failed_count,
+                        selected_duration=run_res.total_duration,
+                        ground_truth_complete=True,
+                        # The full suite ran, so it is its own ground truth:
+                        # nothing was withheld, hence no escapes and no saving.
+                        actual_failures=run_res.failed_count,
+                        missed_failures=0,
+                        full_duration=run_res.total_duration,
+                        time_reduction_ratio=0.0,
+                    )
+                else:
+                    crud.save_outcome(
+                        db=db,
+                        commit_id=commit_db_id,
+                        detected_failures=run_res.failed_count,
+                        selected_duration=run_res.total_duration,
+                        ground_truth_complete=False,
+                    )
+                    logger.warning(
+                        "Outcome for %s recorded as UNVERIFIED: ran %d of %d tests, so "
+                        "escaped failures and full-suite duration are unmeasured. Use "
+                        "RunnerService (which also runs the full suite) to obtain a "
+                        "verifiable safety outcome.",
+                        commit_sha[:8],
+                        len(decision.selected_test_ids),
+                        total_tests,
+                    )
 
         return {
             "commit_sha": commit_sha,

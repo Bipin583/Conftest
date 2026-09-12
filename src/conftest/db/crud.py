@@ -378,21 +378,68 @@ def get_decision_for_commit(db: Session, commit_id: int) -> Optional[SelectionDe
 def save_outcome(
     db: Session,
     commit_id: int,
-    actual_failures: int,
     detected_failures: int,
-    missed_failures: int,
-    full_duration: float,
     selected_duration: float,
-    time_reduction_ratio: float,
+    ground_truth_complete: bool,
+    actual_failures: Optional[int] = None,
+    missed_failures: Optional[int] = None,
+    full_duration: Optional[float] = None,
+    time_reduction_ratio: Optional[float] = None,
 ) -> Outcome:
-    """Store post-execution evaluation and savings audit."""
+    """
+    Store post-execution evaluation and savings audit.
+
+    Callers must state, via `ground_truth_complete`, whether the full suite ran.
+    The four full-suite-dependent arguments are then checked against that claim:
+    supplying them without the full suite is rejected rather than stored, and
+    omitting them with the full suite is rejected too. There is deliberately no
+    default for the escape count -- a caller that has not measured it cannot
+    accidentally record a zero.
+
+    Args:
+        detected_failures: Failures seen in the tests that actually ran.
+        selected_duration: Wall time of the tests that actually ran.
+        ground_truth_complete: True iff the full suite also ran.
+        actual_failures: Full-suite failure count. Required iff complete.
+        missed_failures: Escapes (actual - detected). Required iff complete.
+        full_duration: Full-suite wall time. Required iff complete.
+        time_reduction_ratio: Measured 1 - selected/full time. Required iff
+            complete. Must be a *time* ratio; a selected/total count ratio is a
+            different quantity and does not belong in this column.
+
+    Raises:
+        ValueError: if the supplied fields contradict `ground_truth_complete`.
+    """
+    verified_fields = {
+        "actual_failures": actual_failures,
+        "missed_failures": missed_failures,
+        "full_duration": full_duration,
+        "time_reduction_ratio": time_reduction_ratio,
+    }
+    if ground_truth_complete:
+        absent = sorted(name for name, val in verified_fields.items() if val is None)
+        if absent:
+            raise ValueError(
+                f"ground_truth_complete=True requires measured values for {absent}; "
+                "pass ground_truth_complete=False if the full suite did not run."
+            )
+    else:
+        supplied = sorted(name for name, val in verified_fields.items() if val is not None)
+        if supplied:
+            raise ValueError(
+                f"ground_truth_complete=False cannot record {supplied}: without a "
+                "full-suite run these are unobserved. A selective run cannot show "
+                "that an unselected test would have passed."
+            )
+
     outcome = Outcome(
         commit_id=commit_id,
-        actual_failures=actual_failures,
+        ground_truth_complete=ground_truth_complete,
         detected_failures=detected_failures,
+        selected_duration=selected_duration,
+        actual_failures=actual_failures,
         missed_failures=missed_failures,
         full_duration=full_duration,
-        selected_duration=selected_duration,
         time_reduction_ratio=time_reduction_ratio,
     )
     db.add(outcome)
@@ -408,24 +455,48 @@ def get_outcome_for_commit(db: Session, commit_id: int) -> Optional[Outcome]:
 
 
 def get_aggregate_metrics_summary(db: Session) -> Dict[str, Any]:
-    """Compute global aggregate metrics across all historical outcomes."""
+    """
+    Compute global aggregate metrics across historical outcomes.
+
+    Safety metrics are computed *only* over outcomes with
+    `ground_truth_complete`, because recall and missed-failure rate both divide
+    by a full-suite failure count that an unverified run never measured.
+    Unverified outcomes are counted and reported separately rather than folded
+    in at zero escapes, which would drive the aggregate recall towards 1.0 for
+    no reason other than that nobody looked.
+
+    Returns:
+        Aggregates over verified outcomes. The safety and saving figures are
+        None when no verified outcome exists -- an average over an empty set is
+        not zero, and a recall over no observations is not 1.0.
+    """
+    verified = Outcome.ground_truth_complete.is_(True)
+
+    total_outcomes = db.execute(select(func.count(Outcome.id))).scalar() or 0
     stmt = select(
-        func.count(Outcome.id).label("total_evaluated_commits"),
+        func.count(Outcome.id).label("verified_commits"),
         func.sum(Outcome.actual_failures).label("total_actual_failures"),
         func.sum(Outcome.detected_failures).label("total_detected_failures"),
         func.sum(Outcome.missed_failures).label("total_missed_failures"),
         func.sum(Outcome.full_duration).label("total_full_duration"),
         func.sum(Outcome.selected_duration).label("total_selected_duration"),
         func.avg(Outcome.time_reduction_ratio).label("avg_reduction_ratio"),
-    )
+    ).where(verified)
     row = db.execute(stmt).first()
-    if not row or not row.total_evaluated_commits:
+    verified_commits = (row.verified_commits if row else 0) or 0
+
+    if not verified_commits:
         return {
-            "total_commits": 0,
-            "failure_recall": 1.0,
-            "missed_failure_rate": 0.0,
-            "average_time_reduction": 0.0,
-            "total_hours_saved": 0.0,
+            "total_commits": total_outcomes,
+            "verified_commits": 0,
+            "unverified_commits": total_outcomes,
+            "total_actual_failures": None,
+            "total_detected_failures": None,
+            "total_missed_failures": None,
+            "failure_recall": None,
+            "missed_failure_rate": None,
+            "average_time_reduction": None,
+            "total_hours_saved": None,
         }
 
     total_actual = row.total_actual_failures or 0
@@ -434,17 +505,21 @@ def get_aggregate_metrics_summary(db: Session) -> Dict[str, Any]:
     full_sec = row.total_full_duration or 0.0
     sel_sec = row.total_selected_duration or 0.0
 
-    failure_recall = (total_detected / total_actual) if total_actual > 0 else 1.0
-    missed_rate = (total_missed / total_actual) if total_actual > 0 else 0.0
+    # With no failures in the verified window there is nothing to have caught or
+    # missed; a ratio there would be 0/0, not a perfect score.
+    failure_recall = round(total_detected / total_actual, 4) if total_actual > 0 else None
+    missed_rate = round(total_missed / total_actual, 4) if total_actual > 0 else None
     saved_hours = max(0.0, (full_sec - sel_sec) / 3600.0)
 
     return {
-        "total_commits": row.total_evaluated_commits,
+        "total_commits": total_outcomes,
+        "verified_commits": verified_commits,
+        "unverified_commits": total_outcomes - verified_commits,
         "total_actual_failures": total_actual,
         "total_detected_failures": total_detected,
         "total_missed_failures": total_missed,
-        "failure_recall": round(failure_recall, 4),
-        "missed_failure_rate": round(missed_rate, 4),
+        "failure_recall": failure_recall,
+        "missed_failure_rate": missed_rate,
         "average_time_reduction": round(row.avg_reduction_ratio or 0.0, 4),
         "total_hours_saved": round(saved_hours, 2),
     }

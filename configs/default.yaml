@@ -1,37 +1,14 @@
-# ConfTest Default Application Configuration
-
-system:
-  app_name: "ConfTest"
-  version: "0.1.0"
-  description: "Confidence-Calibrated Regression Test Selection with Selective Prediction"
-  debug: true
-
-database:
-  url: "sqlite:///./data/conftest.db"
-  echo: false
-  pool_pre_ping: true
-
-server:
-  host: "127.0.0.1"
-  port: 8000
-  workers: 1
-  reload: true
-
-selection:
-  default_risk_tolerance: 0.18
-  default_budget_ratio: 0.25
-  abstention_uncertainty_threshold: 0.15
-  min_confidence_threshold: 0.70
-  mandatory_allowlist_patterns:
-    - "tests/smoke/*"
-    - "tests/critical/*"
-
-models:
-  ensemble_size: 5
-  random_seeds: [42, 1337, 2024, 777, 999]
-  default_model_type: "lightgbm"
-  calibration_method: "isotonic"  # "isotonic" | "platt"
-
-logging:
-  level: "INFO"
-  format: "json"
+# Deprecated compatibility file
+#
+# ConfTest does not load this YAML file at runtime. Runtime settings are defined
+# by src/conftest/config.py and overridden with CONFTEST_* environment variables;
+# copy .env.example to .env for the complete list. Tuned decision thresholds
+# (tau_abstain, tau_conf, and budget_ratio) belong only to
+# models/policy_config.json, produced by scripts/tune_policy.py.
+#
+# This file remains as a pointer for old links. Do not add configuration values
+# here: they would be inert and could contradict the settings actually in force.
+configuration:
+  runtime_source: "src/conftest/config.py"
+  environment_template: ".env.example"
+  policy_source: "models/policy_config.json"

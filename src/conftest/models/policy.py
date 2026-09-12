@@ -50,6 +50,11 @@ class PolicyDecision:
         }
 
 
+# Marks thresholds that no tuning run produced. Kept as a sentinel rather than
+# an empty string so it shows up plainly in a persisted decision record.
+UNTUNED_SOURCE = "untuned_constructor_defaults"
+
+
 class SelectivePredictionPolicy:
     """Configurable Selective Prediction Decision Policy for RTS."""
 
@@ -60,9 +65,18 @@ class SelectivePredictionPolicy:
         budget_ratio: float = 0.25,
         ood_file_limit: int = 15,
         ood_churn_limit: int = 500,
+        source: str = UNTUNED_SOURCE,
     ):
         """
         Initialize policy parameters.
+
+        The constructor defaults are placeholders, not an operating point. Only
+        thresholds produced by scripts/tune_policy.py and loaded via `load()`
+        have a measured recall/reduction trade-off behind them; `source` records
+        which of the two you have. Four different abstention thresholds once
+        coexisted in this codebase -- 0.15 in config, 0.015 here, 0.030 in the
+        engine's fallback, 0.02 in the tuned artifact -- and nothing said which
+        was in force.
 
         Args:
             tau_abstain: Maximum allowed epistemic uncertainty std before abstaining.
@@ -70,12 +84,39 @@ class SelectivePredictionPolicy:
             budget_ratio: Maximum fraction of tests to run in fast mode (e.g. 0.25 = top 25%).
             ood_file_limit: Max changed files threshold before flagging as OOD refactoring.
             ood_churn_limit: Max lines churn threshold before flagging as OOD refactoring.
+            source: Provenance of these thresholds -- a tuning artifact path, or
+                UNTUNED_SOURCE when they are only the defaults above.
         """
         self.tau_abstain = tau_abstain
         self.tau_conf = tau_conf
         self.budget_ratio = budget_ratio
         self.ood_file_limit = ood_file_limit
         self.ood_churn_limit = ood_churn_limit
+        self.source = source
+
+    @property
+    def is_tuned(self) -> bool:
+        """True when these thresholds came from a tuning run rather than defaults."""
+        return self.source != UNTUNED_SOURCE
+
+    @classmethod
+    def untuned_always_abstain(cls, budget_ratio: float = 0.25) -> "SelectivePredictionPolicy":
+        """
+        Policy for when no tuned thresholds are available: always run everything.
+
+        Selecting a subset is only defensible at a threshold whose recall has
+        been measured. With no tuned artifact there is no such threshold, so the
+        safe action is the full suite -- not an arbitrary constant that happens
+        to permit fast mode. tau_conf > 1.0 is unreachable by any calibrated
+        probability, which makes abstention unconditional rather than merely
+        likely.
+        """
+        return cls(
+            tau_abstain=0.0,
+            tau_conf=1.01,
+            budget_ratio=budget_ratio,
+            source=UNTUNED_SOURCE,
+        )
 
     def evaluate_commit(
         self,
@@ -189,6 +230,7 @@ class SelectivePredictionPolicy:
             "budget_ratio": self.budget_ratio,
             "ood_file_limit": self.ood_file_limit,
             "ood_churn_limit": self.ood_churn_limit,
+            "source": self.source,
         }
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
@@ -203,6 +245,19 @@ class SelectivePredictionPolicy:
             raise FileNotFoundError(f"Policy config not found: {in_path}")
         with open(in_path, "r", encoding="utf-8") as f:
             cfg = json.load(f)
+        # A loaded config is tuned by definition; record where it came from so a
+        # decision can be traced back to the run that chose its thresholds. An
+        # older file without a `source` key still gets one, from its own path.
+        cfg.setdefault("source", str(in_path))
+        unknown = set(cfg) - {
+            "tau_abstain", "tau_conf", "budget_ratio",
+            "ood_file_limit", "ood_churn_limit", "source",
+        }
+        if unknown:
+            raise ValueError(
+                f"Policy config {in_path} has unrecognised keys {sorted(unknown)}; "
+                "refusing to load a policy whose thresholds may be misread."
+            )
         return cls(**cfg)
 
 

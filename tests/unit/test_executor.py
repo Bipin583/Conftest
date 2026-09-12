@@ -88,8 +88,43 @@ def test_runner_service_end_to_end(db_session: Session):
 
     assert metrics["exit_code"] == 0
     assert metrics["selected_count"] >= 1
-    assert metrics["actual_failures"] == 0
     assert metrics["outcome_id"] is not None
+
+    # A subset ran and no full-suite benchmark was requested, so the full-suite
+    # failure count is unobserved. It used to be reported as 0 by copying the
+    # selective run's own count, which made the escape count 0 by construction.
+    assert metrics["ground_truth_complete"] is False
+    assert metrics["actual_failures"] is None
+    assert metrics["missed_failures"] is None
+    assert metrics["time_reduction_ratio"] is None
+
+
+def test_runner_service_full_suite_benchmark_is_verified(db_session: Session):
+    """With the full suite as oracle, the safety fields become real measurements."""
+    repo = crud.create_repository(
+        db=db_session,
+        full_name="sample/test-runner-verified",
+        url="https://github.com/sample/test-app-verified",
+        local_path="./tests/sample_suite",
+    )
+    commit = crud.create_commit(
+        db=db_session, repository_id=repo.id, sha="f" * 40, timestamp=datetime.utcnow()
+    )
+
+    service = TestRunnerService(repo_root=".")
+    metrics = service.execute_and_evaluate(
+        db=db_session,
+        commit_id=commit.id,
+        repository_id=repo.id,
+        selected_node_ids=["tests/sample_suite/tests/test_auth.py::test_password_hashing"],
+        run_full_suite_benchmark=True,
+        timeout=60,
+    )
+
+    assert metrics["ground_truth_complete"] is True
+    assert metrics["actual_failures"] is not None
+    assert metrics["missed_failures"] is not None
+    assert metrics["time_reduction_ratio"] is not None
 
     # Check persisted runs in DB
     runs = crud.get_test_runs_for_commit(db_session, commit.id)

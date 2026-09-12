@@ -1,111 +1,90 @@
-# ConfTest Database Schema & Data Models
+# Database Schema and Evidence Semantics
 
-## 1. Overview
-ConfTest employs a relational schema designed with **SQLAlchemy 2.0**.
-- Default Engine: **SQLite with Write-Ahead Logging (WAL)** and foreign keys enforced via connection PRAGMAs.
-- Production/Cloud: PostgreSQL-compatible data types (`JSON`, `DateTime`, `Float`, `String(40)` for Git SHAs).
+`src/conftest/db/models.py` is the schema authority. ConfTest uses SQLAlchemy 2.0 and defaults to SQLite. `src/conftest/db/session.py` enables SQLite foreign keys and WAL mode and creates one request-scoped session for FastAPI.
 
-## 2. Table Specifications
+The configured `database_url` is passed to SQLAlchemy, but this repository's documented and exercised deployment path is SQLite. The use of portable-looking column types is not evidence of tested PostgreSQL compatibility.
 
-### 1. `repositories`
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto-increment | Internal repository identifier |
-| `full_name` | `VARCHAR(255)` | Unique, Not Null, Indexed | e.g. `pallets/flask` |
-| `url` | `VARCHAR(512)` | Not Null | GitHub / Remote Clone URL |
-| `language` | `VARCHAR(64)` | Default `'python'` | Repository primary language |
-| `default_branch` | `VARCHAR(64)` | Default `'main'` | Default branch name |
-| `local_path` | `VARCHAR(1024)` | Not Null | Absolute or relative local checkout path |
-| `created_at` | `TIMESTAMP` | Default UTC | Registration timestamp |
+## Entity relationships
 
-### 2. `commits`
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto-increment | Internal commit identifier |
-| `repository_id` | `INTEGER` | FK -> `repositories.id`, Cascade | Associated repository |
-| `sha` | `VARCHAR(40)` | Unique, Not Null, Indexed | Full 40-character Git SHA-1 |
-| `parent_sha` | `VARCHAR(40)` | Nullable | Parent Git SHA-1 |
-| `timestamp` | `TIMESTAMP` | Not Null, Indexed | Commit creation time (used for temporal split) |
-| `author_hash` | `VARCHAR(64)` | Nullable | Anonymized SHA-256 author identifier |
-| `message` | `TEXT` | Nullable | Git commit message |
-| `ci_status` | `VARCHAR(32)` | Default `'pending'` | Overall CI outcome: `passed`, `failed`, `error` |
-| `total_duration`| `FLOAT` | Default 0.0 | Full test suite duration in seconds |
+```text
+Repository 1---* Commit 1---* ChangedFile
+     |             | 1---* TestRun *---1 TestCase *---1 Repository
+     |             | 1---* FeatureRecord *---1 TestCase
+     |             | 1---* Prediction *---1 TestCase
+     |             | 1---0..1 SelectionDecision
+     |             ` 1---0..1 Outcome
+     `-------------* TestCase
+```
 
-### 3. `changed_files`
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto-increment | Internal diff record ID |
-| `commit_id` | `INTEGER` | FK -> `commits.id`, Cascade | Associated commit |
-| `file_path` | `VARCHAR(1024)` | Not Null | Relative path to modified file |
-| `change_type` | `VARCHAR(16)` | Default `'MODIFIED'` | `'ADDED'`, `'MODIFIED'`, `'DELETED'` |
-| `lines_added` | `INTEGER` | Default 0 | Added line count |
-| `lines_deleted`| `INTEGER` | Default 0 | Removed line count |
-| `cyclomatic_complexity` | `FLOAT` | Default 0.0 | Radon complexity delta |
+Deleting a repository cascades through commits and test cases; deleting a commit cascades through its dependent records.
 
-### 4. `test_cases`
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto-increment | Internal test case ID |
-| `repository_id` | `INTEGER` | FK -> `repositories.id`, Cascade | Associated repository |
-| `test_id` | `VARCHAR(1024)` | Not Null, Indexed | Unique node ID (e.g. `tests/test_x.py::test_y`) |
-| `test_path` | `VARCHAR(512)` | Not Null | Path to test file |
-| `test_function`| `VARCHAR(256)` | Not Null | Name of test function/method |
-| `framework` | `VARCHAR(32)` | Default `'pytest'` | Test framework |
-| `average_duration` | `FLOAT` | Default 0.0 | Historical running time in seconds |
-| `flaky_indicator` | `FLOAT` | Default 0.0 | Flakiness score $[0.0, 1.0]$ |
+## Tables
 
-### 5. `test_runs`
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto-increment | Execution instance ID |
-| `commit_id` | `INTEGER` | FK -> `commits.id`, Cascade | Evaluated commit |
-| `test_case_id` | `INTEGER` | FK -> `test_cases.id`, Cascade | Evaluated test case |
-| `status` | `VARCHAR(32)` | Not Null | `'PASSED'`, `'FAILED'`, `'SKIPPED'`, `'ERROR'` |
-| `duration` | `FLOAT` | Default 0.0 | Actual execution time in seconds |
-| `retry_count` | `INTEGER` | Default 0 | Retries before final status |
-| `source` | `VARCHAR(32)` | Default `'ci'` | `'ci'`, `'local'`, `'replay'` |
+### `repositories`
 
-### 6. `feature_records`
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto-increment | Feature vector record ID |
-| `commit_id` | `INTEGER` | FK -> `commits.id`, Cascade | Evaluated commit |
-| `test_case_id` | `INTEGER` | FK -> `test_cases.id`, Cascade | Evaluated test case |
-| `feature_vector` | `JSON` | Not Null | 32-element extracted feature dictionary |
+`id` integer primary key; unique indexed `full_name`; required `url`, `language` (default `python`), `default_branch` (default `main`), and `local_path`; `created_at` UTC application timestamp.
 
-### 7. `predictions`
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto-increment | Model output record ID |
-| `commit_id` | `INTEGER` | FK -> `commits.id`, Cascade | Evaluated commit |
-| `test_case_id` | `INTEGER` | FK -> `test_cases.id`, Cascade | Evaluated test case |
-| `raw_score` | `FLOAT` | Not Null | Uncalibrated failure score $[0, 1]$ |
-| `uncertainty` | `FLOAT` | Not Null | Epistemic disagreement $\sigma$ |
-| `calibrated_confidence` | `FLOAT` | Not Null | Post-hoc calibrated probability $P(\text{fail})$ |
-| `model_version` | `VARCHAR(64)` | Not Null | Model tag (e.g. `'lgbm_ensemble_v1.0'`) |
+### `commits`
 
-### 8. `selection_decisions`
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto-increment | Decision record ID |
-| `commit_id` | `INTEGER` | FK -> `commits.id`, Unique | Evaluated commit |
-| `mode` | `VARCHAR(32)` | Not Null | `'FAST_SELECTED'` or `'SAFE_FULL_SUITE'` |
-| `abstained` | `BOOLEAN` | Not Null | True if full suite was triggered due to uncertainty |
-| `uncertainty_score` | `FLOAT` | Not Null | Max/Mean epistemic uncertainty |
-| `threshold_used` | `FLOAT` | Not Null | Configured $\tau_{\text{abstain}}$ |
-| `selected_count` | `INTEGER` | Not Null | Number of tests selected |
-| `total_count` | `INTEGER` | Not Null | Total tests in test suite |
-| `estimated_saving` | `FLOAT` | Default 0.0 | Estimated time reduction ratio |
-| `reasons` | `JSON` | Nullable | Traceable SHAP and dependency rationale |
+`id`; indexed `repository_id`; globally unique indexed `sha`; nullable `parent_sha`, `author_hash`, and `message`; required indexed `timestamp`; `ci_status` (default `pending`); `total_duration` (default `0.0`); `created_at`.
 
-### 9. `outcomes`
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto-increment | Outcome audit record ID |
-| `commit_id` | `INTEGER` | FK -> `commits.id`, Unique | Evaluated commit |
-| `actual_failures` | `INTEGER` | Default 0 | Total real failing tests |
-| `detected_failures` | `INTEGER` | Default 0 | Real failing tests captured in selected set |
-| `missed_failures` | `INTEGER` | Default 0 | Failing tests missed by selected set |
-| `full_duration` | `FLOAT` | Default 0.0 | Full suite runtime in seconds |
-| `selected_duration`| `FLOAT` | Default 0.0 | Selected suite runtime in seconds |
-| `time_reduction_ratio` | `FLOAT` | Default 0.0 | $1 - \frac{\text{selected}}{\text{full}}$ |
+The global SHA uniqueness means the same Git object cannot currently be represented under two repository rows.
+
+### `changed_files`
+
+`id`; indexed `commit_id`; required `file_path`; `change_type` (default `MODIFIED`); `lines_added`, `lines_deleted`, and `cyclomatic_complexity` with zero defaults.
+
+### `test_cases`
+
+`id`; indexed `repository_id`; indexed `test_id`; required `test_path` and `test_function`; `framework` (default `pytest`); `average_duration` and `flaky_indicator`; `created_at`. The pair `(repository_id, test_id)` is unique.
+
+### `test_runs`
+
+`id`; indexed `commit_id` and `test_case_id`; required `status`; `duration`; `retry_count`; `source` (default `ci`); `executed_at`. Expected status vocabulary in current code is `PASSED`, `FAILED`, `SKIPPED`, or `ERROR`; source examples are `ci`, `local`, and `replay`.
+
+### `feature_records`
+
+`id`; indexed `commit_id` and `test_case_id`; required JSON `feature_vector`; `created_at`. `(commit_id, test_case_id)` is unique. The JSON object must follow the [canonical feature schema](feature_schema.md); the database does not enforce names or array order.
+
+### `predictions`
+
+`id`; indexed `commit_id` and `test_case_id`; required `raw_score`, `uncertainty`, `calibrated_confidence`, and `model_version`; `created_at`. `(commit_id, test_case_id)` is unique.
+
+### `selection_decisions`
+
+`id`; unique indexed `commit_id`; required `mode`, `abstained`, `uncertainty_score`, `threshold_used`, selected/total counts; `estimated_saving`; nullable JSON `reasons`; `created_at`.
+
+`estimated_saving` is currently populated as test-count reduction (`1 - selected_count / total_count`). Despite the historical column name, it is not measured duration saving.
+
+### `outcomes`
+
+`id`; unique indexed `commit_id`; indexed `ground_truth_complete`; always-observable `detected_failures` and `selected_duration`; nullable `actual_failures`, `missed_failures`, `full_duration`, and `time_reduction_ratio`; `created_at`.
+
+The nullable fields are measurements only when `ground_truth_complete` is true. A selective run observes executed tests but cannot determine whether an omitted test would have failed or how long the complete suite would have taken. Consumers must not coerce null missed failures or savings to zero.
+
+## Integrity constraints
+
+The schema enforces one feature record and prediction per `(commit, test)`, one decision and outcome per commit, and one test ID per repository. Foreign keys use `ON DELETE CASCADE`; SQLite enforcement depends on the connection hook in `session.py` and must remain enabled.
+
+The ORM does not add database `CHECK` constraints for status vocabulary, probabilities, counts, or mode strings. Application schemas and services perform part of that validation, so direct database writers must preserve the same invariants.
+
+## Initialization and configuration
+
+Initialize the configured database with:
+
+```bash
+python -m conftest.db.init_db
+```
+
+The default URL and override key are defined by `src/conftest/config.py` and `.env.example`; use `CONFTEST_DATABASE_URL`. The API initializes tables during startup, but explicit initialization is useful for CLI-only workflows.
+
+## Evidence-safe querying
+
+Safety and efficiency aggregates require different evidence:
+
+- Count reduction comes from `selection_decisions`.
+- Observed selected duration comes from `outcomes.selected_duration`.
+- Missed failures, full duration, and wall-clock reduction require `outcomes.ground_truth_complete = true`.
+- An empty aggregate is absent evidence, not zero; the analytics API returns null for averages or missed failures it cannot establish.
+
+Back up the SQLite database together with model/policy identifiers if decisions must remain auditable. A stored prediction without its corresponding artifact version and feature contract is not independently reproducible.

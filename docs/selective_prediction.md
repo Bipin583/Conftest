@@ -1,27 +1,69 @@
-# ConfTest Selective Prediction Policy & Fallback Specification
+# Selective Prediction Policy
 
-## 1. The Selective Prediction Paradigm in CI/CD
-Standard machine learning models operate under a **forced-choice assumption**: the model is required to make a test selection prediction on every commit, even when it is uncertain. In mission-critical CI/CD regression testing, a single missed test failure allows a regression bug to escape to production, causing outages, customer downtime, and expensive hotfixes.
+ConfTest can decline to choose a subset. This converts model confidence and disagreement into one of two actions:
 
-ConfTest introduces **Confidence-Aware Selective Regression Test Selection** based on Chow's Rule (1970) and Geifman & El-Yaniv (2017):
-$$\text{Decision}(c) = \begin{cases} \text{FAST\_SELECTED } (S \subset \mathcal{T}) & \text{if } U(c) \le \tau_{\text{abstain}} \land \hat{p}_{\max}(c) \ge \tau_{\text{conf}} \land \neg \text{is\_OOD}(c) \\ \text{SAFE\_FULL\_SUITE } (\mathcal{T}) & \text{otherwise (Abstain \& Run Full Suite)} \end{cases}$$
+```text
+FAST_SELECTED    rank tests and take a budget-limited subset
+SAFE_FULL_SUITE  abstain from subsetting and retain every discovered test
+```
 
----
+`SAFE_FULL_SUITE` reduces the risk introduced by selection, but neither branch is a formal bug-free guarantee.
 
-## 2. Decision Triggers & Safety Guarantees
+## Executable decision rule
 
-| Trigger Criterion | Condition | Action | Rationale |
-| :--- | :--- | :--- | :--- |
-| **Epistemic Disagreement** | $U(c) = \max_t \sigma(c, t) > \tau_{\text{abstain}}$ | `SAFE_FULL_SUITE` | 5 ensemble models disagree on failure risk due to sparse training coverage in feature space. |
-| **Low Failure Confidence** | $\max_t \hat{p}(c, t) < \tau_{\text{conf}}$ | `SAFE_FULL_SUITE` | No single test in the candidate set exhibits clear regression correlation; full suite execution prevents blind misses. |
-| **Architectural OOD Diff** | $\text{files} > 15 \lor \text{churn} > 500$ | `SAFE_FULL_SUITE` | Large refactoring diffs alter systemic coupling beyond localized AST/diff feature representations. |
-| **High-Confidence Risk** | Low $\sigma$, High $\hat{p}$, in-distribution | `FAST_SELECTED` | Selects top budget-matched tests ($K = \lceil N \times \text{budget} \rceil$) saving 75%+ CI time. |
+`src/conftest/models/policy.py::SelectivePredictionPolicy` receives calibrated test scores, per-test ensemble standard deviations, diff size, and a budget. It computes maximum calibrated score and maximum uncertainty and abstains if any of these conditions holds:
 
----
+- maximum uncertainty exceeds `tau_abstain`;
+- maximum score is below `tau_conf`; or
+- changed-file count or total churn exceeds the configured out-of-distribution limit.
 
-## 3. Cost-Benefit & CI Utility Formulation
+On abstention, all candidate test IDs are returned. In fast mode, scores are sorted descending and the first `max(1, int(total_tests * budget_ratio))` IDs are selected. This is floor-based integer conversion with a minimum of one—not a ceiling rule.
 
-Let $T_{\text{full}}$ be full-suite runtime, $T_{\text{sel}}$ be selective runtime, $\lambda_{\text{sec}}$ be cloud runner cost per second (\$0.01/sec), and $\lambda_{\text{escape}}$ be escaped bug penalty (\$50.00/bug):
-$$\text{Net Utility}(c) = \underbrace{(T_{\text{full}}(c) - T_{\text{sel}}(c)) \cdot \lambda_{\text{sec}}}_{\text{Gross Compute Savings}} - \underbrace{\text{Missed Failures}(c) \cdot \lambda_{\text{escape}}}_{\text{Escaped Regression Penalty}}$$
+Thresholds and diff limits for the shipped operating point are loaded from `models/policy_config.json`. The values in the Python constructor are explicitly untuned placeholders. When no tuned artifact is available, the maintained fallback is an always-abstain policy rather than arbitrary subset selection.
 
-Optimizing $\tau_{\text{abstain}}$ on validation commits guarantees maximal compute savings while maintaining zero escaping defects.
+## Tuning protocol
+
+`scripts/tune_policy.py` searches candidate policy settings on the validation split. Policy selection and model evaluation must remain separate:
+
+1. fit the base ensemble on training data;
+2. fit/select calibration on validation data;
+3. tune the policy on validation commits against a named objective and constraints;
+4. evaluate the frozen artifacts once on held-out test commits.
+
+Choosing thresholds from held-out outcomes would leak evaluation information and overstate generalization. Use the exact artifact producer:
+
+```bash
+python scripts/tune_policy.py
+```
+
+## Committed held-out outcomes
+
+At the shipped operating point, `reports/baseline_comparison.csv` records 183 held-out commits (86,469 commit-test rows):
+
+| Metric | Observed result |
+|---|---:|
+| Failure recall | 100.00% |
+| Escaped commits | 0 of 183 |
+| Test-execution reduction | 3.11% |
+| Abstention rate | 97.81% |
+| Measured wall-clock reduction | 0.0% |
+
+A validation-selected higher-reduction operating point reached 32.85% execution reduction but only 87.69% held-out failure recall and 15 escaped commits, failing the project's 95% recall gate. These comparisons demonstrate why reduction alone is not the deployment objective.
+
+The zero observed escapes at the shipped point mean only that none occurred in this committed held-out evaluation. The result is coupled to very high abstention and cannot be generalized into “zero escapes guaranteed.” Reports also predate the effective row-bagging fix; see [Uncertainty estimation](uncertainty_estimation.md).
+
+## Metric meanings
+
+- **Failure recall**: detected failing tests divided by all failing tests in records with complete ground truth.
+- **Escaped commit**: a commit for which at least one failing test was omitted.
+- **Test-execution reduction**: reduction in number of executed tests; it assumes no duration weighting.
+- **Wall-clock reduction**: reduction computed from measured durations where both selected and full-suite durations are available.
+- **Abstention rate**: fraction of commits assigned `SAFE_FULL_SUITE`.
+
+Code fields named `estimated_time_saved_pct` or `estimated_saving` currently carry a count reduction in the selection path. Interfaces and papers must not relabel that value as observed time saving.
+
+## Operational interpretation
+
+A deployment should use a policy only with the ensemble and calibrator for which it was tuned, retain mandatory tests outside the learned subset where required, and run periodic complete-suite audits to measure misses. Changing the dataset, feature schema, ensemble, calibrator, budget, or risk requirement invalidates the existing operating-point evidence and requires retuning and reevaluation.
+
+See [Statistical methodology](statistical_methodology.md), [Economic analysis](economic_cost_benefit.md), and [Limitations](limitations.md).
