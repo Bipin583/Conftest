@@ -51,6 +51,28 @@ models/policy_config.json
 
 If a deployment stores artifacts outside Git, retrieve them through an authenticated, integrity-checked step before selection. Do not replace absent artifacts with sample scores.
 
+## Read-only AI failure analysis
+
+[`.github/workflows/ai-failure-analysis.yml`](../.github/workflows/ai-failure-analysis.yml) is an optional privileged follow-up workflow. After `ConfTest Regression Test Selection CI` fails for a pull request, it downloads that run's GitHub-generated log archive, keeps bounded failure context, redacts credential-like values, requests an advisory diagnosis from Anthropic, and creates or updates one marked pull-request comment.
+
+Before enabling it:
+
+1. Create an Anthropic API key and store it in the repository's **Settings > Secrets and variables > Actions** as `ANTHROPIC_API_KEY`. Never place the key in source, workflow YAML, an issue, or a pull-request comment.
+2. Merge the follow-up workflow and `scripts/analyze_ci_failure.py` into the repository's default branch. GitHub only triggers a `workflow_run` workflow when its definition exists on the default branch.
+3. Keep the configured model as `claude-sonnet-5`, or review and test any deliberate model change in the trusted workflow definition.
+
+The workflow has `actions: read`, `contents: read`, and `pull-requests: write`. It checks out only the default branch with persisted credentials disabled; it never checks out or executes the failed pull-request head. The write permission is used only to create or update the advisory comment. The original CI conclusion remains failed.
+
+### Data and threat model
+
+Pull-request code and all failed-run logs are untrusted. The analyzer reads ZIP members in memory without extraction, rejects unsafe member paths and non-regular entries, enforces compressed, per-file, file-count, uncompressed, and prompt-size bounds, and keeps only nearby failure diagnostics. It removes the configured GitHub and Anthropic secrets plus common token, authorization-header, assignment, URL-credential, and secret-query forms before calling `https://api.anthropic.com/v1/messages`.
+
+The bounded redacted evidence, repository name, pull-request number, failed-run URL, and head SHA are sent to Anthropic. Logs can still contain project data that generic redaction does not recognize; do not enable the feature for repositories whose CI output must not leave GitHub. Fork logs are treated with the same hostile-data rules, and no pull-request cache or artifact is executed or trusted.
+
+Model output is text only. It is never executed, applied, committed, or pushed, and it cannot change tests or the workflow result. Every suggestion requires developer inspection and approval. If downloading logs, parsing the archive, or calling Anthropic fails, the analyzer step fails rather than inventing a diagnosis.
+
+Successful runs, cancelled runs, manual/non-pull-request runs, and failed runs without an associated pull request do not invoke Anthropic. Rerunning analysis updates the existing `<!-- conftest-ai-failure-analysis -->` comment instead of adding duplicates.
+
 ## Webhook mode
 
 Configure a repository webhook with:

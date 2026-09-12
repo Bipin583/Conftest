@@ -48,6 +48,10 @@ python scripts/select_tests.py --repo-path tests/sample_suite --commit-sha HEAD 
 
 Add `--execute` to run the selected or fallback suite, `--persist-db` to record the decision, and `--output-json reports/local_selection.json` to save the response. See the [user manual](docs/user_manual.md) for artifact requirements and expected behavior.
 
+## GitHub Actions
+
+The pull-request workflow runs ConfTest and reports its selection result. An optional read-only follow-up can analyze failed CI logs with Anthropic and post one advisory pull-request comment. To enable it, add `ANTHROPIC_API_KEY` as a GitHub Actions repository secret and merge `.github/workflows/ai-failure-analysis.yml` into the default branch. The analyzer checks out no pull-request code, sends only bounded and redacted log evidence, and cannot execute suggestions or modify source. Every proposed fix requires human review. See [GitHub integration](docs/github_integration.md#read-only-ai-failure-analysis) for permissions, external-data handling, fork security, and activation details.
+
 ## Services
 
 ```bash
