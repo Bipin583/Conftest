@@ -5,9 +5,11 @@ Comprehensive Integration and Unit tests for FastAPI REST Endpoints.
 import json
 
 from fastapi.testclient import TestClient
+import numpy as np
 import pytest
 
 from conftest.features.pipeline import FEATURE_NAMES
+from conftest.models.ensemble import EnsembleUncertaintyPredictor
 
 
 def test_root_endpoint(client: TestClient):
@@ -83,8 +85,20 @@ def test_select_endpoint_fast_and_fallback(client: TestClient):
     assert "🛡️ ConfTest" in data["markdown_summary"]
 
 
-def test_explain_endpoint_shap_and_rules(client: TestClient):
-    """Verify POST /api/v1/explain returns SHAP drivers and developer cards."""
+def test_explain_endpoint_shap_and_rules(client: TestClient, tmp_path, monkeypatch):
+    """Verify POST /api/v1/explain uses a serving ensemble and returns its SHAP drivers."""
+    from conftest.api.routes import explain as route
+
+    rng = np.random.RandomState(42)
+    X = rng.randn(40, len(FEATURE_NAMES)).astype(np.float32)
+    y = np.array([0, 1] * 20)
+    ensemble_dir = tmp_path / "ensemble"
+    ensemble = EnsembleUncertaintyPredictor(seeds=[42], n_estimators=5)
+    ensemble.train(X_train=X, y_train=y)
+    ensemble.save_ensemble(str(ensemble_dir))
+    monkeypatch.setattr(route.settings, "ensemble_path", ensemble_dir)
+    monkeypatch.setattr(route, "_explainer_cache", {})
+
     # Build 32-feature vector dict
     dummy_feats = {name: 0.0 for name in FEATURE_NAMES}
     dummy_feats["dep_is_direct_import"] = 1.0

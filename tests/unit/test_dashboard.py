@@ -62,21 +62,22 @@ def test_load_shap_report_structure():
     assert "mean_abs_shap" in data["global_shap_importance"][0]
 
 
-def test_get_cached_engine_initialization():
+def test_get_cached_engine_initialization(fake_root):
     """
-    Verify get_cached_engine returns functional ConfTestEngine.
+    Verify get_cached_engine remains safe without generated model artifacts.
 
-    The engine must come up whether or not a calibrator was fitted. This
-    previously asserted `engine.calibrator is not None`, which pinned the presence
-    of `models/calibrator.joblib` rather than anything about the engine -- and the
-    calibration selection now declines to fit one whenever no method's ECE gain
-    clears the noise in the measurement, which is a legitimate outcome the engine
-    handles by falling back to identity calibration.
+    Ensemble and calibrator artifacts are intentionally ignored build products, so
+    a clean checkout initializes the documented heuristic and identity-calibration
+    fallbacks. Without a tuned policy artifact, subset selection must remain
+    disabled through the unconditional-abstention policy.
     """
     engine = get_cached_engine()
     assert engine is not None
-    assert engine.ensemble is not None, "the ensemble is what the engine cannot do without"
-    assert engine.policy is not None, "and the abstention policy, which reads confidence"
+    assert engine.ensemble is None
+    assert engine.calibrator is None
+    assert engine.policy is not None
+    assert engine.policy.is_tuned is False
+    assert engine.policy.tau_conf > 1.0
 
 
 # --------------------------------------------------------------------------
