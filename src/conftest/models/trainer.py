@@ -7,7 +7,7 @@ and exports serialized model checkpoints and training diagnostic reports.
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
@@ -22,11 +22,35 @@ from sklearn.metrics import (
     log_loss,
 )
 
+from conftest.config import PROJECT_ROOT
 from conftest.features.pipeline import FEATURE_NAMES
 from conftest.models.lightgbm_model import LightGBMTestPredictor
 from conftest.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+PRODUCED_BY = "python scripts/train_model.py"
+
+
+def _portable_path(path: Path) -> str:
+    """
+    Render a path so the report stays readable in someone else's checkout.
+
+    Reports are read long after they are written, often on another machine.
+    Recording the absolute path bakes in one filesystem: this repository
+    carries a training report whose `model_file` is
+    `models/...` under a `Desktop/main project/` checkout that does
+    not exist here, so the one field that says which artifact the metrics
+    describe points at nothing. Paths inside the project are therefore stored
+    relative to the project root, in POSIX form; anything genuinely outside it
+    keeps its absolute path, because a relative path to an unrelated location
+    would be worse than an honest absolute one.
+    """
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        return resolved.as_posix()
 
 
 def prepare_feature_arrays(
@@ -50,7 +74,7 @@ def evaluate_predictions(
     y_true: np.ndarray,
     y_prob: np.ndarray,
     threshold: float = 0.5,
-) -> Dict[str, float]:
+) -> Dict[str, Optional[float]]:
     """
     Compute comprehensive scientific evaluation metrics for imbalanced test failure prediction.
 
@@ -61,39 +85,55 @@ def evaluate_predictions(
 
     Returns:
         Dictionary containing Precision, Recall, F1, PR-AUC, ROC-AUC, Brier Score, and Log Loss.
+        A metric that is undefined for the given inputs is None, never a
+        substitute value -- callers that report it must handle null.
+
+    Raises:
+        ValueError: propagated from scikit-learn if a metric cannot be computed
+            for a reason other than a single-class y_true.
     """
+    y_true = np.asarray(y_true).astype(int)
+    y_prob = np.asarray(y_prob).astype(float)
     y_pred = (y_prob >= threshold).astype(int)
     n_pos = int(np.sum(y_true == 1))
+    single_class = n_pos == 0 or n_pos == len(y_true)
 
     # Metrics computation with safe division
     prec = precision_score(y_true, y_pred, zero_division=0)
     rec = recall_score(y_true, y_pred, zero_division=0)
     f1 = f1_score(y_true, y_pred, zero_division=0)
 
-    try:
-        pr_auc = average_precision_score(y_true, y_prob) if n_pos > 0 else 0.0
-    except Exception:
-        pr_auc = 0.0
+    # The degenerate cases below are guarded by n_pos, not by try/except.
+    #
+    # These three used to sit under `except Exception`, each with a plausible
+    # stand-in: pr_auc 0.0, roc_auc 0.5, log_loss 0.0. That swallowed real
+    # failures as if they were degenerate inputs. It was not hypothetical:
+    # log_loss was called with `eps=1e-7`, a keyword scikit-learn removed in
+    # 1.5, so on any modern sklearn it raised TypeError on every call and every
+    # training report published "log_loss": 0.0 -- a number no computation had
+    # produced. A metric that cannot be computed is reported as None (JSON
+    # null), never as a value; anything unexpected now propagates.
+    pr_auc = 0.0 if n_pos == 0 else float(average_precision_score(y_true, y_prob))
+    roc_auc = 0.5 if single_class else float(roc_auc_score(y_true, y_prob))
+    brier = float(brier_score_loss(y_true, y_prob))
 
-    try:
-        roc_auc = roc_auc_score(y_true, y_prob) if (n_pos > 0 and n_pos < len(y_true)) else 0.5
-    except Exception:
-        roc_auc = 0.5
-
-    brier = brier_score_loss(y_true, y_prob)
-    try:
-        lloss = log_loss(y_true, y_prob, eps=1e-7)
-    except Exception:
-        lloss = 0.0
+    if single_class:
+        # Cross-entropy against a constant label vector is not informative, and
+        # sklearn cannot infer both classes from y_true alone.
+        lloss: Optional[float] = None
+    else:
+        # Clipping replaces the removed `eps` kwarg: it keeps log(0) out of the
+        # sum for probabilities that saturate at exactly 0 or 1.
+        lloss = float(log_loss(y_true, np.clip(y_prob, 1e-7, 1.0 - 1e-7), labels=[0, 1]))
 
     return {
         "precision": round(float(prec), 4),
         "recall": round(float(rec), 4),
         "f1_score": round(float(f1), 4),
-        "pr_auc": round(float(pr_auc), 4),
-        "roc_auc": round(float(roc_auc), 4),
-        "brier_score": round(float(brier), 4),
-        "log_loss": round(float(lloss), 4),
+        "pr_auc": round(pr_auc, 4),
+        "roc_auc": round(roc_auc, 4),
+        "brier_score": round(brier, 4),
+        "log_loss": None if lloss is None else round(lloss, 4),
         "positive_samples": n_pos,
         "total_samples": len(y_true),
     }
@@ -176,9 +216,11 @@ class ModelTrainer:
         # Save training report JSON
         report = {
             "model_version": self.model_version,
-            "trained_at": datetime.utcnow().isoformat(),
+            "trained_at": datetime.now(timezone.utc).isoformat(),
             "random_seed": self.random_seed,
-            "model_file": model_path,
+            "produced_by": PRODUCED_BY,
+            "model_file": _portable_path(Path(model_path)),
+            "model_file_relative_to": "project_root",
             "training_diagnostics": train_diag,
             "validation_metrics": val_metrics,
             "test_metrics": test_metrics,

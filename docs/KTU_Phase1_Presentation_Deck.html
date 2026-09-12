@@ -196,7 +196,7 @@
                         <li><strong class="danger">The CI/CD Bottleneck:</strong> In modern software engineering, test suites grow to thousands of tests, taking <strong>30 to 60+ minutes per pull request</strong>.</li>
                         <li><strong class="danger">Huge Cloud Compute Costs:</strong> A 40-engineer team burns over <strong>150,000 CI runner minutes/month</strong>, costing thousands of dollars on GitHub Actions / AWS CodeBuild.</li>
                         <li><strong class="danger">Context-Switching & Slow Feedback:</strong> Developers must wait nearly an hour to know if a small 10-line pull request broke anything.</li>
-                        <li><strong class="highlight">Core Need:</strong> An intelligent engine that safely executes only the 10–20% of tests impacted by the code change while guaranteeing zero broken builds escape into production.</li>
+                        <li><strong class="highlight">Core Need:</strong> An intelligent engine that reduces test execution while conservatively falling back to the full suite when confidence is insufficient.</li>
                     </ul>
                 `
             },
@@ -213,7 +213,7 @@
                         <div class="card">
                             <h3 class="highlight">The ConfTest Research Novelty</h3>
                             <p>ConfTest introduces <strong class="highlight">Confidence-Calibrated Selective Prediction</strong>.</p>
-                            <p>When the model's epistemic uncertainty exceeds a safety budget &tau;, it <strong>ABSTAINS</strong> and triggers an automated full test suite fallback, providing a statistical safety guarantee against missed defects.</p>
+                            <p>When the model's epistemic uncertainty exceeds a tuned budget &tau;, it <strong>ABSTAINS</strong> and triggers an automated full test suite fallback. The zero-escape result is observed on the held-out sample, not guaranteed for future commits or unseen repositories.</p>
                         </div>
                     </div>
                 `
@@ -283,7 +283,11 @@
                         </li>
                         <li><strong>Expected Calibration Error (ECE):</strong>
                             <br>$$ECE = \\sum_{k=1}^K \\frac{|B_k|}{N} |\\text{acc}(B_k) - \\text{conf}(B_k)|$$
-                            <br>Achieved <strong>68% reduction in ECE</strong> over raw uncalibrated GBDTs.
+                            <br>Measured on 83,417 validation rows: ECE <strong>0.0390 &rarr; 0.0242</strong>
+                            at $T^* = 0.7941$ (paired improvement 0.0148, 95% CI [0.0030, 0.0393],
+                            bootstrapped by mutant). $T^* < 1$, so the ensemble is <em>under</em>-confident
+                            here. Isotonic regression was fitted and rejected: lower mean ECE (0.0166) but
+                            worst-bin error 0.1235 &rarr; 0.2098.
                         </li>
                         <li><strong>Selective Decision Rule:</strong>
                             <br>$\\text{Decision}(\\Delta C) = \\text{ABSTAIN}$ if $\\max_i U(X_i) > \\tau_{\\text{abstain}}$, else $\\text{SELECTIVE RUN}$.
@@ -296,18 +300,26 @@
                 tag: "Evaluation Results",
                 body: `
                     <div class="card">
-                        <p><strong>Evaluation across 450 Commits / 50 Test Suites:</strong></p>
+                        <p><strong>183 held-out commits / 86,469 executed commit-test pairs</strong>
+                        (<code>reports/baseline_comparison.csv</code>):</p>
                         <table style="width:100%; border-collapse: collapse; margin-top: 10px; font-size: 10pt;">
                             <tr style="border-bottom: 1px solid var(--border); color: var(--accent);">
-                                <th>Strategy / Baseline</th><th>Test Reduction</th><th>Time Saved</th><th>Failure Recall</th>
+                                <th>Strategy / Baseline</th><th>Test Red.</th><th>Time Saved</th><th>Failure Recall</th><th>Escaped</th>
                             </tr>
-                            <tr><td>1. Retest-All (Full Suite)</td><td>0.0%</td><td>0.0%</td><td>100.0%</td></tr>
-                            <tr><td>2. Random Selection (50%)</td><td>49.6%</td><td>50.0%</td><td>42.9%</td></tr>
-                            <tr><td>3. Changed-File Match</td><td>94.9%</td><td>94.8%</td><td>62.8%</td></tr>
-                            <tr><td>4. Static Dependency RTS</td><td>93.4%</td><td>93.2%</td><td>67.9%</td></tr>
-                            <tr><td>6. Uncalibrated GBDT (Meta PTS)</td><td>95.2%</td><td>95.1%</td><td>62.8%</td></tr>
-                            <tr style="color: #34d399; font-weight: bold;"><td>8. Proposed ConfTest</td><td>92.4%</td><td>92.2%</td><td>69.4% (+ Abstentions)</td></tr>
+                            <tr><td>1. Retest-All (Full Suite)</td><td>0.0%</td><td>0.0%</td><td>100.0%</td><td>0</td></tr>
+                            <tr><td>2. Random-K (25%)</td><td>75.1%</td><td>78.7%</td><td>25.2%</td><td>133</td></tr>
+                            <tr><td>3. Changed-File Match</td><td>83.6%</td><td>86.1%</td><td>42.3%</td><td>69</td></tr>
+                            <tr><td>4. Static Dependency RTS</td><td>75.6%</td><td>68.2%</td><td>38.6%</td><td>94</td></tr>
+                            <tr><td>5. Historical Failure Prior</td><td>75.1%</td><td>70.0%</td><td>48.4%</td><td>99</td></tr>
+                            <tr><td>6. Uncalibrated GBDT</td><td>75.1%</td><td>27.7%</td><td>51.8%</td><td>69</td></tr>
+                            <tr><td>7. Calibrated, no abstention</td><td>75.1%</td><td>27.7%</td><td>51.8%</td><td>69</td></tr>
+                            <tr style="color: #34d399; font-weight: bold;"><td>8. Proposed ConfTest</td><td>3.1%</td><td>0.0%</td><td>100.0%</td><td>0</td></tr>
                         </table>
+                        <p style="font-size: 9pt; margin-top: 8px;">Read this honestly: ConfTest is the only
+                        row with zero escapes <em>and</em> the row that saves least, because it abstains on
+                        97.81% of commits. Rows 6 and 7 are identical because temperature scaling is monotone
+                        and cannot reorder a top-$k$ ranking. Row 6 cuts test <em>count</em> by 75.1% but
+                        wall-clock by 27.7% &mdash; a budget in test count is not a budget in time.</p>
                     </div>
                 `
             },
@@ -316,14 +328,28 @@
                 tag: "Statistical Validation",
                 body: `
                     <ul>
-                        <li><strong class="highlight">Wilcoxon Signed-Rank Test:</strong>
-                            <br>$W = 626,930.0$, $p = 0.000000$ ($p < 0.01$). Proves that calibrated probabilities are statistically significantly more accurate than raw classifier scores.
+                        <li><strong class="highlight">Bootstrap intervals, resampled by commit:</strong>
+                            <br>2,000 resamples with the <em>commit</em> as the unit, because 86,469 rows are
+                            not independent. Failure recall [100.0%, 100.0%] over the $n = 135$ commits with a
+                            failure. Wall-clock reduction mean 1.05%, CI [0.25%, 2.10%], <strong>median
+                            &minus;0.0%</strong> &mdash; the typical commit saves nothing.
                         </li>
-                        <li><strong class="highlight">Cliff's Delta Effect Size:</strong>
-                            <br>Quantifies the non-parametric separation between calibrated and uncalibrated models without making Gaussian distribution assumptions.
+                        <li><strong class="highlight">Cliff's Delta, both directions:</strong>
+                            <br>On failure recall, 0.5111 to 0.9852 against the subset baselines (large). On
+                            time reduction, <strong>&minus;0.906 to &minus;0.998</strong>: significantly worse
+                            on savings than every strategy it beats on recall. Showing only the recall side
+                            would be cherry-picking.
                         </li>
-                        <li><strong class="highlight">Strict Anti-Leakage Temporal Splitting:</strong>
-                            <br>Chronological 70% Train / 15% Calibration / 15% Test partitioning across all benchmark datasets.
+                        <li><strong class="highlight">The pre-registered 95% recall floor is not met:</strong>
+                            <br>The validation-picked threshold gives 32.85% reduction at 96.02% recall, but on
+                            held-out data the same threshold gives 87.69% recall with 15 escaped commits &mdash;
+                            an 8.33 pp generalization gap. <code>reports/g5_recall_floor.json</code> records
+                            <code>gate_met: false</code>.
+                        </li>
+                        <li><strong class="highlight">Anti-leakage temporal splitting:</strong>
+                            <br>Chronological splits cut on mutant boundaries: 849 commits / 391,825 rows train,
+                            181 / 83,417 validation, 183 / 86,469 held out. Thresholds are fitted on validation
+                            only.
                         </li>
                     </ul>
                 `
@@ -333,11 +359,21 @@
                 tag: "Business Impact",
                 body: `
                     <div class="card">
-                        <p><strong>Concrete Case Study (40-Engineer Team, 3,000 PRs/month, 30-min build):</strong></p>
-                        <p>• <strong>CI Runner Minutes Saved:</strong> 40,500 minutes / month (45% time reduction).</p>
-                        <p>• <strong>Direct Cloud Compute Savings:</strong> $40,500 \\times \\$0.008/\\text{min} = \\mathbf{\\$324.00\\text{ / month}}$.</p>
-                        <p>• <strong>Developer Productivity Recovered:</strong> 675 hours saved $\\times \\$45/\\text{hr} \\times 0.15 = \\mathbf{\\$4,556.25\\text{ / month}}$.</p>
-                        <p>• <strong class="highlight">Total Net Economic Value: $\\mathbf{\\$4,880.25\\text{ / month (\\approx \\$58,563 / year)}}$.</strong></p>
+                        <p><strong>Projection, not observation.</strong>
+                        <code>reports/economic_analysis.json</code> records that no dollar amount here was
+                        measured &mdash; each is the measured reduction rate applied to an assumed team of 25
+                        developers, 18,750 commits/year, 45-minute suite, $0.016/runner-minute, $75/hour.</p>
+                        <p>• <strong>Projected annual CI compute:</strong> $13,500. <strong>Projected
+                        developer wait cost:</strong> $316,406.</p>
+                        <p>• <strong>Measured wall-clock reduction at the shipped operating
+                        point:</strong> 0.0%.</p>
+                        <p>• <strong>Escaped regressions:</strong> 0 of 183 commits, but
+                        <code>escape_cost_priced: false</code> &mdash; no avoided-escape value is credited,
+                        because an assumed $3,500 penalty would manufacture a return the reduction
+                        measurement does not support.</p>
+                        <p>• <strong class="highlight">Projected annual saving: $0.</strong> The
+                        projection is zero because the measurement it scales is zero. A useful ROI needs a
+                        stronger ranker, not a different spreadsheet.</p>
                     </div>
                 `
             },
@@ -362,7 +398,7 @@
                 tag: "Status & Demo",
                 body: `
                     <ul>
-                        <li><strong class="highlight">100% Passing Automated Tests:</strong> 18/18 Unit tests passing with <code>pytest</code>.</li>
+                        <li><strong class="highlight">Automated validation:</strong> run <code>python -m pytest tests/ -q</code> for the current suite; the count is not frozen in this deck.</li>
                         <li><strong class="highlight">Google Colab Training Pipeline:</strong> Self-contained Jupyter Notebook (<code>notebooks/ConfTest_Colab_Training_Pipeline.ipynb</code>) exports <code>conftest_model.pkl</code>.</li>
                         <li><strong class="highlight">Live Dashboard Active:</strong> Running locally on <code>http://127.0.0.1:8000</code>.</li>
                         <li><strong class="highlight">Zero-Cost Budget:</strong> 100% operational on ASUS ROG Strix G16 & Google Colab Free Tier.</li>
@@ -375,10 +411,17 @@
                 body: `
                     <div class="card">
                         <p><strong>Q: What if the AI model makes a mistake?</strong><br>
-                        <em>A: ConfTest's selective abstention engine measures prediction uncertainty. If uncertainty exceeds &tau;, it safely falls back to executing the full test suite, preventing regression escapes.</em></p>
+                        <em>A: The abstention engine measures ensemble disagreement and distributional novelty. Above the
+                        threshold it falls back to the full suite. Measured: zero escaped regressions across 183
+                        held-out commits &mdash; but it abstains on 97.81% of them, so it saves almost nothing.
+                        The safety mechanism works; the ranker underneath it is not yet accurate enough to make
+                        the saving worth having, and we report that rather than tuning on the test split.</em></p>
                         <br>
                         <p><strong>Q: Why LightGBM instead of LLMs?</strong><br>
-                        <em>A: CI test selection requires sub-second speed. LightGBM runs in &lt;2ms on CPU, while LLMs take 15–30 seconds per PR and cost $0.05–$0.20 per commit in API fees.</em></p>
+                        <em>A: CI test selection requires sub-second speed. Measured scoring latency is 3.345 ms mean /
+                        4.435 ms P99 on CPU for a 50-test batch &mdash; though that excludes feature mining and a
+                        1.3 s cold start. LLM inference is orders of magnitude slower and costs per commit in API
+                        fees.</em></p>
                     </div>
                 `
             }

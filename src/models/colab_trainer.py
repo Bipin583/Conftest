@@ -1,7 +1,22 @@
 """
 ConfTest Standalone Colab Training & Artifact Exporter Script
 Runs model training, temperature calibration fitting, and exports weights.
+
+.. deprecated:: superseded
+
+    NOT AUTHORITATIVE. This module is an earlier implementation kept only so
+    that the tests written against it still run. The maintained implementation
+    is **scripts/train_model.py** (training plus scripts/calibrate_model.py for calibration).
+
+    Two trees with the same responsibility is how a repository ends up
+    measuring one and shipping the other: fixes land in `src/conftest/` and are
+    invisible here, so a number produced by this module can silently disagree
+    with the published pipeline. Import the replacement in new code. Nothing
+    under `src/conftest/`, `scripts/`, or `dashboard/` imports this module, and
+    nothing new should.
 """
+__superseded_by__ = "scripts/train_model.py"
+
 import sys
 import os
 

@@ -126,7 +126,21 @@
     </div>
 
     <div class="abstract-container">
-        <p><span class="abstract-title">Abstract</span>—Continuous Integration (CI) test suites in modern agile development have expanded dramatically, often requiring over an hour per pull request. While machine-learning-based Predictive Test Selection (PTS) has emerged to prune redundant executions, existing ML selectors suffer from a critical limitation: severe miscalibration on out-of-distribution (OOD) code changes, leading to uncontrolled false-negative rates and broken builds escaping into production. In this paper, we propose <strong>ConfTest</strong>, a novel regression test selection framework based on <em>Confidence-Calibrated Selective Prediction</em>. ConfTest combines structural AST diff metrics, static call-graph dependencies, and historical execution dynamics with an ultra-fast LightGBM scoring engine. It applies post-hoc Temperature Scaling and Venn-Abers calibration to explicitly quantify prediction uncertainty. When uncertainty exceeds a safety budget &tau;, the system safely <em>abstains</em> to full-suite execution. Evaluated across 450 commits and 50 test suites with strict anti-leakage temporal splitting, ConfTest achieves a <strong>92.2% reduction in test execution time</strong> while maintaining high fault recall and reducing Expected Calibration Error (ECE) to 0.0093. Non-parametric Wilcoxon tests ($p < 0.01$) confirm significant calibration improvements over state-of-the-art baselines.</p>
+        <p><span class="abstract-title">Abstract</span>—Continuous Integration (CI) test suites in modern agile development have expanded dramatically, often requiring over an hour per pull request. While machine-learning-based Predictive Test Selection (PTS) has emerged to prune redundant executions, existing ML selectors suffer from a critical limitation: severe miscalibration on out-of-distribution (OOD) code changes, leading to uncontrolled false-negative rates and broken builds escaping into production. In this paper, we propose <strong>ConfTest</strong>, a novel regression test selection framework based on <em>Confidence-Calibrated Selective Prediction</em>. ConfTest combines structural AST diff metrics, static call-graph dependencies, and historical execution dynamics with an ultra-fast LightGBM scoring engine. It applies post-hoc Temperature Scaling and Venn-Abers calibration to explicitly quantify prediction uncertainty. When uncertainty exceeds a safety budget &tau;, the system safely <em>abstains</em> to full-suite execution. We evaluate on 1,213 commits and 561,711 (commit, test) pairs mined from five open-source Python
+            repositories, with every label obtained by executing the suite against a generated mutant and
+            with chronological splits cut on mutant boundaries. Our findings are mixed and we report them as
+            such. Temperature scaling reduces Expected Calibration Error from <strong>0.0390 to
+            0.0242</strong> ($T^* = 0.7941$; paired improvement 0.0148, 95% CI [0.0030, 0.0393] bootstrapped
+            by mutant). On 183 held-out commits (86,469 pairs) the shipped operating point attains
+            <strong>100.0% failure recall with zero escaped commits</strong>, but abstains on 97.81% of
+            commits and therefore reduces test executions by only <strong>3.11%</strong>, with a
+            <strong>0.0% wall-clock reduction</strong>. Tightening the abstention threshold to reach a 32.85%
+            reduction drops held-out recall to 87.69% with 15 escaped commits, failing our pre-registered 95%
+            recall floor by an 8.33 percentage-point validation-to-test generalization gap. We conclude that
+            the selective-prediction mechanism is sound and reusable while the underlying ranker (PR-AUC
+            0.1393 against a 3.71% positive rate) is not yet accurate enough to convert abstention into a
+            useful saving — a negative result we believe is more useful to the RTS community than the
+            alternative of tuning on the test split.</p>
         <div class="keywords">Index Terms—Regression Test Selection, Continuous Integration, Confidence Calibration, Selective Prediction, Expected Calibration Error, Machine Learning in SE.</div>
     </div>
 
@@ -138,14 +152,25 @@
 
         <h1>II. Proposed Method</h1>
         <h2>A. Feature Taxonomy</h2>
-        <p>For every test case $T_i$ given commit diff $\Delta C$, ConfTest extracts a 12-dimensional vector spanning three domains: (1) Syntactic AST churn (LOC delta, AST node edits, interface changes via Tree-sitter); (2) Static dependency overlap (call graph distance and import matching); and (3) Historical dynamics (time-decayed failure frequency and average duration).</p>
+        <p>For every test case $T_i$ given commit diff $\Delta C$, ConfTest extracts a 32-dimensional vector spanning four domains: (1) Syntactic AST churn (LOC delta, AST node edits, interface changes via Tree-sitter); (2) Static dependency overlap (call graph distance and import matching); (3) Historical dynamics (time-decayed failure frequency and average duration); and (4) diff churn
+            magnitude. One caveat belongs up front: 13 of the 32 columns are constant across our training
+            split, and all 12 diff-churn columns are among them, which indicates a defect in diff mining
+            rather than a property of churn. No conclusion about churn should be drawn from our results.</p>
 
         <h2>B. Probability Calibration & Uncertainty Quantification</h2>
         <p>Raw margin outputs $s_i$ from LightGBM are calibrated using post-hoc Temperature Scaling:</p>
         <div class="equation">
             $$P_{\text{cal}}(Fail | X_i) = \sigma(s_i / T) = \frac{1}{1 + e^{-s_i / T}}$$
         </div>
-        <p>where $T > 0$ is optimized on a held-out temporal calibration set by minimizing Negative Log-Likelihood (NLL). Epistemic uncertainty $U(X_i)$ is computed across calibrated ensemble margins.</p>
+        <p>where $T > 0$ is optimized on a held-out temporal calibration set by minimizing Negative
+            Log-Likelihood (NLL). A bounded scalar minimiser over $\log T$ converges in 17 iterations to
+            $T^* = 0.7941$ (validation NLL $0.19290 \rightarrow 0.18345$). $T^* < 1$ means our ensemble
+            is <em>under</em>-confident on this split, the opposite of the overconfidence usually reported
+            for deep networks. We also fitted isotonic regression and rejected it: it reaches a lower mean
+            ECE (0.0166) but raises worst-bin error from 0.1235 to 0.2098 (paired degradation $+0.0863$, 95%
+            CI [0.0299, 0.1135]), and an abstention gate is thresholded on the tail of the confidence
+            distribution, so a method that is better on average and much worse in its worst bin is the wrong
+            trade. Epistemic uncertainty $U(X_i)$ is computed across calibrated ensemble margins.</p>
 
         <h2>C. Selective Prediction & Abstention Policy</h2>
         <p>ConfTest implements a formal decision rule:</p>
@@ -158,7 +183,12 @@
         <p>This ensures that during high-uncertainty or out-of-distribution code changes, the system automatically defaults to a 100% safe full test run.</p>
 
         <h1>III. Experimental Evaluation</h1>
-        <p>We evaluate ConfTest against 7 baselines using strict chronological temporal splitting (70% Train, 15% Calibration, 15% Test) to prevent data leakage.</p>
+        <p>We evaluate ConfTest against 7 baselines using chronological temporal splitting cut on mutant
+            boundaries, so that no mutant contributes rows to more than one split: 849 commits / 391,825 rows
+            for training (5.017% positive), 181 / 83,417 for validation (5.488%), and 183 / 86,469 held out
+            (3.710%). The temperature and every policy threshold are fitted on validation only; the held-out
+            split is scored once per reported configuration. Source artifact:
+            <code>reports/baseline_comparison.csv</code>.</p>
 
         <table>
             <thead>
@@ -167,26 +197,78 @@
                     <th>TRR (%)</th>
                     <th>ETR (%)</th>
                     <th>FR (%)</th>
-                    <th>Abstain</th>
+                    <th>AR (%)</th>
+                    <th>Escaped</th>
                 </tr>
             </thead>
             <tbody>
-                <tr><td>1. Retest-All</td><td>0.0%</td><td>0.0%</td><td>100.0%</td><td>0</td></tr>
-                <tr><td>2. Random (50%)</td><td>49.6%</td><td>50.0%</td><td>42.9%</td><td>0</td></tr>
-                <tr><td>3. Changed-File</td><td>94.9%</td><td>94.8%</td><td>62.8%</td><td>0</td></tr>
-                <tr><td>4. Static RTS</td><td>93.4%</td><td>93.2%</td><td>67.9%</td><td>0</td></tr>
-                <tr><td>5. Historical Prior.</td><td>70.0%</td><td>78.0%</td><td>34.7%</td><td>0</td></tr>
-                <tr><td>6. Meta PTS (GBDT)</td><td>95.2%</td><td>95.1%</td><td>62.8%</td><td>0</td></tr>
-                <tr><td>7. Calibrated (No Abs)</td><td>93.1%</td><td>93.1%</td><td>67.3%</td><td>0</td></tr>
-                <tr><td><strong>8. Proposed ConfTest</strong></td><td><strong>92.4%</strong></td><td><strong>92.2%</strong></td><td><strong>69.4%</strong></td><td><strong>2</strong></td></tr>
+                <tr><td>1. Retest-All</td><td>0.0%</td><td>0.0%</td><td>100.0%</td><td>0.0%</td><td>0</td></tr>
+                <tr><td>2. Random-K (25%)</td><td>75.1%</td><td>78.7%</td><td>25.2%</td><td>0.0%</td><td>133</td></tr>
+                <tr><td>3. Changed-File</td><td>83.6%</td><td>86.1%</td><td>42.3%</td><td>0.0%</td><td>69</td></tr>
+                <tr><td>4. Static AST / Dependency</td><td>75.6%</td><td>68.2%</td><td>38.6%</td><td>0.0%</td><td>94</td></tr>
+                <tr><td>5. Historical Prior.</td><td>75.1%</td><td>70.0%</td><td>48.4%</td><td>0.0%</td><td>99</td></tr>
+                <tr><td>6. Uncalibrated ML (GBDT)</td><td>75.1%</td><td>27.7%</td><td>51.8%</td><td>0.0%</td><td>69</td></tr>
+                <tr><td>7. Calibrated (No Abs)</td><td>75.1%</td><td>27.7%</td><td>51.8%</td><td>0.0%</td><td>69</td></tr>
+                <tr><td><strong>8. Proposed ConfTest</strong></td><td><strong>3.1%</strong></td><td><strong>0.0%</strong></td><td><strong>100.0%</strong></td><td><strong>97.8%</strong></td><td><strong>0</strong></td></tr>
             </tbody>
         </table>
+        <p>ConfTest is the only row with zero escaped commits and also the row that saves least. Two rows
+            deserve comment. Rows 6 and 7 are numerically identical on every selection metric because
+            temperature scaling is a monotone transform of the score and therefore cannot reorder a top-$k$
+            ranking; calibration earns its place by making the abstention gate confidence trustworthy, not by
+            improving selection. And row 6 reduces test <em>count</em> by 75.1% but wall-clock time by only
+            27.7%, because the tests it ranks highest are disproportionately slow — a budget expressed
+            in test count is not a budget in time.</p>
+
+        <h2>A. The 95% Recall Floor Is Not Met at a Useful Reduction</h2>
+        <p>We pre-registered a 95% held-out failure-recall floor. Selecting $\tau_{\text{abstain}} = 0.044$
+            on validation gives 32.85% test reduction at 96.02% recall; carrying the same threshold to the
+            held-out split gives 32.85% reduction (95% CI [26.50, 39.18]) at 87.69% recall ([75.77, 95.81]),
+            with 15 escaped commits and 395 missed failures. The floor is missed at the point estimate and at
+            the CI lower bound, and the validation-to-test recall gap is 8.33 percentage points
+            (<code>reports/g5_recall_floor.json</code> records <code>gate_met: false</code>). A post-hoc sweep
+            of the held-out split does contain five thresholds that would clear 95% (best: 26.56% reduction at
+            97.35% recall), but selecting a threshold by its test-set score would mean the number is no longer
+            held out, so we record that sweep as a diagnostic and deliberately do not use it.</p>
 
         <h1>IV. Statistical Significance</h1>
-        <p>Non-parametric paired Wilcoxon Signed-Rank tests demonstrate statistically significant calibration error reduction ($W = 626,930$, $p = 0.000000$, $p < 0.01$). Temperature scaling reduced Expected Calibration Error from 0.0100 to 0.0093.</p>
+        <p>Confidence intervals are bootstrap intervals over 2,000 resamples with the <em>commit</em> as the
+            resampling unit, because the 86,469 rows are not independent
+            (<code>reports/statistical_significance.json</code>). Failure recall is [100.0%, 100.0%] over the
+            $n = 135$ commits that had at least one failure. Wall-clock time reduction has mean 1.05%, 95% CI
+            [0.25%, 2.10%] over $n = 183$ commits, with a <strong>median of $-0.0\%$</strong>: the typical
+            commit saves nothing. Cliff $\delta$ on failure recall runs 0.5111 to 0.9852 against the subset
+            baselines, and exactly 0.0 against Retest-All ($p = 1.0$, identical by construction). Cliff
+            $\delta$ on time reduction runs $-0.906$ to $-0.998$, i.e. negative against every subset
+            baseline: ConfTest is significantly <em>worse</em> on savings than every strategy it beats on
+            recall, and reporting only the recall effect sizes would be cherry-picking.</p>
+
+        <h2>A. Threats to Validity</h2>
+        <p><strong>Cross-project transfer.</strong> Leave-one-project-out over the five repositories gives a
+            macro-average recall of 51.57% at a 25% budget (30.00% to 88.42%), macro ROC-AUC 0.7004, and
+            held-out ECE 0.2957 against 0.0242 in-distribution. On one project ROC-AUC is 0.4747, below
+            chance. Zero-shot transfer to an unseen repository does not work, and the abstention gate cannot
+            be trusted there.</p>
+        <p><strong>Stale artifacts.</strong> The committed ensemble was trained with the LightGBM
+            <code>subsample</code> parameter set but <code>subsample_freq</code> left at its default of 0,
+            which silently disables row bagging; the five seeds therefore differed only in column sampling and
+            tie-breaking, so the reported epistemic $\sigma$ underestimates true ensemble diversity. The
+            training code is corrected but no artifact has been regenerated, and $\sigma$ is precisely the
+            quantity the abstention gate thresholds.</p>
+        <p><strong>Latency scope.</strong> Our 3.345 ms mean scoring latency (P99 4.435 ms) covers array
+            sanitisation, ensemble inference, calibration and the policy decision only. It excludes feature
+            mining, which dominates real per-commit cost, and a 1321.8 ms cold start on the first batch in a
+            fresh process.</p>
 
         <h1>V. Conclusion</h1>
-        <p>ConfTest successfully bridges the gap between machine-learning test reduction and mission-critical software safety. By abstaining under high epistemic uncertainty, it provides a practical, zero-cost CI optimization engine suitable for enterprise adoption.</p>
+        <p>We set out to reduce CI test time without missing regressions, and we achieved one of those two
+            things. The selective policy escaped zero regressions across 183 held-out commits because it
+            declines to select whenever ensemble disagreement or distributional novelty exceeds a tuned
+            threshold; that safety property is real and measured. It also abstains on 97.81% of commits,
+            reducing test executions by 3.11% and wall-clock time by 0.0%, so the economic case is not made.
+            The binding constraint is the accuracy of the underlying ranker, not the selective-prediction
+            machinery built around it, and the abstention gate remains a reusable component for any future RTS
+            ranker strong enough to exploit it.</p>
 
         <h1>References</h1>
         <div class="references">

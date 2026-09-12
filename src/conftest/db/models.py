@@ -270,7 +270,21 @@ class SelectionDecision(Base):
 
 
 class Outcome(Base):
-    """Records the post-execution ground truth evaluation and savings audit."""
+    """
+    Records the post-execution ground truth evaluation and savings audit.
+
+    A selective run observes only the tests it selected. Whether an unselected
+    test would have failed, and how long the whole suite would have taken, are
+    simply not measured on that run -- they are knowable only by also running
+    the full suite. So the fields that depend on the unselected tests are
+    nullable, and `ground_truth_complete` records whether they were observed.
+
+    This is not a formality. `missed_failures` feeds the failure-recall and
+    missed-failure-rate figures that this project reports as its safety claim.
+    Defaulting it to 0 on an unverified run does not mean "no escapes were
+    found"; it asserts that none exist, on evidence that could not have
+    detected one. Aggregates must filter on `ground_truth_complete`.
+    """
 
     __tablename__ = "outcomes"
 
@@ -278,18 +292,31 @@ class Outcome(Base):
     commit_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("commits.id", ondelete="CASCADE"), unique=True, nullable=False, index=True
     )
-    actual_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # True only when the full suite also ran, making the nullable fields below
+    # measurements rather than guesses.
+    ground_truth_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+
+    # Observed on any run: these come from the tests that actually executed.
     detected_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    missed_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    full_duration: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     selected_duration: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    time_reduction_ratio: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+    # Require the full suite. NULL when ground_truth_complete is False.
+    actual_failures: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    missed_failures: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    full_duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    time_reduction_ratio: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
     commit: Mapped["Commit"] = relationship("Commit", back_populates="outcome")
 
     def __repr__(self) -> str:
+        if not self.ground_truth_complete:
+            return (
+                f"<Outcome(commit_id={self.commit_id}, detected={self.detected_failures}, "
+                f"missed=UNVERIFIED, saving=UNVERIFIED)>"
+            )
         return (
             f"<Outcome(commit_id={self.commit_id}, detected={self.detected_failures}/{self.actual_failures}, "
             f"missed={self.missed_failures}, saving={self.time_reduction_ratio:.1%})>"

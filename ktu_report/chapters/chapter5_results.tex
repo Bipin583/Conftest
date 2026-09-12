@@ -1,7 +1,7 @@
 \chapter{Results and Discussion}
 
 \section{Benchmark Comparisons Across 8 RTS Baselines}
-ConfTest was empirically evaluated against 7 established baseline strategies across 100 benchmark evaluation commits.
+ConfTest was empirically evaluated against 7 established baseline strategies on the held-out temporal split: $183$ commits and $86{,}469$ (commit, test) pairs, every label obtained by executing the repository's suite against a generated mutant. Source artifact: \texttt{reports/baseline\_comparison.csv}.
 
 \begin{table}[htbp]
 \centering
@@ -10,25 +10,124 @@ ConfTest was empirically evaluated against 7 established baseline strategies acr
 \small
 \begin{tabular}{lcccc}
 \toprule
-\textbf{RTS Strategy} & \textbf{Failure Recall} & \textbf{Time Reduction} & \textbf{ECE} & \textbf{Wilcoxon $p$} \\
+\textbf{RTS Strategy} & \textbf{Failure Recall} & \textbf{Test Red.} & \textbf{Time Red.} & \textbf{Escapes} \\
 \midrule
-Full Suite & 100.0\% & 0.0\% & — & — \\
-Random-K (25\%) & 28.5\% & 75.0\% & — & $<0.00001$ \\
-Changed File & 78.4\% & 68.0\% & — & $<0.00001$ \\
-Dependency Graph & 89.2\% & 58.0\% & — & $<0.00001$ \\
-Historical Failure & 82.1\% & 65.0\% & — & $<0.00001$ \\
-Uncalibrated ML & 91.5\% & 75.0\% & 0.0631 & $<0.00001$ \\
-Calibrated No-Abstain & 94.8\% & 75.0\% & 0.0470 & $<0.00001$ \\
-\textbf{ConfTest (Ours)} & \textbf{100.0\%} & \textbf{68.6\%} & \textbf{0.0470} & — \\
+Full Suite & 100.0\% & 0.0\% & 0.0\% & 0 \\
+Random-K (25\%) & 25.2\% & 75.1\% & 78.7\% & 133 \\
+Changed File & 42.3\% & 83.6\% & 86.1\% & 69 \\
+Static AST / Dependency & 38.6\% & 75.6\% & 68.2\% & 94 \\
+Historical Failure & 48.4\% & 75.1\% & 70.0\% & 99 \\
+Uncalibrated ML & 51.8\% & 75.1\% & 27.7\% & 69 \\
+Calibrated No-Abstain & 51.8\% & 75.1\% & 27.7\% & 69 \\
+\textbf{ConfTest (Ours)} & \textbf{100.0\%} & \textbf{3.1\%} & \textbf{0.0\%} & \textbf{0} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+ConfTest is the only configuration in Table~\ref{tab:ktu_baselines} with zero escaped commits, and also
+the configuration that saves least. Because it abstains on $97.81\%$ of commits, its $3.1\%$ reduction in
+test executions produces no measurable wall-clock saving. Every subset baseline reduces executions by
+$75$--$84\%$ and loses between half and three quarters of the failures in exchange.
+
+Two rows deserve comment. The \emph{Uncalibrated ML} and \emph{Calibrated No-Abstain} rows are
+numerically identical on every selection metric, because temperature scaling is a monotone transform of
+the score and cannot reorder a top-$k$ ranking; calibration earns its place by making the abstention
+gate's confidence trustworthy, not by improving selection. And \emph{Uncalibrated ML} reduces test
+\emph{count} by $75.1\%$ but wall-clock time by only $27.7\%$, because the tests it ranks highest are
+disproportionately slow --- a budget expressed in test count is not a budget in time.
+
+\section{The 95\% Recall Floor Is Not Met at a Useful Reduction}
+This project pre-registered a $95\%$ held-out failure-recall floor. Selecting
+$\tau_{\text{abstain}} = 0.044$ on the validation split gives $32.85\%$ test reduction at $96.02\%$
+recall; carrying the same threshold to the held-out split gives $32.85\%$ reduction
+($95\%$ CI $[26.50, 39.18]$) at $87.69\%$ recall ($[75.77, 95.81]$), with $15$ escaped commits and $395$
+missed failures. The floor is missed at the point estimate and at the CI lower bound, and the
+validation-to-test recall gap is $8.33$ percentage points. \texttt{reports/g5\_recall\_floor.json}
+records \texttt{gate\_met: false}.
+
+A post-hoc sweep of the held-out split does contain five thresholds that would clear $95\%$ (best:
+$26.56\%$ reduction at $97.35\%$ recall). Selecting a threshold by its test-set score would mean the
+number is no longer held out, so that sweep is recorded as a diagnostic and deliberately not used. The
+honest reading is that the abstention mechanism works and the ranker beneath it is not yet strong enough
+to exploit it.
+
 \section{Statistical Significance Testing}
-Paired Wilcoxon Signed-Rank tests demonstrate that ConfTest's failure recall improvements over heuristic and uncalibrated baselines are statistically significant at $\alpha = 0.05$ ($p < 0.00001$). Cliff's delta non-parametric effect sizes range from medium ($\delta = 0.3874$) to large ($\delta = 1.0000$).
+Confidence intervals are bootstrap intervals over $2{,}000$ resamples with the \emph{commit} as the
+resampling unit, so they are not inflated by $86{,}469$ correlated rows
+(\texttt{reports/statistical\_significance.json}).
+
+\begin{itemize}
+    \item \textbf{Failure recall, $95\%$ CI:} $[100.0\%, 100.0\%]$ over the $n = 135$ commits that had at
+          least one failure.
+    \item \textbf{Wall-clock time reduction, $95\%$ CI:} mean $1.05\%$, $[0.25\%, 2.10\%]$ over
+          $n = 183$ commits. The \emph{median is} $-0.0\%$: the typical commit saves nothing.
+    \item \textbf{Cliff's $\delta$ on failure recall:} $0.5111$ to $0.9852$ against the subset baselines
+          (large), and exactly $0.0$ against Full Suite ($p = 1.0$, identical by construction).
+    \item \textbf{Cliff's $\delta$ on time reduction:} $-0.906$ to $-0.998$, i.e.\ negative against every
+          subset baseline. ConfTest is significantly \emph{worse} on savings than every strategy it beats
+          on recall, and reporting only the recall effect sizes would be cherry-picking.
+\end{itemize}
 
 \section{Feature Ablation Findings}
-Leave-One-Group-Out (LOGO) experiments reveal that Historical Telemetry ($\Delta\text{PR-AUC} = -0.1171$) and Static Call-Graph Coupling ($\Delta\text{PR-AUC} = -0.0837$) provide the highest predictive signal for regression failure detection.
+Leave-one-group-out results (\texttt{reports/ablation\_study.json}; recall at a $25\%$ per-commit budget
+with abstention disabled, pooled over the $135$ held-out commits that had a failure):
+
+\begin{table}[htbp]
+\centering
+\caption{Leave-One-Group-Out Feature Ablation}
+\label{tab:ktu_ablation}
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Configuration} & \textbf{Features (informative)} & \textbf{PR-AUC} & \textbf{Recall @ 25\%} \\
+\midrule
+Full model & 32 (19) & 0.1393 & 48.19\% \\
+\textbf{without dependency graph} & 26 (13) & \textbf{0.0674} & \textbf{32.67\%} \\
+without AST complexity & 26 (13) & 0.1515 & 50.87\% \\
+without history telemetry & 24 (12) & 0.2214 & 52.34\% \\
+without diff churn & 20 (19) & 0.1393 & 48.19\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three readings that the artifact supports and this report will not omit. First, static call-graph
+reachability is the only load-bearing feature family: removing it costs $15.5$ percentage points of
+recall. Second, removing history telemetry or AST complexity \emph{improves} the ranking, which
+contradicts the intuition that historical failure frequency carries most of the signal. Third,
+\textbf{13 of the 32 canonical features are constant across the training split}, and all $12$ diff-churn
+columns are among them --- which is why removing that group reproduces the full model exactly and why the
+group in isolation scores ROC-AUC $0.5000$. That is almost certainly a defect in diff mining rather than
+a property of code churn, and no conclusion about churn should be drawn from these results.
 
 \section{Flakiness Robustness}
-Under $10\%$ injected label noise, ConfTest's sample downweighting mechanism maintained a $20.0\%$ failure recall advantage over naive unweighted gradient boosting models ($60.0\%$ vs $40.0\%$).
+Label noise is injected into \emph{training} labels only; evaluation always uses the clean held-out
+labels (\texttt{reports/flakiness\_robustness.json}). At $10\%$ noise the flakiness-weighted variant
+reaches $53.65\%$ recall against $54.40\%$ for the unweighted model --- a $0.75$ percentage-point
+\emph{disadvantage}. Across the $5\%$/$10\%$/$20\%$/$30\%$ grid the advantage is $+0.94$, $-0.75$,
+$-0.81$ and $+0.69$ points: two of four are negative, so no robustness advantage is claimed.
+
+A confound must be stated before the table is read at all: the dataset is about $5\%$ positive, so
+flipping labels mostly turns passes into failures and raises the training positive rate from $5.02\%$ to
+$32.00\%$ at $30\%$ noise. A recall figure that \emph{improves} with the noise rate is most likely
+reporting that prevalence change, not robustness to flakiness. What does degrade cleanly is probability
+quality: the unweighted model's Brier score rises from $0.0449$ to $0.2089$, while the weighted variant
+holds calibrated ECE at or below $0.0289$ by driving $T$ down to $0.1235$.
+
+\section{Cross-Project Generalization}
+Leave-one-project-out over the five harvested repositories
+(\texttt{reports/cross\_repo\_generalization.json}) gives a macro-average recall of $51.57\%$ at a $25\%$
+budget, ranging from $30.00\%$ (\texttt{tabulate}) to $88.42\%$ (\texttt{validators}), with macro PR-AUC
+$0.1168$ and macro ROC-AUC $0.7004$. On \texttt{tabulate} the ROC-AUC is $0.4747$, below chance.
+Held-out ECE reaches $0.2957$ against $0.0242$ in-distribution, so the calibration does not transfer
+either and the abstention gate cannot be trusted on an unseen project. Zero-shot cross-repository
+transfer does not work; a new repository must be treated as out-of-distribution until it accumulates its
+own execution history.
+
+\section{Threat to Validity: Stale Artifacts}
+The committed ensemble was trained with LightGBM's \texttt{subsample} parameter set but
+\texttt{subsample\_freq} left at its default of $0$, which silently disables row bagging. The five seeds
+therefore differed only in column sampling and tie-breaking, making the reported epistemic $\sigma$ an
+underestimate of true ensemble diversity. The training code has been corrected, but no artifact in
+\texttt{reports/} or \texttt{models/} has been regenerated. Since $\sigma$ is precisely the quantity the
+abstention gate thresholds, the operating points in this chapter may shift once the ensemble is
+retrained, and every figure here should be read as belonging to the pre-fix ensemble.

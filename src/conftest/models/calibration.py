@@ -6,9 +6,9 @@ Expected Calibration Error (ECE), Maximum Calibration Error (MCE),
 and Reliability Diagram binning for Regression Test Selection.
 """
 
-import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 import joblib
 import numpy as np
 from scipy.optimize import minimize_scalar
@@ -23,7 +23,7 @@ def compute_ece(
     y_true: np.ndarray,
     y_prob: np.ndarray,
     n_bins: int = 10,
-) -> Tuple[float, float, List[Dict[str, Any]]]:
+) -> tuple[float, float, list[dict[str, Any]]]:
     """
     Compute Expected Calibration Error (ECE) and Maximum Calibration Error (MCE).
 
@@ -93,7 +93,7 @@ class TemperatureScalingCalibrator:
         # Populated by fit(). A temperature of exactly 1.0 is the identity, so a fit that
         # never moved and a fit that found no useful temperature look the same from the
         # outside unless the search itself is reported.
-        self.fit_diagnostics: Dict[str, Any] = {}
+        self.fit_diagnostics: dict[str, Any] = {}
 
     def _logit(self, p: np.ndarray, eps: float = 1e-7) -> np.ndarray:
         p_c = np.clip(p, eps, 1.0 - eps)
@@ -162,7 +162,7 @@ class TemperatureScalingCalibrator:
             "nll_at_fitted": min(nll_candidate, nll_identity),
             "nll_improvement": float(nll_identity - min(nll_candidate, nll_identity)),
             "moved_from_identity": bool(abs(self.temperature - 1.0) > 1e-6),
-            "n_validation_rows": int(len(y)),
+            "n_validation_rows": len(y),
             "validation_positive_rate": float(np.mean(y)) if len(y) else float("nan"),
         }
         if not self.fit_diagnostics["moved_from_identity"]:
@@ -183,6 +183,18 @@ class TemperatureScalingCalibrator:
         logits = self._logit(probs)
         scaled = logits / max(1e-3, self.temperature)
         return self._sigmoid(scaled).astype(np.float32)
+
+
+class IdentityCalibrator:
+    """Explicit no-op selected when validation does not support calibration."""
+
+    def fit(self, val_probs: np.ndarray, y_val: np.ndarray) -> "IdentityCalibrator":
+        """Accept the calibrator interface without learning from validation labels."""
+        return self
+
+    def calibrate(self, probs: np.ndarray) -> np.ndarray:
+        """Return the model probabilities unchanged."""
+        return np.asarray(probs, dtype=np.float32)
 
 
 class IsotonicCalibrator:
@@ -214,7 +226,9 @@ class ConfidenceCalibrator:
             method: 'isotonic' or 'temperature_scaling'.
         """
         self.method = method.lower()
-        if self.method == "isotonic":
+        if self.method == "uncalibrated":
+            self.calibrator = IdentityCalibrator()
+        elif self.method == "isotonic":
             self.calibrator = IsotonicCalibrator()
         elif self.method in ("temperature", "temperature_scaling"):
             self.calibrator = TemperatureScalingCalibrator()
@@ -230,7 +244,7 @@ class ConfidenceCalibrator:
         else:
             raise ValueError(
                 f"Unknown calibration method: {method}. "
-                "Choose 'isotonic' or 'temperature_scaling'."
+                "Choose 'uncalibrated', 'isotonic', or 'temperature_scaling'."
             )
 
     def fit(self, val_probs: np.ndarray, y_val: np.ndarray) -> "ConfidenceCalibrator":

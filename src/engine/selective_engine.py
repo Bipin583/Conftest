@@ -1,7 +1,22 @@
 """
 ConfTest Selective Prediction Decision Engine
 Member 3 & Member 1 Technical Domain: Selective Prediction, Abstention Policy, Safe Fallbacks.
+
+.. deprecated:: superseded
+
+    NOT AUTHORITATIVE. This module is an earlier implementation kept only so
+    that the tests written against it still run. The maintained implementation
+    is **conftest.engine.selector_engine** (ConfTestEngine, which records whether an outcome was verified).
+
+    Two trees with the same responsibility is how a repository ends up
+    measuring one and shipping the other: fixes land in `src/conftest/` and are
+    invisible here, so a number produced by this module can silently disagree
+    with the published pipeline. Import the replacement in new code. Nothing
+    under `src/conftest/`, `scripts/`, or `dashboard/` imports this module, and
+    nothing new should.
 """
+__superseded_by__ = "conftest.engine.selector_engine"
+
 from dataclasses import dataclass
 from typing import List, Optional
 import numpy as np

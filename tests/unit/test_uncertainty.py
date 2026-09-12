@@ -2,12 +2,14 @@
 Unit tests for 5-Seed Ensemble Uncertainty Estimation and Risk-Coverage Quantification.
 """
 
+import json
 from pathlib import Path
+
 import numpy as np
 import pytest
 
 from conftest.features.pipeline import FEATURE_NAMES
-from conftest.models.ensemble import EnsembleUncertaintyPredictor, DEFAULT_SEEDS
+from conftest.models.ensemble import EnsembleUncertaintyPredictor
 
 
 @pytest.fixture
@@ -82,3 +84,33 @@ def test_ensemble_save_and_load_roundtrip(sample_feature_matrix, tmp_path: Path)
 
     np.testing.assert_allclose(original_res["mean_prob"], loaded_res["mean_prob"], rtol=1e-5)
     np.testing.assert_allclose(original_res["epistemic_std"], loaded_res["epistemic_std"], rtol=1e-5)
+
+
+def test_ensemble_propagates_training_controls_and_saves_portable_diagnostics(
+    sample_feature_matrix, tmp_path: Path
+):
+    X, y = sample_feature_matrix
+    ensemble = EnsembleUncertaintyPredictor(
+        seeds=[42, 101],
+        n_estimators=20,
+        max_depth=3,
+        num_leaves=7,
+        early_stopping_rounds=4,
+        eval_metric="average_precision",
+        use_class_weight=False,
+    )
+
+    summary = ensemble.train(X[:40], y[:40], X[40:], y[40:])
+    save_dir = tmp_path / "portable"
+    ensemble.save_ensemble(str(save_dir))
+    metadata = json.loads((save_dir / "ensemble_metadata.json").read_text(encoding="utf-8"))
+
+    assert summary["actual_num_trees"] == [
+        member.model.booster_.num_trees() for member in ensemble.models
+    ]
+    assert all(item["eval_metric"] == "average_precision" for item in summary["member_diagnostics"])
+    assert all(item["use_class_weight"] is False for item in summary["member_diagnostics"])
+    assert metadata["member_files"] == ["member_1_seed_42.joblib", "member_2_seed_101.joblib"]
+    assert all(not Path(item).is_absolute() for item in metadata["member_files"])
+    assert metadata["member_diagnostics"] == summary["member_diagnostics"]
+    assert metadata["bagging_active"] is True

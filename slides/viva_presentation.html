@@ -51,9 +51,13 @@
 
             <section>
                 <h3>3. The Overconfidence Dilemma</h3>
-                <p>Standard tree-based models output poorly calibrated scores.</p>
-                <p>A predicted <span class="highlight">80% failure risk</span> often corresponds to an empirical failure rate of <span style="color:#f87171">&lt;40%</span>.</p>
-                <p><strong>Consequence:</strong> Critical regression bugs silently escape to production.</p>
+                <p>Standard tree-based models output scores that do not match empirical failure
+                    frequencies.</p>
+                <p>Measured on our validation split: expected calibration error
+                    <span class="highlight">0.0390</span> and worst-bin error
+                    <span style="color:#f87171">0.1235</span> before calibration.</p>
+                <p><strong>Consequence:</strong> a confidence threshold set from raw scores does not mean
+                    what it appears to mean, so an abstention gate built on it cannot be trusted.</p>
             </section>
 
             <section>
@@ -61,8 +65,11 @@
                 <ol>
                     <li><strong>32-Feature Mining Pipeline</strong> (AST + Call-Graphs + History + Churn).</li>
                     <li><strong>5-Seed Deep Ensemble</strong> for Epistemic Uncertainty ($\sigma$).</li>
-                    <li><strong>Temperature Scaling</strong> reducing ECE by $25.47\%$.</li>
-                    <li><strong>Cost-Optimal Selective Policy</strong> with zero-escape fallback.</li>
+                    <li><strong>Temperature Scaling</strong> at $T^* = 0.7941$, ECE $0.0390 	o 0.0242$
+                        (isotonic fitted and rejected: lower mean ECE, worst-bin error nearly
+                        doubled).</li>
+                    <li><strong>Selective Policy</strong> with a full-suite fallback, which held zero escaped
+                        commits across 183 held-out commits by abstaining on 97.8% of them.</li>
                 </ol>
             </section>
 
@@ -70,48 +77,87 @@
                 <h3>5. Empirical Benchmark Results</h3>
                 <table>
                     <thead>
-                        <tr><th>Strategy</th><th>Failure Recall</th><th>Time Red.</th><th>ECE</th><th>Wilcoxon $p$</th></tr>
+                        <tr><th>Strategy</th><th>Recall</th><th>Test Red.</th><th>Time Red.</th><th>Escaped commits</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td>Full Suite</td><td>100.0%</td><td>0.0%</td><td>—</td><td>—</td></tr>
-                        <tr><td>Random-K (25%)</td><td>28.5%</td><td>75.0%</td><td>—</td><td>&lt;0.00001</td></tr>
-                        <tr><td>Changed File</td><td>78.4%</td><td>68.0%</td><td>—</td><td>&lt;0.00001</td></tr>
-                        <tr><td>Dependency Graph</td><td>89.2%</td><td>58.0%</td><td>—</td><td>&lt;0.00001</td></tr>
-                        <tr><td>Uncalibrated ML</td><td>91.5%</td><td>75.0%</td><td>0.0631</td><td>&lt;0.00001</td></tr>
-                        <tr style="background:#0c4a6e; font-weight:bold"><td>ConfTest (Ours)</td><td>100.0%</td><td>68.6%</td><td>0.0470</td><td>—</td></tr>
+                        <tr><td>Full Suite</td><td>100.0%</td><td>0.0%</td><td>0.0%</td><td>0</td></tr>
+                        <tr><td>Random-K (25%)</td><td>25.2%</td><td>75.1%</td><td>78.7%</td><td>133</td></tr>
+                        <tr><td>Changed File</td><td>42.3%</td><td>83.6%</td><td>86.1%</td><td>69</td></tr>
+                        <tr><td>Static AST / Dependency</td><td>38.6%</td><td>75.6%</td><td>68.2%</td><td>94</td></tr>
+                        <tr><td>Historical Failure</td><td>48.4%</td><td>75.1%</td><td>70.0%</td><td>99</td></tr>
+                        <tr><td>Uncalibrated ML</td><td>51.8%</td><td>75.1%</td><td>27.7%</td><td>69</td></tr>
+                        <tr><td>Calibrated No-Abstain</td><td>51.8%</td><td>75.1%</td><td>27.7%</td><td>69</td></tr>
+                        <tr style="background:#0c4a6e; font-weight:bold"><td>ConfTest (Ours)</td><td>100.0%</td><td>3.1%</td><td>0.0%</td><td>0</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:0.75em">183 held-out commits, 86,469 pairs, labels by execution
+                    (<code>reports/baseline_comparison.csv</code>). ConfTest is the only row with zero
+                    escapes <em>and</em> the row that saves least &ndash; it abstains on 97.8% of
+                    commits. Rows 6&ndash;7 are identical because temperature scaling is monotone and
+                    cannot change a top-<em>k</em> ranking.</p>
             </section>
 
             <section>
-                <h3>6. Enterprise Financial ROI</h3>
+                <h3>5b. The 95% Recall Gate Is Not Met</h3>
+                <table>
+                    <thead>
+                        <tr><th>Operating point</th><th>Test Red.</th><th>Recall</th><th>Abstention</th><th>Escaped commits</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background:#0c4a6e"><td>A, shipped ($\tau = 0.020$)</td><td>3.11%</td><td>100.00%</td><td>97.81%</td><td>0 / 183</td></tr>
+                        <tr><td>B, validation pick ($\tau = 0.044$)</td><td>32.85%</td><td>96.02%</td><td>66.85%</td><td>11</td></tr>
+                        <tr><td>B, same $\tau$, held out</td><td>32.85%</td><td style="color:#f87171">87.69%</td><td>66.12%</td><td>15</td></tr>
+                    </tbody>
+                </table>
+                <p><code>reports/g5_recall_floor.json</code>: <strong>gate_met: false</strong>. Missed at
+                    the point estimate and at the CI lower bound (recall CI $[75.77, 95.81]$);
+                    validation&rarr;held-out gap <strong>8.33 pp</strong>. A post-hoc sweep of the test
+                    split does contain thresholds that clear 95%, but using one would forfeit the
+                    held-out evaluation, so it stays a diagnostic.</p>
+                <p><strong>The abstention mechanism works; the ranker is not yet strong enough to
+                    exploit it</strong> (PR-AUC 0.1393 against a 3.71% positive rate).</p>
+            </section>
+
+            <section>
+                <h3>6. Enterprise Financial ROI (Projection, Not Observation)</h3>
+                <p style="font-size:0.75em">Every dollar figure below is projected from the measured
+                    reduction rate onto an assumed team. <code>reports/economic_analysis.json</code>
+                    records that no dollar amount here was observed.</p>
                 <ul>
-                    <li><strong>Team Size:</strong> 25 Active Developers | 18,750 Annual Commits.</li>
-                    <li><strong>Annual Cloud CI Compute Savings:</strong> $9,261 / year</li>
-                    <li><strong>Developer Productivity Value Gained:</strong> $217,055 / year</li>
-                    <li><strong>Regression Escape Loss:</strong> $0 (Zero Escaped Bugs)</li>
-                    <li><strong>Net Annual Financial Benefit:</strong> <span class="highlight">$240,316 / year</span></li>
+                    <li><strong>Assumed model:</strong> 25 developers, 18,750 commits/yr, 45-min suite,
+                        $0.016/runner-min, $75/hr, $3,500/escaped bug.</li>
+                    <li><strong>Projected annual CI compute:</strong> $13,500 &nbsp;|&nbsp;
+                        <strong>projected developer wait cost:</strong> $316,406</li>
+                    <li><strong>Measured wall-clock reduction at the shipped point:</strong> 0.0%</li>
+                    <li><strong>Escaped bugs:</strong> 0 of 183 commits, but
+                        <code>escape_cost_priced: false</code>, so avoided-escape value is not
+                        credited here.</li>
+                    <li><strong>Projected annual saving:</strong> <span class="highlight">$0 / year</span></li>
                 </ul>
             </section>
 
             <section>
-                <h3>7. Micro-Latency Profiling (&lt;100ms SLA)</h3>
+                <h3>7. Scoring Latency (&lt;100ms SLA)</h3>
                 <ul>
-                    <li><strong>Feature Vector Prep:</strong> 0.041ms</li>
-                    <li><strong>5-Seed Deep Ensemble Inference:</strong> 2.244ms</li>
-                    <li><strong>Temperature Scaling Calibration:</strong> 0.027ms</li>
-                    <li><strong>Selective Decision Making:</strong> 0.032ms</li>
-                    <li><strong>Total End-to-End Latency:</strong> <span class="highlight">2.344ms</span> (100% SLA Compliance)</li>
+                    <li><strong>Array sanitisation:</strong> 0.033ms</li>
+                    <li><strong>5-Seed Deep Ensemble Inference:</strong> 3.246ms (~97% of cost)</li>
+                    <li><strong>Temperature Scaling Calibration:</strong> 0.036ms</li>
+                    <li><strong>Selective Decision Making:</strong> 0.029ms</li>
+                    <li><strong>Total scoring latency:</strong> <span class="highlight">3.345ms</span>
+                        mean, P99 4.435ms (100% under the 100ms budget)</li>
+                    <li><strong>Not in this figure:</strong> feature mining (diff, AST, call-graph,
+                        history), which dominates real per-commit cost; and a 1321.8ms cold start on
+                        the first batch in a fresh process.</li>
                 </ul>
             </section>
 
             <section>
-                <h3>8. Production Architecture</h3>
-                <p>✅ <strong>FastAPI Backend</strong> with 7 REST endpoints & Swagger UI</p>
+                <h3>8. Research Prototype Architecture</h3>
+                <p>✅ <strong>FastAPI Backend</strong> with generated OpenAPI documentation</p>
                 <p>✅ <strong>GitHub PR Bot</strong> with HMAC SHA-256 Webhook Verification</p>
-                <p>✅ <strong>Streamlit Multi-Page Analytics Dashboard</strong> (5 Live Modules)</p>
+                <p>✅ <strong>Streamlit Multi-Page Analytics Dashboard</strong></p>
                 <p>✅ <strong>Docker Compose Multi-Container Stack</strong></p>
-                <p>✅ <strong>110/110 Automated Tests Passing</strong> (100% Pass Rate)</p>
+                <p>✅ <strong>Automated validation:</strong> run <code>python -m pytest tests/ -q</code></p>
             </section>
 
             <section>

@@ -150,7 +150,7 @@ else:
     )
 
 st.subheader("💡 Why Calibration Matters in CI Regression Selection")
-st.markdown("""
+st.markdown(r"""
 - **Uncalibrated models** output scores that cannot be read as probabilities. A score of `0.80` might only fail 50% of the time, causing premature test omission.
 - **Calibrated probabilities** let a risk budget be set directly: if the model says $\hat{p} = 0.10$, about $10\%$ of such tests should actually fail.
 - **A calibration step is not free.** It is fitted on held-out data and can make worst-case miscalibration worse while improving the average, which is why MCE is judged alongside ECE and why a method is only adopted when its paired interval excludes zero.

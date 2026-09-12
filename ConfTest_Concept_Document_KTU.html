@@ -277,6 +277,16 @@
         </div>
     </div>
 
+    <div class="callout callout-success" style="border-left-color:#f59e0b">
+        <strong>Status note (added after implementation).</strong> This is the original project
+        <em>specification</em>, written before any measurement. The reduction figures in this document are
+        the targets it set, not results. Measured on 183 held-out commits, the shipped operating point
+        reached <strong>100.0% failure recall with zero escaped commits</strong> but only
+        <strong>3.11% test-execution reduction (0.0% wall-clock)</strong>, because it abstains on 97.81%
+        of commits; the 32.85%-reduction operating point falls to 87.69% recall. See
+        <code>README.md</code> &rarr; Measured Results.
+    </div>
+
     <h1>1. Executive Summary & Problem Disproof</h1>
     <div class="callout callout-danger">
         <strong>Formal Research Verdict on Original Broad Proposal:</strong><br>
@@ -284,7 +294,9 @@
         <strong>Rationale:</strong> Meta (Machalica et al., ICSE-SEIP 2019) and Google (Memon et al., 2017) have already solved standard ML test selection using GBDT and static dependency analysis. Standard ML test selectors suffer from <strong>uncontrolled false negatives</strong> due to miscalibrated confidence scores on out-of-distribution code changes.
     </div>
 
-    <p><strong>The ConfTest Solution:</strong> ConfTest reframes regression test selection around <strong>Risk-Calibrated Selective Prediction</strong>. By coupling high-throughput LightGBM classifiers with <em>Venn-Abers / Conformal Calibration</em>, ConfTest explicitly quantifies prediction uncertainty. When uncertainty exceeds a safety budget &tau;, the decision engine <strong>ABSTAINS</strong> and executes the safe full suite. This achieves 40–50% test time reduction while mathematically bounding missed regressions.</p>
+    <p><strong>The ConfTest Solution:</strong> ConfTest reframes regression test selection around <strong>Risk-Calibrated Selective Prediction</strong>. By coupling high-throughput LightGBM classifiers with <em>Venn-Abers / Conformal Calibration</em>, ConfTest explicitly quantifies prediction uncertainty. When uncertainty exceeds a safety budget &tau;, the decision engine <strong>ABSTAINS</strong> and executes the safe full suite. The <em>target</em> set for this mechanism was 40&ndash;50% test time reduction while bounding missed
+        regressions. Measured: the bound held (zero escaped commits on 183 held-out commits) and the
+        reduction target did not (3.11% of executions, 0.0% wall-clock, at 97.81% abstention).</p>
 
     <h1>2. Systematic Literature Review (Key Foundations)</h1>
     <table>
@@ -474,7 +486,9 @@
 
     <h1>7. Company Value & Concrete ROI Model</h1>
     <div class="callout callout-success">
-        <strong>Concrete Example (40 Developers, 3,000 PRs/month, 30-minute test suite):</strong><br>
+        <strong>Illustrative model at proposal time (40 Developers, 3,000 PRs/month, 30-minute test
+        suite).</strong> The 45% reduction below was assumed, not measured; the measured reduction at
+        the shipped operating point is 0.0% wall-clock, which projects to <strong>$0/year</strong>.<br>
         - <strong>Runner Minutes Saved:</strong> 40,500 minutes / month (45% time reduction).<br>
         - <strong>Direct Cloud Compute Savings:</strong> 40,500 min &times; $0.008/min = <strong>$324.00 / month ($3,888/year)</strong>.<br>
         - <strong>Developer Productivity Recovered:</strong> 675 hours saved &times; $45/hr &times; 0.15 = <strong>$4,556.25 / month ($54,675/year)</strong>.<br>

@@ -130,7 +130,7 @@ with right_col:
         fitted = f" Fitted $T = {temperature}$." if temperature is not None else ""
         calibration_line = f"**{chosen}**, chosen over the uncalibrated model.{fitted}"
 
-    st.markdown(f"""
+    st.markdown(rf"""
     **ConfTest** prevents silent CI regression escapes using a four-stage pipeline:
 
     1. **32-Feature Extraction Pipeline**:

@@ -29,6 +29,9 @@ from build_real_dataset import (  # noqa: E402
     G1_MAX_FAILURE_RATE,
     G1_MIN_FAILURE_RATE,
     MESSAGE_DERIVED_FEATURES,
+    MUTATION_LINES_ADDED,
+    MUTATION_LINES_DELETED,
+    MUTATION_STRUCTURAL_FEATURES,
     ORDER_EPOCH,
     RECENT_WINDOW,
     G1_MIN_PAIRS_PER_REPO,
@@ -612,6 +615,23 @@ def test_rows_contain_every_declared_feature(tmp_path):
     assert missing == []
 
 
+def test_mutation_diff_features_describe_one_real_source_line_not_invented_churn(tmp_path):
+    rows = _rows_for(tmp_path, [_mutant("m1"), _mutant("m2")])
+    expected = {
+        "diff_lines_added": float(MUTATION_LINES_ADDED),
+        "diff_lines_deleted": float(MUTATION_LINES_DELETED),
+        "diff_total_churn": float(MUTATION_LINES_ADDED + MUTATION_LINES_DELETED),
+        "diff_num_files_changed": 1.0,
+        "diff_num_src_files": 1.0,
+        "diff_num_test_files": 0.0,
+        "diff_has_python": 1.0,
+        "diff_has_config": 0.0,
+    }
+    assert set(expected) == set(MUTATION_STRUCTURAL_FEATURES)
+    for row in rows:
+        assert {name: row[name] for name in MUTATION_STRUCTURAL_FEATURES} == expected
+
+
 def test_message_derived_features_are_constant_not_invented(tmp_path):
     rows = _rows_for(tmp_path, [_mutant("m1"), _mutant("m2")])
     for name in MESSAGE_DERIVED_FEATURES:
@@ -737,6 +757,24 @@ def test_build_dataset_produces_a_labelled_frame_and_an_honest_manifest(tmp_path
 
     # The inert list must name the message features rather than hide them.
     assert set(MESSAGE_DERIVED_FEATURES).issubset(set(manifest["inert_features"]))
+
+    # Every inert feature is classified by the measurement protocol that makes
+    # it constant; none is described as a failed extractor or filled with fake
+    # variation.
+    groups = manifest["inert_feature_groups"]
+    assert groups["mutation_protocol_structural_diff"]["features"] == MUTATION_STRUCTURAL_FEATURES
+    assert groups["unavailable_commit_message"]["features"] == MESSAGE_DERIVED_FEATURES
+    assert groups["stable_baseline_history"]["features"] == ["hist_flaky_score"]
+    assert "not a failed diff extractor" in groups["mutation_protocol_structural_diff"]["reason"]
+    classified = {
+        name
+        for group in groups.values()
+        for name in group["features"]
+    }
+    # This tiny two-test fixture makes additional AST/dependency fields constant;
+    # the protocol classification must cover the known 13, while inert_features
+    # remains a data-derived superset for any corpus.
+    assert classified.issubset(set(manifest["inert_features"]))
 
     # Provenance travels with the dataset: a reader can see which interpreter
     # produced the labels without going back to the harvest directory.

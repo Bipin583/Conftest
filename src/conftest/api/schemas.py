@@ -121,8 +121,16 @@ class CalibrationResponseSchema(BaseModel):
     # a 'calibrated' field would report the opposite of what was decided.
     calibrated: Optional[CalibrationMetricItem] = None
     temperature: Optional[float] = None
+    # Which split `uncalibrated` and `calibrated` were measured on. Without this
+    # the payload is ambiguous in a way that reads as a contradiction: the metric
+    # blocks come from the held-out test split (ECE 0.0415 -> 0.0161) while
+    # `selection_reason` quotes the validation split the method was *chosen* on
+    # (0.0390 -> 0.0242). Two different pairs of numbers, both correct, and
+    # nothing previously said which was which.
+    metrics_split: Optional[str] = None
     selection_basis: Optional[str] = None
     selection_reason: Optional[str] = None
+    selection_split: Optional[str] = None
     resampling_unit: Optional[str] = None
     reliability_diagram_bins: List[Dict[str, Any]] = Field(default_factory=list)
 
@@ -157,6 +165,12 @@ class AnalyticsSummarySchema(BaseModel):
     # not zero, and must not be returned in the shape of a measurement.
     average_test_reduction_pct: Optional[float] = None
     total_failures_detected: int
-    total_missed_failures: int
+    # None when no outcome has a verified full-suite comparison. Escapes are
+    # unobservable on a selective run, so a 0 here would claim a safety result
+    # that no measurement supports. verified/unverified counts say how much of
+    # the history the figure actually covers.
+    total_missed_failures: Optional[int] = None
+    verified_outcomes: int = 0
+    unverified_outcomes: int = 0
     average_uncertainty: Optional[float] = None
     recent_decisions: List[Dict[str, Any]] = Field(default_factory=list)

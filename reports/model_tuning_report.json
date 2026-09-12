@@ -1,0 +1,268 @@
+{
+  "objective": "validation_pr_auc",
+  "selection_split": "validation",
+  "held_out_test_used_for_selection": false,
+  "random_seed": 42,
+  "candidate_count": 6,
+  "selected_candidate_index": 5,
+  "selected_config": {
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 6,
+    "num_leaves": 31,
+    "subsample": 0.8,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.8,
+    "early_stopping_rounds": 25,
+    "use_class_weight": false
+  },
+  "selected_validation_metrics": {
+    "pr_auc": 0.20992790905438335,
+    "roc_auc": 0.8496121653460015,
+    "brier_score": 0.049337781965732574
+  },
+  "candidates": [
+    {
+      "candidate_index": 0,
+      "config": {
+        "n_estimators": 300,
+        "learning_rate": 0.05,
+        "max_depth": 6,
+        "num_leaves": 31,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "early_stopping_rounds": 25,
+        "use_class_weight": true
+      },
+      "validation_metrics": {
+        "pr_auc": 0.17324636190280718,
+        "roc_auc": 0.7781923450444165,
+        "brier_score": 0.0499354712665081
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 300,
+        "best_iteration": 2,
+        "actual_num_trees": 2,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 25,
+        "eval_metric": "average_precision",
+        "use_class_weight": true,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 18.932088717061756,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "effective_row_fraction_per_tree": 0.8,
+        "bagging_active": true
+      }
+    },
+    {
+      "candidate_index": 1,
+      "config": {
+        "n_estimators": 500,
+        "learning_rate": 0.03,
+        "max_depth": 6,
+        "num_leaves": 31,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "early_stopping_rounds": 40,
+        "use_class_weight": true
+      },
+      "validation_metrics": {
+        "pr_auc": 0.19242741108215217,
+        "roc_auc": 0.8118317381346285,
+        "brier_score": 0.0503293015062809
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 500,
+        "best_iteration": 2,
+        "actual_num_trees": 2,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 40,
+        "eval_metric": "average_precision",
+        "use_class_weight": true,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 18.932088717061756,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "effective_row_fraction_per_tree": 0.8,
+        "bagging_active": true
+      }
+    },
+    {
+      "candidate_index": 2,
+      "config": {
+        "n_estimators": 300,
+        "learning_rate": 0.05,
+        "max_depth": 4,
+        "num_leaves": 15,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "early_stopping_rounds": 25,
+        "use_class_weight": true
+      },
+      "validation_metrics": {
+        "pr_auc": 0.18089512574095734,
+        "roc_auc": 0.8266872395867837,
+        "brier_score": 0.04963163286447525
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 300,
+        "best_iteration": 4,
+        "actual_num_trees": 4,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 25,
+        "eval_metric": "average_precision",
+        "use_class_weight": true,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 18.932088717061756,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "effective_row_fraction_per_tree": 0.8,
+        "bagging_active": true
+      }
+    },
+    {
+      "candidate_index": 3,
+      "config": {
+        "n_estimators": 300,
+        "learning_rate": 0.05,
+        "max_depth": 8,
+        "num_leaves": 63,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "early_stopping_rounds": 25,
+        "use_class_weight": true
+      },
+      "validation_metrics": {
+        "pr_auc": 0.1914312093344504,
+        "roc_auc": 0.8021787948365174,
+        "brier_score": 0.04961056262254715
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 300,
+        "best_iteration": 2,
+        "actual_num_trees": 2,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 25,
+        "eval_metric": "average_precision",
+        "use_class_weight": true,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 18.932088717061756,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "effective_row_fraction_per_tree": 0.8,
+        "bagging_active": true
+      }
+    },
+    {
+      "candidate_index": 4,
+      "config": {
+        "n_estimators": 300,
+        "learning_rate": 0.05,
+        "max_depth": 6,
+        "num_leaves": 31,
+        "subsample": 1.0,
+        "subsample_freq": 0,
+        "colsample_bytree": 1.0,
+        "early_stopping_rounds": 25,
+        "use_class_weight": true
+      },
+      "validation_metrics": {
+        "pr_auc": 0.18013286706604728,
+        "roc_auc": 0.7974301662421546,
+        "brier_score": 0.0490473136305809
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 300,
+        "best_iteration": 6,
+        "actual_num_trees": 6,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 25,
+        "eval_metric": "average_precision",
+        "use_class_weight": true,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 18.932088717061756,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 1.0,
+        "subsample_freq": 0,
+        "effective_row_fraction_per_tree": 1.0,
+        "bagging_active": false
+      }
+    },
+    {
+      "candidate_index": 5,
+      "config": {
+        "n_estimators": 300,
+        "learning_rate": 0.05,
+        "max_depth": 6,
+        "num_leaves": 31,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "early_stopping_rounds": 25,
+        "use_class_weight": false
+      },
+      "validation_metrics": {
+        "pr_auc": 0.20992790905438335,
+        "roc_auc": 0.8496121653460015,
+        "brier_score": 0.049337781965732574
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 300,
+        "best_iteration": 19,
+        "actual_num_trees": 19,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 25,
+        "eval_metric": "average_precision",
+        "use_class_weight": false,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 1.0,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "effective_row_fraction_per_tree": 0.8,
+        "bagging_active": true
+      }
+    }
+  ],
+  "labels_measured": true,
+  "produced_by": "python scripts/tune_model.py",
+  "inputs": {
+    "train": "data/splits/train.csv",
+    "validation": "data/splits/val.csv",
+    "train_rows": 391825,
+    "validation_rows": 83417
+  }
+}

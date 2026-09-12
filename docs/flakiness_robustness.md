@@ -1,27 +1,40 @@
-# ConfTest Flakiness Robustness & Noise Stress Study
+# Flakiness Noise Stress Study
 
-## 1. Motivation: The Flaky Test Dilemma in ML-RTS
-Flaky tests—test cases that intermittently fail without code changes—constitute between $4\%$ and $26\%$ of failures in industrial CI/CD systems (Luo et al., 2014; Gruber et al., 2021).
+This experiment tests sensitivity to synthetic training-label corruption. It does not estimate production flaky-test prevalence or prove that ensemble disagreement detects real flakiness.
 
-When machine learning models are trained on raw CI test outcomes without flakiness awareness:
-1. Flaky failures inject label noise, causing standard gradient boosting to overfit to intermittent patterns.
-2. Uncalibrated risk estimates cause false-positive test selections, reducing compute time savings.
-3. Genuine regression failures are overlooked if flaky tests dominate the top ranking.
+## Protocol
 
----
+`scripts/run_flakiness_test.py` flips 0%, 5%, 10%, 20%, or 30% of training labels selected by a generated beta-distributed score. Validation and held-out labels remain clean. At each level it compares:
 
-## 2. ConfTest Robustness Mechanisms
-ConfTest counteracts test flakiness through dual defenses:
-1. **Flakiness Downweighting:**
-   Sample weight for commit-test pair $(c_i, t_j)$:
-   $$w_{ij} = \max\left(0.1, \; 1.0 - \alpha \cdot \text{hist\_flakiness\_score}_j\right)$$
-   downweighting high-flakiness test runs during loss minimization.
-2. **Epistemic Abstention Fallback:**
-   When flakiness creates high ensemble divergence $\sigma(c, t) > \tau_{\text{abstain}}$, ConfTest abstains from aggressive subsetting and falls back to full execution for regression safety.
+- a 30-tree LightGBM model trained on corrupted labels without per-row weights; and
+- a 30-tree model using `clip(1 - 0.7 * score, 0.1, 1.0)`, followed by temperature calibration on clean validation data.
 
----
+Recall uses a 25% budget within each held-out observation. This is a focused stress-study configuration, not the five-member selective serving pipeline.
 
-## 3. Stress Test Protocol
-We inject synthetic label noise at controlled rates $\eta \in [0\%, 5\%, 10\%, 20\%, 30\%]$ into training labels and compare:
-- **Standard Unweighted ML** (naive baseline).
-- **ConfTest Robust Model** (sample downweighting + temperature calibration).
+## Committed outcomes
+
+| Flips | Training positive rate | Standard PR-AUC | Weighted/calibrated PR-AUC | Standard recall | Weighted/calibrated recall |
+|---:|---:|---:|---:|---:|---:|
+| 0% | 5.02% | 0.1393 | 0.1393 | 0.4819 | 0.4819 |
+| 5% | 9.52% | 0.1589 | 0.1685 | 0.5277 | 0.5371 |
+| 10% | 14.03% | 0.1635 | 0.1638 | 0.5440 | 0.5365 |
+| 20% | 23.01% | 0.1683 | 0.1779 | 0.5486 | 0.5405 |
+| 30% | 32.00% | 0.1653 | 0.1786 | 0.5558 | 0.5627 |
+
+The weighted/calibrated variant improves PR-AUC at most nonzero levels, but recall is lower at 10% and 20%. It is therefore inaccurate to claim uniform robustness benefits.
+
+## Central confound
+
+The clean training corpus is only about 5% positive. Symmetric label flips consequently convert many more passes to failures than failures to passes, raising positive prevalence to 32% at the largest setting. Increasing PR-AUC or recall as noise rises can reflect that changed task distribution rather than resilience to flakiness.
+
+The synthetic score is generated per row and does not reproduce repeated intermittent behavior of a real test, environment-sensitive failures, ordering effects, or shared infrastructure faults. The committed corpus also has constant `hist_flaky_score` because its baseline universe was screened for stable tests.
+
+## Scope of claims
+
+The experiment supports comparisons only within its injected-noise protocol. It does not show that the primary trained model uses the same weights, that calibration always compensates for noise, or that selective abstention responds correctly to real flaky tests.
+
+```bash
+python scripts/evaluate.py --run flakiness
+```
+
+See `reports/flakiness_robustness.json`, [Task formulation](task_formulation.md), and [Limitations](limitations.md).

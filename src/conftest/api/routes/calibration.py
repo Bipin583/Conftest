@@ -14,12 +14,18 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, status
 
 from conftest.api.schemas import CalibrationResponseSchema, CalibrationMetricItem
+from conftest.config import PROJECT_ROOT
 from conftest.logging_config import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/calibration", tags=["Confidence Calibration"])
 
-REPORT_PATH = Path("./reports/calibration_report.json")
+# Anchored to the project root, not to the working directory. As a relative
+# path this resolved against wherever uvicorn happened to be started, so
+# launching the API from any other directory made the endpoint answer 503
+# "no calibration report" while the report sat on disk, and told the caller to
+# re-run a measurement that had already been run.
+REPORT_PATH = PROJECT_ROOT / "reports" / "calibration_report.json"
 
 # Keys of a paired-difference block in the report, as score_record writes them.
 DIFFERENCE_KEYS = (
@@ -101,8 +107,13 @@ def get_calibration_diagnostics() -> CalibrationResponseSchema:
                 if best_method == "temperature_scaling"
                 else None
             ),
+            # The metric blocks above are held-out test measurements; the
+            # selection was made on validation. Both labels are read from the
+            # report so a rerun that changes either cannot be misreported.
+            metrics_split="held-out test split",
             selection_basis=selection.get("basis"),
             selection_reason=selection.get("reason"),
+            selection_split=selection.get("chosen_on"),
             resampling_unit=data.get("test_metrics", {}).get("resampling_unit"),
             reliability_diagram_bins=data.get("reliability_diagram_bins", {}).get(
                 best_method, []

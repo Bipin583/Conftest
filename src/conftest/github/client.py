@@ -148,6 +148,70 @@ class GitHubClient:
         """Fetch general repository metadata (stars, default branch, language)."""
         return self.get(f"/repos/{owner}/{repo}")
 
+    def get_pull_request_files(
+        self, owner: str, repo: str, pull_number: int, per_page: int = 100
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Fetch the changed files of a pull request in ConfTest's feature format.
+
+        A `pull_request` webhook payload does not carry the file list, so callers
+        that need the diff must ask for it. Returning None means the diff could
+        not be established -- callers must treat that as unknown and fall back to
+        the full suite, never as an empty or assumed diff.
+
+        Args:
+            owner: Repository owner login.
+            repo: Repository name.
+            pull_number: Pull request number.
+            per_page: Page size; GitHub caps this endpoint at 100 files per page
+                and 3000 files total.
+
+        Returns:
+            List of {file_path, change_type, lines_added, lines_deleted}, or None
+            if the request failed.
+        """
+        collected: List[Dict[str, Any]] = []
+        page = 1
+        while True:
+            batch = self.get(
+                f"/repos/{owner}/{repo}/pulls/{pull_number}/files",
+                params={"per_page": per_page, "page": page},
+            )
+            if batch is None:
+                # Distinguish a failed request from a genuinely empty diff: a
+                # partial list would silently understate the change.
+                logger.error(
+                    f"Could not fetch changed files for {owner}/{repo}#{pull_number} "
+                    f"(page {page}); returning None so the caller can fall back."
+                )
+                return None
+            if not isinstance(batch, list):
+                logger.error(
+                    f"Unexpected payload shape for PR files: {type(batch).__name__}"
+                )
+                return None
+
+            for entry in batch:
+                # GitHub statuses: added / removed / modified / renamed /
+                # copied / changed / unchanged. ConfTest's extractor expects the
+                # single-letter git codes.
+                status_map = {"added": "A", "removed": "D", "renamed": "R"}
+                collected.append({
+                    "file_path": entry.get("filename", ""),
+                    "change_type": status_map.get(entry.get("status", "modified"), "M"),
+                    "lines_added": int(entry.get("additions", 0) or 0),
+                    "lines_deleted": int(entry.get("deletions", 0) or 0),
+                })
+
+            if len(batch) < per_page:
+                break
+            page += 1
+
+        logger.info(
+            f"Fetched {len(collected)} changed files for {owner}/{repo}#{pull_number}"
+        )
+        return collected
+
     def get_commit_ci_status(self, owner: str, repo: str, commit_sha: str) -> str:
         """
         Fetch the CI status for a commit from GitHub Statuses and Check Runs.

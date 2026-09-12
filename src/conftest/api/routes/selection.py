@@ -5,11 +5,12 @@ Endpoint: POST /api/v1/select
 Executes confidence-calibrated regression test selection with selective abstention fallback.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from conftest.api.schemas import SelectRequestSchema, SelectResponseSchema, RankedTestSchema
+from conftest.config import settings
 from conftest.db.session import get_db
 from conftest.db import crud
 from conftest.engine.selector_engine import ConfTestEngine
@@ -23,16 +24,23 @@ router = APIRouter(prefix="/select", tags=["Test Selection"])
 _engine_instance: Dict[str, ConfTestEngine] = {}
 
 
-def get_engine(repo_root: str = "./tests/sample_suite") -> ConfTestEngine:
-    """Retrieve or initialize cached engine instance for a repository path."""
-    if repo_root not in _engine_instance:
-        _engine_instance[repo_root] = ConfTestEngine(
-            repo_root=repo_root,
-            ensemble_path="./models/ensembles/5_seed_lgbm",
-            calibrator_path="./models/calibrator.joblib",
-            policy_config_path="./models/policy_config.json",
+def get_engine(repo_root: Optional[str] = None) -> ConfTestEngine:
+    """
+    Retrieve or initialize cached engine instance for a repository path.
+
+    Artifact locations come from settings rather than literals, so which model,
+    calibrator and tuned policy a deployment serves is an environment decision
+    (CONFTEST_ENSEMBLE_PATH and friends) instead of a source edit.
+    """
+    root = repo_root or str(settings.default_repo_root)
+    if root not in _engine_instance:
+        _engine_instance[root] = ConfTestEngine(
+            repo_root=root,
+            ensemble_path=str(settings.ensemble_path),
+            calibrator_path=str(settings.calibrator_path),
+            policy_config_path=str(settings.policy_config_path),
         )
-    return _engine_instance[repo_root]
+    return _engine_instance[root]
 
 
 @router.post("", response_model=SelectResponseSchema, status_code=status.HTTP_200_OK)
@@ -46,13 +54,26 @@ def select_regression_tests(
     - **FAST_SELECTED**: Model is confident and low uncertainty; selects top risk tests.
     - **SAFE_FULL_SUITE**: Model is uncertain or diff is OOD; safely runs full suite.
     """
-    repo_path = payload.repo_path or "./tests/sample_suite"
+    repo_path = payload.repo_path or str(settings.default_repo_root)
     engine = get_engine(repo_path)
 
-    # Convert changed files to dictionary format
+    # Convert changed files to dictionary format.
+    #
+    # An empty diff is a client error, not something to paper over. This used to
+    # substitute a fixed made-up change to "src_app/auth.py" with 15 added lines,
+    # so a caller that sent no diff still received a confident-looking selection
+    # with per-test confidences and an epistemic-uncertainty figure -- all of it
+    # computed from features of a file the commit never touched.
     changed_files = [f.model_dump() for f in payload.changed_files]
     if not changed_files:
-        changed_files = [{"file_path": "src_app/auth.py", "change_type": "M", "lines_added": 15, "lines_deleted": 3}]
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "changed_files is empty: test selection is a function of the diff, "
+                "so there is nothing to rank. Send the commit's changed files, or "
+                "run the full suite if the diff is genuinely unknown."
+            ),
+        )
 
     # Ensure repository is registered in DB
     repo = crud.get_or_create_repository(
@@ -108,9 +129,31 @@ def select_regression_tests(
             markdown_summary=markdown_summary,
             execution_outcome=outcome.get("execution_outcome"),
         )
+    except HTTPException:
+        # Already carries a deliberate status code (e.g. the 422 above, or a 422
+        # raised deeper in the pipeline). Re-raising unchanged keeps a client
+        # error from being reported as a server fault.
+        raise
+    except FileNotFoundError as exc:
+        # A missing ensemble, calibrator or policy file is a deployment fault and
+        # must not be reported as a bad request.
+        logger.error(f"Required ConfTest artifact missing: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "ConfTest model artifacts are not available on this server. "
+                "Check CONFTEST_ENSEMBLE_PATH, CONFTEST_CALIBRATOR_PATH and "
+                "CONFTEST_POLICY_CONFIG_PATH."
+            ),
+        )
     except Exception as exc:
+        # The message can contain absolute paths and internal identifiers, so it
+        # goes to the log; the client gets the commit SHA it can quote instead.
         logger.error(f"Test selection failed: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Test selection pipeline failed: {str(exc)}",
+            detail=(
+                f"Test selection pipeline failed for commit {payload.commit_sha}. "
+                "See server logs for details."
+            ),
         )

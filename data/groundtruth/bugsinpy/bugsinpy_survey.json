@@ -1,16 +1,18 @@
 {
   "produced_by": "python scripts/harvest_bugsinpy.py --survey",
-  "generated_at": "2026-09-03T17:41:59+00:00",
+  "generated_at": "2026-09-09T14:46:44+00:00",
   "bugsinpy_root": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\data\\groundtruth\\bugsinpy\\BugsInPy",
-  "n_projects": 6,
-  "n_bugs": 96,
-  "n_with_readable_test_command": 96,
+  "n_projects": 17,
+  "n_bugs": 501,
+  "n_with_readable_test_command": 501,
   "pinned_python_versions": {
-    "3.6.9": 13,
-    "3.7.0": 42,
-    "3.7.3": 5,
+    "3.6.9": 31,
+    "3.7.0": 58,
+    "3.7.3": 50,
     "3.7.4": 33,
-    "3.8.1": 3
+    "3.7.7": 9,
+    "3.8.1": 33,
+    "3.8.3": 287
   },
   "profiled_projects": [
     "PySnooper",
@@ -29,6 +31,22 @@
       "n_with_readable_test_command": 3,
       "has_run_profile": true
     },
+    "ansible": {
+      "n_bugs": 18,
+      "python_versions": {
+        "3.6.9": 18
+      },
+      "n_with_readable_test_command": 18,
+      "has_run_profile": false
+    },
+    "black": {
+      "n_bugs": 23,
+      "python_versions": {
+        "3.8.3": 23
+      },
+      "n_with_readable_test_command": 23,
+      "has_run_profile": false
+    },
     "cookiecutter": {
       "n_bugs": 4,
       "python_versions": {
@@ -36,6 +54,14 @@
       },
       "n_with_readable_test_command": 4,
       "has_run_profile": true
+    },
+    "fastapi": {
+      "n_bugs": 16,
+      "python_versions": {
+        "3.8.3": 16
+      },
+      "n_with_readable_test_command": 16,
+      "has_run_profile": false
     },
     "httpie": {
       "n_bugs": 5,
@@ -45,6 +71,63 @@
       "n_with_readable_test_command": 5,
       "has_run_profile": true
     },
+    "keras": {
+      "n_bugs": 45,
+      "python_versions": {
+        "3.7.3": 45
+      },
+      "n_with_readable_test_command": 45,
+      "has_run_profile": false
+    },
+    "luigi": {
+      "n_bugs": 33,
+      "python_versions": {
+        "3.8.3": 33
+      },
+      "n_with_readable_test_command": 33,
+      "has_run_profile": false
+    },
+    "matplotlib": {
+      "n_bugs": 30,
+      "python_versions": {
+        "3.8.1": 30
+      },
+      "n_with_readable_test_command": 30,
+      "has_run_profile": false
+    },
+    "pandas": {
+      "n_bugs": 169,
+      "python_versions": {
+        "3.8.3": 169
+      },
+      "n_with_readable_test_command": 169,
+      "has_run_profile": false
+    },
+    "sanic": {
+      "n_bugs": 5,
+      "python_versions": {
+        "3.8.3": 5
+      },
+      "n_with_readable_test_command": 5,
+      "has_run_profile": false
+    },
+    "scrapy": {
+      "n_bugs": 40,
+      "python_versions": {
+        "3.8.3": 40
+      },
+      "n_with_readable_test_command": 40,
+      "has_run_profile": false
+    },
+    "spacy": {
+      "n_bugs": 10,
+      "python_versions": {
+        "3.7.7": 9,
+        "3.8.3": 1
+      },
+      "n_with_readable_test_command": 10,
+      "has_run_profile": false
+    },
     "thefuck": {
       "n_bugs": 32,
       "python_versions": {
@@ -52,6 +135,14 @@
       },
       "n_with_readable_test_command": 32,
       "has_run_profile": true
+    },
+    "tornado": {
+      "n_bugs": 16,
+      "python_versions": {
+        "3.7.0": 16
+      },
+      "n_with_readable_test_command": 16,
+      "has_run_profile": false
     },
     "tqdm": {
       "n_bugs": 9,

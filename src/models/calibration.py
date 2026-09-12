@@ -1,7 +1,22 @@
 """
 ConfTest Confidence Calibration & Uncertainty Estimation Module
 Member 3 Technical Domain: Temperature Scaling, Venn-Abers Predictors, ECE.
+
+.. deprecated:: superseded
+
+    NOT AUTHORITATIVE. This module is an earlier implementation kept only so
+    that the tests written against it still run. The maintained implementation
+    is **conftest.models.calibration** (TemperatureScalingCalibrator, IsotonicCalibrator and ConfidenceCalibrator, selected between by conftest.models.calibrator_selection).
+
+    Two trees with the same responsibility is how a repository ends up
+    measuring one and shipping the other: fixes land in `src/conftest/` and are
+    invisible here, so a number produced by this module can silently disagree
+    with the published pipeline. Import the replacement in new code. Nothing
+    under `src/conftest/`, `scripts/`, or `dashboard/` imports this module, and
+    nothing new should.
 """
+__superseded_by__ = "conftest.models.calibration"
+
 import numpy as np
 from scipy.optimize import minimize
 from typing import Tuple

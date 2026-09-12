@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-03T13:36:38.070261+00:00",
+  "generated_at": "2026-09-09T13:50:38.812728+00:00",
   "label_source": "measured pytest outcomes under AST mutation; no value is drawn or imputed",
   "n_rows": 561711,
   "n_failures": 27444,
@@ -192,6 +192,36 @@
     "diff_is_refactor_commit",
     "hist_flaky_score"
   ],
+  "inert_feature_groups": {
+    "mutation_protocol_structural_diff": {
+      "features": [
+        "diff_lines_added",
+        "diff_lines_deleted",
+        "diff_total_churn",
+        "diff_num_files_changed",
+        "diff_num_src_files",
+        "diff_num_test_files",
+        "diff_has_python",
+        "diff_has_config"
+      ],
+      "reason": "each mutation changes one Python source line in one file: one line is removed and one is added. These are truthful constants of this mutation protocol, not a failed diff extractor"
+    },
+    "unavailable_commit_message": {
+      "features": [
+        "diff_msg_length",
+        "diff_msg_word_count",
+        "diff_is_fix_commit",
+        "diff_is_refactor_commit"
+      ],
+      "reason": "a mutant carries no commit message; an empty string is used rather than invented prose"
+    },
+    "stable_baseline_history": {
+      "features": [
+        "hist_flaky_score"
+      ],
+      "reason": "the baseline universe includes only tests stable across every screening run, so no observed baseline flakiness remains"
+    }
+  },
   "message_derived_features_are_inert_because": "a mutant carries no commit message; an empty string is used rather than invented prose",
   "commit_timestamp_is_a_surrogate": "mutants have no wall-clock time; commit_timestamp encodes harvest order (one second per mutant from ORDER_EPOCH) so temporal splits respect the order in which history features accumulated. Use mutant_index for the ordering itself",
   "history_is_causal": "features for mutant i are read before mutant i's outcomes are recorded, so no row sees its own or any later label",

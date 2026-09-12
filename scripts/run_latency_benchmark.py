@@ -38,7 +38,7 @@ from conftest.models.policy import SelectivePredictionPolicy
 logger = get_logger(__name__)
 
 ENSEMBLE_PRODUCED_BY = "python scripts/train_ensemble.py"
-CALIBRATOR_PRODUCED_BY = "python scripts/run_calibration.py"
+CALIBRATOR_PRODUCED_BY = "python scripts/calibrate_model.py"
 POLICY_PRODUCED_BY = "python scripts/tune_policy.py"
 SPLIT_PRODUCED_BY = "python scripts/build_splits.py"
 
