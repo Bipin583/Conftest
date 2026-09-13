@@ -75,6 +75,13 @@ models/calibrated/*
 # reports/calibration_report.json, which is tracked.
 models/*.joblib
 !models/README.md
+# The release ensemble, its calibrator, and the tuned policy ship with the repo:
+# without them CI falls back to the heuristic, which abstains on every commit
+# (hardcoded uncertainty 0.01 > tau_abstain) and silently degrades to a full-suite
+# run. 256K total; small enough to track in git.
+!models/ensembles/5_seed_lgbm
+!models/ensembles/5_seed_lgbm/**
+!models/calibrator.joblib
 
 # Environment secrets.
 # A local .env goes stale as settings are added or removed -- ours still named
