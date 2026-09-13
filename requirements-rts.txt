@@ -1,0 +1,28 @@
+# Slim runtime dependencies for ConfTest's regression test selection engine
+# (scripts/select_tests.py), used by .github/workflows/conftest-rts-reusable.yml
+# when running selection against an external repository.
+#
+# This is a subset of pyproject.toml [project].dependencies: everything the
+# engine, git miner, feature pipeline, and pytest executor import at runtime,
+# without the serving/UX stack (fastapi, uvicorn, streamlit, plotly), the
+# unused model libraries (xgboost), or the code-metrics/experiment extras
+# (radon, unidiff). Keep version floors in sync with pyproject.toml.
+numpy>=1.26.0
+pandas>=2.2.0
+scipy>=1.12.0
+scikit-learn>=1.4.0
+lightgbm>=4.3.0
+joblib>=1.3.0
+gitpython>=3.1.41
+networkx>=3.2.1
+sqlalchemy>=2.0.25
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.1
+python-json-logger>=2.0.7
+pyyaml>=6.0.1
+requests>=2.31.0
+# The engine discovers and executes the target repo's tests with pytest.
+pytest>=8.0.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.23.5

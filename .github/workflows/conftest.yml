@@ -50,6 +50,7 @@ jobs:
             --repo-path . \
             --commit-sha "${{ github.event.pull_request.head.sha || 'HEAD' }}" \
             --budget 0.25 \
+            --timeout 600 \
             --output-json reports/conftest_selection_report.json
 
       - name: 🧪 Execute Selected Test Cases
@@ -59,6 +60,7 @@ jobs:
             --repo-path . \
             --commit-sha "${{ github.event.pull_request.head.sha || 'HEAD' }}" \
             --budget 0.25 \
+            --timeout 600 \
             --execute
 
       - name: 💬 Post ConfTest Summary to Pull Request

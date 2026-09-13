@@ -1,0 +1,183 @@
+# Reusable ConfTest regression test selection workflow.
+#
+# Called from other repositories' PR workflows:
+#   jobs:
+#     conftest-rts:
+#       uses: Bipin583/Conftest/.github/workflows/conftest-rts-reusable.yml@main
+#       with:
+#         budget: 0.25
+#
+# Layout matters: the caller repo is checked out to target-repo/ and the
+# ConfTest engine to conftest-engine/ (neither at the workspace root), because
+# the engine's dependency-graph walk and pytest collection would otherwise
+# ingest the other checkout into the target's test selection.
+#
+# workflow_dispatch lets this be smoke-tested directly in the Conftest repo
+# (it then selects for Conftest itself); it is also the only trigger where
+# github.event.pull_request is absent, hence the HEAD fallbacks.
+
+name: ConfTest RTS (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      budget:
+        description: "Fraction of tests to run in fast selective mode (0.25 = top 25%)."
+        type: number
+        default: 0.25
+      timeout:
+        description: "Per-run pytest timeout in seconds for executed tests."
+        type: number
+        default: 600
+      python-version:
+        description: "Python version for the runner."
+        type: string
+        default: "3.11"
+      conftest-ref:
+        description: "Conftest ref to check the engine out from."
+        type: string
+        default: "main"
+      target-deps-command:
+        description: "Shell command installing the target repo's deps ('auto' = detect requirements.txt/pyproject.toml)."
+        type: string
+        default: "auto"
+  workflow_dispatch:
+    inputs:
+      budget:
+        description: "Fraction of tests to run in fast selective mode."
+        type: number
+        default: 0.25
+      timeout:
+        description: "Per-run pytest timeout in seconds."
+        type: number
+        default: 600
+      conftest-ref:
+        description: "Conftest ref to check the engine out from."
+        type: string
+        default: "main"
+      target-deps-command:
+        description: "Shell command installing the target repo's deps ('auto' = detect)."
+        type: string
+        default: "auto"
+
+permissions:
+  contents: read
+
+jobs:
+  conftest-rts:
+    name: 🛡️ ConfTest Intelligent RTS & Test Execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: 📥 Checkout Target Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          path: target-repo
+
+      - name: 🧰 Checkout ConfTest Engine
+        uses: actions/checkout@v5
+        with:
+          repository: Bipin583/Conftest
+          ref: ${{ inputs.conftest-ref }}
+          path: conftest-engine
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: 🐍 Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: "pip"
+          cache-dependency-path: conftest-engine/requirements-rts.txt
+
+      - name: 📦 Install ConfTest Engine Dependencies
+        run: python -m pip install --upgrade pip && pip install -r conftest-engine/requirements-rts.txt
+
+      # One runner env holds both engine and target deps: the executor runs
+      # `sys.executable -m pytest` with cwd=target-repo, so pytest and every
+      # import the target's tests make must be importable from here.
+      - name: 📦 Install Target Repository Dependencies
+        working-directory: target-repo
+        env:
+          TARGET_DEPS_COMMAND: ${{ inputs.target-deps-command }}
+        run: |
+          if [ "$TARGET_DEPS_COMMAND" != "auto" ]; then
+            eval "$TARGET_DEPS_COMMAND"
+            exit $?
+          fi
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          if [ -f pyproject.toml ]; then
+            pip install -e . || pip install -e ".[dev]"
+          fi
+
+      - name: 🧠 Run ConfTest Selective RTS Engine & Execute Tests
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BUDGET: ${{ inputs.budget }}
+          TIMEOUT: ${{ inputs.timeout }}
+        run: |
+          python conftest-engine/scripts/select_tests.py \
+            --repo-path target-repo \
+            --commit-sha "${PR_HEAD_SHA:-HEAD}" \
+            --budget "$BUDGET" \
+            --timeout "$TIMEOUT" \
+            --ensemble conftest-engine/models/ensembles/5_seed_lgbm \
+            --calibrator conftest-engine/models/calibrator.joblib \
+            --policy-config conftest-engine/models/policy_config.json \
+            --output-json reports/conftest_selection_report.json \
+            --execute
+
+      # always(): the JSON report is written before select_tests.py exits
+      # non-zero on failing tests, so the summary still posts on red runs.
+      - name: 💬 Post ConfTest Summary to Pull Request
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('reports/conftest_selection_report.json')) {
+              core.info('No selection report found; skipping comment.');
+              return;
+            }
+            const data = JSON.parse(fs.readFileSync('reports/conftest_selection_report.json', 'utf8'));
+            const mode = data.decision_mode || 'FAST_SELECTED';
+            // test_reduction_pct is 1 - selected/total: a fraction of the
+            // test *count*. Calling it a time reduction asserts that every
+            // test costs the same, which is false for any real suite, and
+            // `|| 0` additionally turned a missing value into a reported 0%.
+            const reduction = data.test_reduction_pct;
+            const reductionLabel =
+              (reduction === null || reduction === undefined)
+                ? 'reduction not reported'
+                : `${reduction}% fewer tests`;
+            const selected = data.selected_count || 0;
+            const total = data.total_count || 0;
+
+            let executed = '';
+            if (data.execution_outcome) {
+              const ex = data.execution_outcome;
+              executed = `- **Executed:** ${ex.passed} passed / ${ex.failed} failed\n`;
+            }
+
+            const body = `## 🛡️ ConfTest CI Test Selection Report\n\n` +
+              `- **Execution Mode:** \`${mode}\`\n` +
+              `- **Tests Selected:** **${selected} / ${total}** (${reductionLabel})\n` +
+              executed +
+              `- **Model Confidence:** \`${(data.top_confidence * 100).toFixed(1)}%\`\n` +
+              `- **Epistemic Uncertainty:** \`${data.epistemic_uncertainty.toFixed(4)}\`\n\n` +
+              `*Executed via ConfTest GitHub Action.*`;
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
