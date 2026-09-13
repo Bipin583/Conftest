@@ -17,14 +17,15 @@ services:
     dockerContext: .
     # Routed by nginx to the FastAPI /health endpoint.
     healthCheckPath: /health
-    # Persistent disks require a paid plan. On the free plan, remove the
-    # `disk` block -- the service still runs, but the SQLite database is
-    # recreated empty on every deploy and restart.
-    plan: starter
-    disk:
-      name: conftest-data
-      mountPath: /app/data
-      sizeGB: 1
+    # Free plan: no persistent disk, so the SQLite database is recreated empty
+    # on every deploy and restart, and the service sleeps after ~15 minutes
+    # of inactivity (the first request after that pays a ~30-60 s cold start).
+    # For persistent data, upgrade the plan and re-add:
+    #   disk:
+    #     name: conftest-data
+    #     mountPath: /app/data
+    #     sizeGB: 1
+    plan: free
     envVars:
       - key: CONFTEST_ENV
         value: production
