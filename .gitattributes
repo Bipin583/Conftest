@@ -1,0 +1,6 @@
+# Shell scripts must keep LF endings: deploy/entrypoint.sh runs in a Linux
+# container, and a CRLF shebang (`#!/bin/sh\r`) makes /bin/sh fail to exec.
+*.sh text eol=lf
+
+# nginx config tolerates CRLF but is cleaner (and diffed saner) with LF.
+deploy/*.conf.template text eol=lf

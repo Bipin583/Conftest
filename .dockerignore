@@ -1,16 +1,22 @@
+# Allowlist: the image only COPYs what is listed below, so everything else
+# (notably data/ at ~1.7 GB of vendored repos) stays out of the build context
+# that Docker -- and Render on every deploy -- has to upload.
+*
+!src
+!dashboard
+!scripts
+!models
+!reports
+!tests/sample_suite
+!deploy
+!pyproject.toml
+!requirements.txt
+
+# Junk inside the included directories.
 __pycache__
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache
 .coverage
-htmlcov/
-.venv/
-venv/
-env/
-.git/
-.gitignore
-.agents/
-.gemini/
 *.log
-scratch/

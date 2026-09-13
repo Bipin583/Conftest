@@ -1,0 +1,46 @@
+# Render blueprint for the single-service ConfTest deployment.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# One web service runs the whole stack behind nginx: the FastAPI API at
+# /api/v1/* (/health, /docs, /redoc) and the Streamlit dashboard on /.
+# See deploy/entrypoint.sh and deploy/nginx.conf.template.
+#
+# After the first deploy, note the service URL and (optionally) set
+# CONFTEST_CORS_ALLOW_ORIGINS to it in the Render dashboard if you later
+# split the dashboard into its own service.
+
+services:
+  - type: web
+    name: conftest
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Routed by nginx to the FastAPI /health endpoint.
+    healthCheckPath: /health
+    # Persistent disks require a paid plan. On the free plan, remove the
+    # `disk` block -- the service still runs, but the SQLite database is
+    # recreated empty on every deploy and restart.
+    plan: starter
+    disk:
+      name: conftest-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: CONFTEST_ENV
+        value: production
+      - key: CONFTEST_LOG_LEVEL
+        value: INFO
+      # Same-origin deployment: the dashboard talks to the API through nginx,
+      # not cross-origin, so no CORS origins are needed. An empty JSON list
+      # passes the production wildcard check in config.py.
+      - key: CONFTEST_CORS_ALLOW_ORIGINS
+        value: "[]"
+      # Required in production (config.py refuses the public placeholder at
+      # startup). generateValue creates and stores a strong secret; copy it
+      # from the Render dashboard into the GitHub webhook settings.
+      - key: CONFTEST_GITHUB_WEBHOOK_SECRET
+        generateValue: true
+      # Optional: lifts the 60 req/hr unauthenticated GitHub API limit used
+      # by the PR-diff webhook route. Set in the dashboard if needed.
+      - key: CONFTEST_GITHUB_TOKEN
+        sync: false

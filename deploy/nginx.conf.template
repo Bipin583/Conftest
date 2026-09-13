@@ -1,0 +1,71 @@
+# nginx front proxy for the single-service Render deployment.
+#
+# One public port (Render injects PORT, default 10000) fans out to two
+# loopback-only backends: the FastAPI API and the Streamlit dashboard.
+# envsubst replaces the listen port in this template at container start
+# (deploy/entrypoint.sh), so no port is hardcoded here.
+
+upstream conftest_api {
+    server 127.0.0.1:8000;
+}
+
+upstream conftest_dashboard {
+    server 127.0.0.1:8501;
+}
+
+server {
+    listen ${PORT};
+
+    # GitHub webhook payloads and PR diff batches stay small, but leave headroom
+    # over the FastAPI/Streamlit defaults so a legitimate payload never fails
+    # at the proxy with a bare 413.
+    client_max_body_size 10m;
+
+    # --- API: exact routes FastAPI owns. The API's own "/" welcome route is
+    # intentionally NOT listed: on the single public port, "/" belongs to the
+    # dashboard and the API is reached under the paths below.
+    location = /health {
+        proxy_pass http://conftest_api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/ {
+        proxy_pass http://conftest_api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /openapi.json {
+        proxy_pass http://conftest_api;
+        proxy_set_header Host $host;
+    }
+
+    location /docs {
+        proxy_pass http://conftest_api;
+        proxy_set_header Host $host;
+    }
+
+    location /redoc {
+        proxy_pass http://conftest_api;
+        proxy_set_header Host $host;
+    }
+
+    # --- Dashboard: everything else, including Streamlit's internal routes
+    # (/_stcore/stream for the websocket, /static/*, /media/*). The upgrade
+    # headers are what keep the Streamlit websocket alive through the proxy.
+    location / {
+        proxy_pass http://conftest_dashboard;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+    }
+}
