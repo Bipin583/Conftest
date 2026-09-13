@@ -295,8 +295,19 @@ class SafeTestExecutor:
             "no:cacheprovider",
         ]
 
+        # A full-suite abstention can pass hundreds of node IDs. Putting them
+        # on the command line overflows the OS argv limit (Windows
+        # CreateProcess fails outright around 32K chars), so they travel via
+        # the PYTEST_ADDOPTS environment variable, which pytest prepends to
+        # argv without any command-line length limit. This is independent of
+        # ini-file `addopts`, so the `-o addopts=` neutraliser below still
+        # suppresses the target repo's own addopts.
+        env = dict(os.environ)
         if sanitized_targets:
-            cmd.extend(sanitized_targets)
+            if len(sanitized_targets) <= 20:
+                cmd.extend(sanitized_targets)
+            else:
+                env["PYTEST_ADDOPTS"] = " ".join(sanitized_targets)
         elif test_dir:
             cmd.append(test_dir)
 
@@ -333,6 +344,7 @@ class SafeTestExecutor:
                         # A suite that reads stdin must get EOF, not block on a
                         # terminal that will never answer it.
                         stdin=subprocess.DEVNULL,
+                        env=env,
                         **session_kwargs,
                     )
                     try:

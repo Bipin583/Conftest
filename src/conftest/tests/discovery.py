@@ -58,7 +58,22 @@ class PytestDiscovery:
             logger.warning(f"Target test path does not exist: {target_path}")
             return []
 
-        cmd = [sys.executable, "-m", "pytest", "--collect-only", "-q", str(target_path)]
+        cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            # Neutralise the target repo's own addopts (set in its
+            # pyproject.toml/pytest.ini): a `-v` there cancels our `-q` and
+            # pytest prints a collection tree instead of one node ID per
+            # line, yielding 0 parsed tests and a silent AST fallback.
+            # addopts carrying --cov or --doctest-modules would likewise
+            # abort collection when the plugin is absent.
+            "-o",
+            "addopts=",
+            str(target_path),
+        ]
         try:
             result = subprocess.run(
                 cmd,
@@ -105,23 +120,26 @@ class PytestDiscovery:
 
         for root, _, files in os.walk(search_root):
             for file in files:
-                if file.startswith("test_") and file.endswith(".py") or file.endswith("_test.py"):
+                # Parenthesised: without them precedence made every *_test.py
+                # file match regardless of the test_ prefix rule.
+                if (file.startswith("test_") or file.endswith("_test.py")) and file.endswith(".py"):
                     full_path = Path(root) / file
                     try:
                         rel_path = full_path.relative_to(self.repo_root).as_posix()
                         with open(full_path, "r", encoding="utf-8") as f:
                             tree = ast.parse(f.read(), filename=str(full_path))
 
-                        for node in ast.walk(tree):
-                            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-                                node_id = f"{rel_path}::{node.name}"
-                                test_cases.append({
-                                    "test_id": node_id,
-                                    "test_path": rel_path,
-                                    "test_function": node.name,
-                                    "framework": "pytest",
-                                })
-                            elif isinstance(node, ast.ClassDef) and (node.name.startswith("Test") or node.name.endswith("Test")):
+                        # Only iterate top-level statements. ast.walk descends
+                        # into class bodies too, so a test method inside a
+                        # Test class was emitted twice: once as the correct
+                        # file::Class::method ID and once as a phantom
+                        # file::method ID that pytest cannot resolve -- which
+                        # aborts the whole run with usage exit code 4 when the
+                        # IDs are passed via PYTEST_ADDOPTS.
+                        for node in tree.body:
+                            if isinstance(node, ast.ClassDef) and (
+                                node.name.startswith("Test") or node.name.endswith("Test")
+                            ):
                                 for method in node.body:
                                     if isinstance(method, ast.FunctionDef) and method.name.startswith("test_"):
                                         node_id = f"{rel_path}::{node.name}::{method.name}"
@@ -131,6 +149,14 @@ class PytestDiscovery:
                                             "test_function": method.name,
                                             "framework": "pytest",
                                         })
+                            elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                                node_id = f"{rel_path}::{node.name}"
+                                test_cases.append({
+                                    "test_id": node_id,
+                                    "test_path": rel_path,
+                                    "test_function": node.name,
+                                    "framework": "pytest",
+                                })
                     except Exception as exc:
                         logger.warning(f"AST parse error in {full_path}: {exc}")
 
