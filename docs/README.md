@@ -68,6 +68,7 @@ This index organizes the maintained documentation by audience and task. Begin wi
 - [Experiments](experiments.md)
 - [Feature ablation](feature_ablation.md)
 - [Flakiness robustness](flakiness_robustness.md)
+- [Flaky test detection](flaky_test_detection.md)
 - [Latency benchmarks](latency_benchmarks.md)
 - [Economic cost-benefit](economic_cost_benefit.md)
 - [Cross-repository generalization](cross_repo_generalization.md)

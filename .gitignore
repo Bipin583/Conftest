@@ -122,6 +122,36 @@ data/groundtruth/bugsinpy/workspace/
 # able to inspect the recorded pytest outcomes behind every label.
 data/harvest_smoke/
 
+# Hybrid flaky-test-detection subproject (train/). The training datasets are
+# ~300 MB each and the CodeBERT artifacts are 0.5-4.2 GB -- far past GitHub's
+# 100 MB file limit -- so they stay on the machine that trained them. The
+# small XGBoost artifacts beside them ARE tracked, so the tabular inference
+# path (train/predict.py) works from a fresh clone; the CodeBERT phase
+# scripts regenerate the rest.
+train/dataset*.csv
+train/codebert_flakiness/
+train/models/codebert_flakiness/
+train/__pycache__/
+
+# Intermediate artifacts from earlier training iterations. predict.py reads
+# only two sets: models/xgb_*_final.* (the tabular path every fresh clone can
+# run) and models/xgb_*_hybrid.* + metadata.json (the fusion model for
+# machines that also fine-tuned CodeBERT). These older variants are dead
+# weight in git and stay on the training machine.
+train/models/xgb_model.pkl
+train/models/xgb_calibrator.pkl
+train/models/xgb_features.pkl
+train/models/xgb_metrics.json
+train/models/xgb_model_realistic.pkl
+train/models/xgb_calibrator_realistic.pkl
+train/models/xgb_features_realistic.pkl
+train/models/xgb_metrics_realistic.json
+train/models/hybrid_model.pkl
+train/models/hybrid_calibrator.pkl
+train/models/hybrid_features.pkl
+train/models/hybrid_pca.pkl
+train/models/hybrid_metrics.json
+
 .claude/
 CONTINUUM/
 .continuum/

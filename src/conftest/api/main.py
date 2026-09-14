@@ -21,6 +21,7 @@ from conftest.api.routes.calibration import router as calibration_router
 from conftest.api.routes.repositories import router as repositories_router
 from conftest.api.routes.analytics import router as analytics_router
 from conftest.api.routes.github_webhook import router as github_router
+from conftest.api.routes.flakiness import router as flakiness_router
 
 logger = get_logger(__name__)
 
@@ -84,6 +85,7 @@ app.include_router(calibration_router, prefix="/api/v1", tags=["Confidence Calib
 app.include_router(repositories_router, prefix="/api/v1", tags=["Repositories"])
 app.include_router(analytics_router, prefix="/api/v1", tags=["Analytics & Telemetry"])
 app.include_router(github_router, prefix="/api/v1", tags=["GitHub Integration"])
+app.include_router(flakiness_router, prefix="/api/v1", tags=["Flaky Test Detection"])
 
 
 @app.get(
@@ -108,6 +110,7 @@ def root():
                 "calibration": "/api/v1/calibration",
                 "repositories": "/api/v1/repositories",
                 "analytics": "/api/v1/analytics",
+                "flakiness": "/api/v1/flakiness/predict",
             },
         }
     )
