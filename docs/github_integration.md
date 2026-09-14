@@ -69,7 +69,7 @@ Pull-request code and all failed-run logs are untrusted. The analyzer reads ZIP 
 
 The bounded redacted evidence, repository name, pull-request number, failed-run URL, and head SHA are sent to Anthropic. Logs can still contain project data that generic redaction does not recognize; do not enable the feature for repositories whose CI output must not leave GitHub. Fork logs are treated with the same hostile-data rules, and no pull-request cache or artifact is executed or trusted.
 
-Model output is text only. It is never executed, applied, committed, or pushed, and it cannot change tests or the workflow result. Every suggestion requires developer inspection and approval. If downloading logs, parsing the archive, or calling Anthropic fails, the analyzer step fails rather than inventing a diagnosis.
+Model output is text only. It is never executed, applied, committed, or pushed, and it cannot change tests or the workflow result. Every suggestion requires developer inspection and approval. If downloading logs, parsing the archive, or calling Anthropic fails, the analyzer step fails rather than inventing a diagnosis. Transient Anthropic failures (rate limit, overload, 5xx) are retried a bounded number of times with backoff; a persistent failure names the HTTP status, the API's own error message and the request-id, so the run log distinguishes a bad key, exhausted credit and an overloaded API instead of hiding all three behind one generic message.
 
 Successful runs, cancelled runs, manual/non-pull-request runs, and failed runs without an associated pull request do not invoke Anthropic. Rerunning analysis updates the existing `<!-- conftest-ai-failure-analysis -->` comment instead of adding duplicates.
 

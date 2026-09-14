@@ -9,6 +9,7 @@ import os
 import re
 import stat
 import sys
+import time
 import zipfile
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -20,6 +21,13 @@ import requests
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-sonnet-5"
+# Transient Anthropic failures worth a bounded retry: rate limiting (429),
+# server errors (5xx) and overloaded (529). Everything else -- 400 bad
+# request, 401 bad key, 402 exhausted credit -- is deterministic, and
+# retrying it would only re-pay the same rejection.
+RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504, 529})
+MAX_ATTEMPTS = 3
+MAX_RETRY_DELAY_SECONDS = 30.0
 COMMENT_MARKER = "<!-- conftest-ai-failure-analysis -->"
 MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 MAX_FILES = 100
@@ -217,28 +225,97 @@ def build_user_prompt(context: RunContext, evidence: str) -> str:
     )
 
 
-def call_anthropic(prompt: str, api_key: str, model: str = DEFAULT_MODEL) -> str:
-    """Request one bounded diagnosis from Anthropic's official Messages API."""
+def _error_detail(response: Any) -> str:
+    """What the API actually said, in a form that cannot carry the credential.
+
+    The analyzer's first real failure printed only 'Anthropic analysis
+    request failed': raise_for_status chained the status code away, so an
+    invalid key, an exhausted budget and an overloaded API were
+    indistinguishable in the CI log. The status code, the API's own error
+    message and the request-id are diagnostic and never contain the key;
+    redaction is applied anyway as the last line of defence.
+    """
+    detail = f"HTTP {response.status_code}"
     try:
-        response = requests.post(
-            ANTHROPIC_URL,
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": ANTHROPIC_VERSION,
-                "content-type": "application/json",
-            },
-            json={
-                "model": model,
-                "max_tokens": 1200,
-                "system": SYSTEM_PROMPT,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=60,
-        )
-        response.raise_for_status()
         payload = response.json()
-    except (requests.RequestException, ValueError) as exc:
-        raise AnalyzerError("Anthropic analysis request failed") from exc
+    except ValueError:
+        payload = None
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(error, dict) and error.get("message"):
+        detail += f": {error['message']}"
+    request_id = response.headers.get("request-id")
+    if request_id:
+        detail += f" (request-id: {request_id})"
+    return redact_text(detail)
+
+
+def _retry_delay(response: Any, attempt: int) -> float:
+    """Honour the API's retry-after when given, else exponential backoff."""
+    retry_after = response.headers.get("retry-after")
+    if retry_after:
+        try:
+            return max(1.0, min(float(retry_after), MAX_RETRY_DELAY_SECONDS))
+        except (TypeError, ValueError):
+            pass
+    return min(5.0 * (2 ** (attempt - 1)), MAX_RETRY_DELAY_SECONDS)
+
+
+def call_anthropic(prompt: str, api_key: str, model: str = DEFAULT_MODEL) -> str:
+    """Request one bounded diagnosis from Anthropic's official Messages API.
+
+    Transient failures (rate limit, overload, 5xx) are retried a bounded
+    number of times with backoff; a deterministic failure raises naming the
+    HTTP status and the API's error message, so the next CI log says why the
+    step stopped instead of hiding it in a chained exception.
+    """
+    payload: Any = None
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            response = requests.post(
+                ANTHROPIC_URL,
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": ANTHROPIC_VERSION,
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "max_tokens": 1200,
+                    "system": SYSTEM_PROMPT,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                timeout=60,
+            )
+        except requests.RequestException as exc:
+            # The exception text can echo request details; the class name is
+            # enough to diagnose and cannot carry the credential.
+            raise AnalyzerError(
+                f"Anthropic analysis request failed ({type(exc).__name__})"
+            ) from exc
+
+        if response.status_code in RETRYABLE_STATUSES and attempt < MAX_ATTEMPTS:
+            delay = _retry_delay(response, attempt)
+            print(
+                f"Anthropic API returned {_error_detail(response)}; "
+                f"retrying in {delay:.0f}s (attempt {attempt}/{MAX_ATTEMPTS})",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+            continue
+
+        if response.status_code >= 400:
+            raise AnalyzerError(
+                f"Anthropic analysis request failed ({_error_detail(response)})"
+            )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AnalyzerError(
+                f"Anthropic analysis request failed ({_error_detail(response)}; "
+                f"body was not valid JSON)"
+            ) from exc
+        break
+
     if not isinstance(payload, dict) or not isinstance(payload.get("content"), list):
         raise AnalyzerError("Anthropic response had an invalid structure")
     text = "".join(
