@@ -41,7 +41,3 @@ services:
       # from the Render dashboard into the GitHub webhook settings.
       - key: CONFTEST_GITHUB_WEBHOOK_SECRET
         generateValue: true
-      # Optional: lifts the 60 req/hr unauthenticated GitHub API limit used
-      # by the PR-diff webhook route. Set in the dashboard if needed.
-      - key: CONFTEST_GITHUB_TOKEN
-        sync: false

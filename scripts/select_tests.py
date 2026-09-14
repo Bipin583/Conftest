@@ -79,6 +79,12 @@ def parse_args():
         help="Persist predictions and decisions to SQLite database.",
     )
     parser.add_argument(
+        "--timeout",
+        type=int,
+        default=600,
+        help="Per-run pytest timeout in seconds when executing selected tests.",
+    )
+    parser.add_argument(
         "--output-json",
         type=str,
         default="",
@@ -101,7 +107,10 @@ def main():
         default_budget=args.budget,
     )
 
-    # Mine commit details from Git
+    # Mine commit details from Git. A missing repo is a legitimate manual
+    # run against a non-git directory (empty diff is honest then), but an
+    # error while mining a real git repo must fail loudly: falling back to
+    # a made-up diff would compute every feature against fiction.
     commit_sha = args.commit_sha
     changed_files = []
     commit_msg = "Manual test selection run"
@@ -109,17 +118,20 @@ def main():
 
     try:
         miner = GitRepositoryMiner(str(repo_root))
-        if miner.repo and len(miner.repo.branches) > 0:
+    except Exception as exc:
+        logger.warning(f"Not a git repository ({exc}); running with an empty diff.")
+        miner = None
+
+    if miner and miner.repo:
+        try:
             commit_obj = miner.repo.commit(args.commit_sha)
             commit_sha = commit_obj.hexsha
             commit_msg = commit_obj.message
             commit_time = datetime.utcfromtimestamp(commit_obj.committed_date)
-            # Mine diff
-            parent = commit_obj.parents[0] if commit_obj.parents else None
-            changed_files = miner.extract_commit_diff(commit_obj, parent)
-    except Exception as exc:
-        logger.info(f"Using standard diff parser for non-git directory or HEAD ({exc}).")
-        changed_files = [{"file_path": "src_app/auth.py", "change_type": "M", "lines_added": 15, "lines_deleted": 3}]
+            changed_files, _churn = miner.extract_commit_diffs(commit_obj)
+        except Exception as exc:
+            logger.error(f"Failed to mine commit diff for {args.commit_sha}: {exc}")
+            sys.exit(2)
 
     # Optional DB session
     db = SessionLocal() if args.persist_db else None
@@ -138,6 +150,7 @@ def main():
             db=db,
             repository_id=repo_id,
             execute=args.execute,
+            timeout=args.timeout,
         )
 
         logger.info("\n=======================================================")
@@ -159,6 +172,14 @@ def main():
             with open(out_fp, "w", encoding="utf-8") as f:
                 json.dump(outcome, f, indent=2)
             logger.info(f"Selection outcome exported to: {out_fp}")
+
+        # Propagate the pytest exit code only after the JSON report is on
+        # disk, so CI fails loudly when selected tests fail while the
+        # report is still available for the PR comment step.
+        if args.execute and outcome.get("execution_outcome"):
+            exec_res = outcome["execution_outcome"]
+            if exec_res.get("failed", 0) > 0 or exec_res.get("exit_code", 0) != 0:
+                sys.exit(exec_res.get("exit_code") or 1)
 
     finally:
         if db:

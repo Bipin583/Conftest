@@ -60,6 +60,30 @@ def test_safe_test_executor_selective_run():
     assert result.total_duration > 0
 
 
+def test_executor_does_not_inherit_ambient_pytest_addopts(monkeypatch):
+    """An inherited PYTEST_ADDOPTS must not ride into the child pytest run.
+
+    A full-suite run sends its node IDs through PYTEST_ADDOPTS; when this
+    executor then runs nested inside that very suite (as ConfTest's own CI
+    does), inheriting the variable made every child pytest prepend hundreds
+    of foreign IDs to its own target -- the child timed out and the outer
+    tests failed, four of them, in a run whose plain `pytest tests/` was
+    green.
+    """
+    monkeypatch.setenv(
+        "PYTEST_ADDOPTS",
+        "tests/test_ast_parser.py::test_ast_diff_analyzer",
+    )
+    executor = SafeTestExecutor(str(Path(".")))
+
+    target = "tests/sample_suite/tests/test_auth.py::test_password_hashing"
+    result = executor.run_tests(test_node_ids=[target], timeout=60)
+
+    assert result.exit_code == 0
+    assert result.total_count == 1
+    assert "test_ast_diff_analyzer" not in (r["test_id"] for r in result.test_runs)
+
+
 def test_runner_service_end_to_end(db_session: Session):
     """Verify end-to-end test execution, DB test_run persistence, and outcome calculation."""
     repo = crud.create_repository(

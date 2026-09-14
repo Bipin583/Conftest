@@ -19,8 +19,15 @@ This directory stores serialized models and calibration artifacts:
 - `calibrated/`: Post-hoc calibrator mappings. Temperature scaling is the shipped method;
   isotonic regression was fitted and rejected (lower mean ECE, worst-bin error nearly doubled).
 - `calibrator.joblib`: The fitted calibrator every consumer loads by default, written by
-  `scripts/calibrate_model.py`. Not tracked -- `reports/calibration_report.json` records
-  which method won, on which split, and by how much.
+  `scripts/calibrate_model.py`. Tracked since the reusable CI workflow needs it on a
+  fresh checkout -- without it the engine runs uncalibrated and abstains on every
+  commit, silently degrading to a full-suite run. `reports/calibration_report.json`
+  still records which method won, on which split, and by how much.
+- `ensembles/5_seed_lgbm/`: Tracked for the same reason as the calibrator: CI
+  (`.github/workflows/conftest-rts-reusable.yml`) checks out this repo to run test
+  selection against other repositories, and a checkout without the ensemble falls
+  back to the heuristic, which abstains on every commit. Other ensembles stay
+  ignored as local build products.
 - `policy_config.json`: The shipped abstention thresholds, written by
   `scripts/tune_policy.py`. Tracked, because it is a decision rather than a build product,
   and `reports/policy_tuning_report.json` carries the sweep it was chosen from.
