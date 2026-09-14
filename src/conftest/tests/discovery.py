@@ -72,6 +72,17 @@ class PytestDiscovery:
             # abort collection when the plugin is absent.
             "-o",
             "addopts=",
+            # Pin rootdir to the repository under discovery. Without it pytest
+            # resolves rootdir from ambient config files, and a pyproject.toml
+            # sitting above the checkout makes it print node IDs relative to
+            # that ancestor (e.g. tests/sample_suite/tests/test_auth.py when
+            # the checkout IS tests/sample_suite). The executor later runs
+            # pytest with cwd=repo_root, where those IDs do not resolve, and
+            # the whole run aborts with usage exit code 4 before a single
+            # test executes -- while passing on any machine where no ancestor
+            # config happens to exist.
+            "--rootdir",
+            str(self.repo_root),
             str(target_path),
         ]
         try:
