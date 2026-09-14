@@ -174,10 +174,63 @@ def test_network_failures_are_safely_wrapped(monkeypatch):
         analyzer.download_run_logs(analyzer.parse_failed_pr_run(event()), "github-secret")
     assert "secret detail" not in str(github_error.value)
 
+    # The analyzer retries transient statuses, so the retry backoff must not
+    # actually sleep in a test run.
+    monkeypatch.setattr(analyzer.time, "sleep", lambda seconds: None)
     monkeypatch.setattr(analyzer.requests, "post", lambda *args, **kwargs: Response(status=500))
     with pytest.raises(analyzer.AnalyzerError, match="analysis request failed") as api_error:
         analyzer.call_anthropic("evidence", "anthropic-secret")
     assert "anthropic-secret" not in str(api_error.value)
+    # The failure must name the HTTP status: the first real CI failure of
+    # this analyzer hid it, so a bad key and an exhausted budget were
+    # indistinguishable in the run log.
+    assert "HTTP 500" in str(api_error.value)
+
+
+def test_anthropic_error_names_the_api_message_and_request_id(monkeypatch):
+    monkeypatch.setattr(
+        analyzer.requests,
+        "post",
+        lambda *args, **kwargs: Response(
+            status=402,
+            payload={"error": {"message": "budget pool quota has been exhausted"}},
+            headers={"request-id": "req_abc123"},
+        ),
+    )
+    with pytest.raises(analyzer.AnalyzerError, match="analysis request failed") as api_error:
+        analyzer.call_anthropic("evidence", "anthropic-secret")
+    message = str(api_error.value)
+    assert "HTTP 402" in message
+    assert "budget pool quota has been exhausted" in message
+    assert "req_abc123" in message
+    assert "anthropic-secret" not in message
+
+
+def test_transient_failures_are_retried_then_succeed(monkeypatch):
+    """A rate limit or overloaded response is worth another attempt; the
+    bounded retry turns a transient API blip into a successful analysis."""
+    sleeps = []
+    monkeypatch.setattr(analyzer.time, "sleep", sleeps.append)
+    responses = [
+        Response(status=529, payload={"error": {"message": "overloaded"}}),
+        Response(status=429, headers={"retry-after": "7"}, payload=None),
+        Response(payload={
+            "content": [{"type": "text", "text": "## Failure\nA test failed."}],
+            "stop_reason": "end_turn",
+        }),
+    ]
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append(url)
+        return responses[len(calls) - 1]
+
+    monkeypatch.setattr(analyzer.requests, "post", fake_post)
+    result = analyzer.call_anthropic("evidence", "anthropic-secret")
+    assert "A test failed" in result
+    assert len(calls) == 3
+    # retry-after is honoured when the API sends it; backoff otherwise.
+    assert sleeps == [5.0, 7.0]
 
 
 def test_anthropic_request_is_official_and_bounded(monkeypatch):
