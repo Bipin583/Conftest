@@ -1,0 +1,29 @@
+{
+  "model": "XGBoost",
+  "dataset": "realistic_labels",
+  "samples": 1228500,
+  "languages": 12,
+  "repos": 261,
+  "threshold": 0.30000000000000004,
+  "precision": 0.4072738122865763,
+  "recall": 0.8753081669588019,
+  "f1": 0.5558944377070248,
+  "auc": 0.6065977253606392,
+  "brier_score": 0.2272234559059143,
+  "ece": 0.0028640347244522383,
+  "training_time_minutes": 0.17364309231440225,
+  "feature_importance": {
+    "test_complexity": 0.17270797491073608,
+    "files_changed": 0.14445197582244873,
+    "code_coverage": 0.10661545395851135,
+    "prior_failures": 0.0992569774389267,
+    "failure_rate": 0.07300052046775818,
+    "lines_added": 0.06244673579931259,
+    "repo_id": 0.05947932228446007,
+    "lines_deleted": 0.05815583094954491,
+    "lines_of_code": 0.05786395072937012,
+    "avg_duration": 0.05760975182056427,
+    "language_id": 0.054867424070835114,
+    "cyclomatic_complexity": 0.05354410409927368
+  }
+}

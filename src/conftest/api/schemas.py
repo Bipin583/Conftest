@@ -174,3 +174,30 @@ class AnalyticsSummarySchema(BaseModel):
     unverified_outcomes: int = 0
     average_uncertainty: Optional[float] = None
     recent_decisions: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+# ==============================================================================
+# Flaky Test Detection Schemas (train/ subproject)
+# ==============================================================================
+
+class FlakinessPredictRequestSchema(BaseModel):
+    message: str = Field(..., min_length=1, description="Commit message (the text the models read).")
+    body: str = Field(default="", description="Commit body text (optional).")
+    failure_rate: float = Field(default=0.0, ge=0.0, le=1.0, description="Historical failure rate of the test.")
+    test_complexity: int = Field(default=0, ge=0, description="Test complexity score.")
+    lines_added: int = Field(default=0, ge=0, description="Lines added in the commit.")
+    lines_deleted: int = Field(default=0, ge=0, description="Lines deleted in the commit.")
+    files_changed: int = Field(default=0, ge=0, description="Files changed in the commit.")
+
+
+class FlakinessPredictResponseSchema(BaseModel):
+    probability: float = Field(..., description="Calibrated flakiness probability.")
+    threshold: float = Field(..., description="Decision threshold the prediction was made at.")
+    prediction: str = Field(..., description="'FLAKY' or 'STABLE'.")
+    risk_tier: str = Field(..., description="'HIGH', 'MEDIUM' or 'LOW'.")
+    recommendation: str = Field(..., description="Operational recommendation for CI.")
+    # Which inference path actually ran: 'hybrid' (CodeBERT + XGBoost) or
+    # 'xgboost' (tabular only). They are near-equivalent on the measured test
+    # split, but a caller comparing scores across deployments needs to know
+    # which model produced the number.
+    model_path: str = Field(..., description="'hybrid' or 'xgboost'.")

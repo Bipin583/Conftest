@@ -23,6 +23,7 @@ python -m uvicorn conftest.api.main:app --host 127.0.0.1 --port 8000
 | `GET` | `/api/v1/repositories/{repo_id}` | 200 | Repository metadata and bounded counts. |
 | `GET` | `/api/v1/repositories/{repo_id}/commits` | 200 | Recent commits/decisions (`skip=0`, `limit=50`). |
 | `GET` | `/api/v1/analytics` | 200 | Aggregate persisted telemetry. |
+| `POST` | `/api/v1/flakiness/predict` | 200 | Predict whether a test touched by a commit is flaky. |
 | `POST` | `/api/v1/github/webhook` | 200/202 | Process signed GitHub events or recommend full-suite fallback. |
 
 Pydantic returns 422 for structurally invalid request/query data.
@@ -66,6 +67,12 @@ There are no fabricated fallback metrics: a missing report returns 503 and an un
 Repository creation requires `full_name` and `url`; `local_path` is optional in the request schema. Unknown repository IDs return 404. Detail counts are based on API queries capped at 1,000 records and should not be treated as unbounded database counts.
 
 Analytics reports repository, commit, decision, fast-mode, abstention, and failure totals plus ten recent decisions. Averages are null when no decisions exist. `total_missed_failures` is null when no outcome has a verified full-suite comparison; `verified_outcomes` and `unverified_outcomes` state evidence coverage. Recent `test_reduction_pct` values are count ratios.
+
+## Flaky test detection
+
+`POST /api/v1/flakiness/predict` accepts a commit description — `message` (required), `body`, and the non-negative tabular features `failure_rate` (0–1), `test_complexity`, `lines_added`, `lines_deleted`, `files_changed` — and returns the calibrated flakiness `probability`, the `threshold` the decision was made at, `prediction` (`FLAKY`/`STABLE`), `risk_tier`, `recommendation`, and `model_path`.
+
+The endpoint is backed by the standalone subproject in [`train/`](flaky_test_detection.md): it runs `train/predict.py --json` in a bounded subprocess (120 s). `model_path` is `hybrid` when the fine-tuned CodeBERT checkpoint is present and `xgboost` when only the tracked tabular artifacts are — see [flaky test detection](flaky_test_detection.md) for the measured difference between the two paths. Missing subproject artifacts return 503 naming the training command that produces them; a wedged predictor returns 504.
 
 ## GitHub webhook
 
