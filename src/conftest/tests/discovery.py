@@ -42,9 +42,17 @@ class PytestDiscovery:
         """
         self.repo_root = Path(repo_root).resolve()
 
-    def discover_via_pytest(self, test_dir: Optional[str] = None, timeout: int = 20) -> List[Dict[str, Any]]:
+    def discover_via_pytest(self, test_dir: Optional[str] = None, timeout: int = 120) -> List[Dict[str, Any]]:
         """
         Discover test cases using `pytest --collect-only -q`.
+
+        The timeout is generous (this repo's own collection imports shap,
+        sklearn and lightgbm across ~40 test modules and takes ~40s) because
+        what happens on expiry is worse than waiting: the AST fallback below
+        cannot see parametrized tests, so a timeout silently shrank this
+        repo's suite from 826 collected tests to 610 AST-visible functions
+        -- and a SAFE_FULL_SUITE decision then ran 75% of the suite while
+        claiming to run all of it.
 
         Args:
             test_dir: Specific test directory to scan (relative to repo_root).
@@ -86,6 +94,13 @@ class PytestDiscovery:
             str(target_path),
         ]
         try:
+            # An inherited PYTEST_ADDOPTS would be prepended to this
+            # collection run's argv too: discovery nested inside a pytest
+            # that an outer executor launched with hundreds of node IDs in
+            # PYTEST_ADDOPTS would collect those alongside (or instead of)
+            # the target, and the caller would rank a foreign suite.
+            clean_env = dict(os.environ)
+            clean_env.pop("PYTEST_ADDOPTS", None)
             result = subprocess.run(
                 cmd,
                 cwd=str(self.repo_root),
@@ -93,6 +108,7 @@ class PytestDiscovery:
                 stderr=subprocess.PIPE,
                 text=True,
                 timeout=timeout,
+                env=clean_env,
             )
         except subprocess.TimeoutExpired:
             logger.error(f"Pytest collection timed out after {timeout}s on {target_path}")

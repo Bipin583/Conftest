@@ -303,6 +303,16 @@ class SafeTestExecutor:
         # ini-file `addopts`, so the `-o addopts=` neutraliser below still
         # suppresses the target repo's own addopts.
         env = dict(os.environ)
+        # Whatever the ambient environment carried is dropped first. When
+        # this executor runs nested inside a pytest that an outer executor
+        # launched with its own PYTEST_ADDOPTS, inheriting it makes this
+        # child prepend a whole foreign suite to its run -- and every pytest
+        # the tests inside spawn inherits it in turn. Measured on this repo:
+        # a 610-test full-suite RTS run set PYTEST_ADDOPTS to those 610 IDs,
+        # every executor test whose child then inherited them ran 610 extra
+        # tests instead of its one target, timed out its own child, and
+        # failed -- 4 red tests that passed in a plain `pytest tests/` run.
+        env.pop("PYTEST_ADDOPTS", None)
         if sanitized_targets:
             if len(sanitized_targets) <= 20:
                 cmd.extend(sanitized_targets)
