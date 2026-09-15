@@ -52,3 +52,8 @@ Full detail: [README -- Measured Results](README.md#-measured-results-and-what-t
 - **Production Stack:** FastAPI Backend + GitHub PR Comment Bot + Streamlit Visual Analytics Dashboard + Multi-stage Docker Compose Stack.
 - **Academic Package:** Camera-ready 8-page IEEE/ACM research paper LaTeX package + Complete KTU Project Report + 30-slide Reveal.js viva presentation deck.
 - **Automated validation:** run `python -m pytest tests/ -q` for the current suite; counts are intentionally not frozen in release prose.
+
+## 2026-09-15
+- Retrained 5-seed ensemble (lr 0.02, min_child_samples 200): held-out PR-AUC 0.1393 -> 0.2016, ROC-AUC 0.8743.
+- Re-tuned policy (zero-escape: tau_abstain 0.010, tau_conf 0.10) on the extended grid; source now stamped in policy_config.json.
+- Added PROJECT_DOCUMENTATION.md, QUICK_START.md, API_REFERENCE.md; predict.py gained --model {auto,xgboost,hybrid} and predict_lite.py ships the CPU-only path.
