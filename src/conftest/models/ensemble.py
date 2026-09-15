@@ -31,6 +31,7 @@ class EnsembleUncertaintyPredictor:
         learning_rate: float = 0.05,
         max_depth: int = 6,
         num_leaves: int = 31,
+        min_child_samples: int = 20,
         subsample: float = 0.8,
         subsample_freq: int = 1,
         colsample_bytree: float = 0.8,
@@ -48,6 +49,8 @@ class EnsembleUncertaintyPredictor:
             learning_rate: Boosting learning rate.
             max_depth: Maximum tree depth.
             num_leaves: Maximum leaves per tree.
+            min_child_samples: Minimum samples per leaf; see
+                LightGBMTestPredictor for why this defaults above LightGBM's 20.
             subsample: Row subsample (bagging) ratio per tree.
             subsample_freq: Bag every k iterations; 0 disables bagging and makes
                 `subsample` inert. This ensemble's epistemic spread comes from
@@ -64,6 +67,7 @@ class EnsembleUncertaintyPredictor:
         self.learning_rate = learning_rate
         self.max_depth = max_depth
         self.num_leaves = num_leaves
+        self.min_child_samples = min_child_samples
         self.subsample = subsample
         self.subsample_freq = subsample_freq
         self.colsample_bytree = colsample_bytree
@@ -109,6 +113,7 @@ class EnsembleUncertaintyPredictor:
                 learning_rate=self.learning_rate,
                 max_depth=self.max_depth,
                 num_leaves=self.num_leaves,
+                min_child_samples=self.min_child_samples,
                 subsample=self.subsample,
                 subsample_freq=self.subsample_freq,
                 colsample_bytree=self.colsample_bytree,
@@ -250,6 +255,7 @@ class EnsembleUncertaintyPredictor:
             "learning_rate": self.learning_rate,
             "max_depth": self.max_depth,
             "num_leaves": self.num_leaves,
+            "min_child_samples": self.min_child_samples,
             "early_stopping_rounds": self.early_stopping_rounds,
             "eval_metric": self.eval_metric,
             "use_class_weight": self.use_class_weight,
@@ -293,6 +299,9 @@ class EnsembleUncertaintyPredictor:
             learning_rate=meta.get("learning_rate", 0.05),
             max_depth=meta.get("max_depth", 6),
             num_leaves=meta.get("num_leaves", 31),
+            # LightGBM's own default; ensembles written before this parameter
+            # was recorded trained with exactly this value.
+            min_child_samples=meta.get("min_child_samples", 20),
             subsample=meta.get("subsample", 0.8),
             subsample_freq=legacy_freq,
             colsample_bytree=meta.get("colsample_bytree", 0.8),

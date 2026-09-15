@@ -45,6 +45,8 @@ parser.add_argument("--lines_added", type=int, default=0, help="Lines added")
 parser.add_argument("--lines_deleted", type=int, default=0, help="Lines deleted")
 parser.add_argument("--files_changed", type=int, default=0, help="Files changed")
 parser.add_argument("--json", action="store_true", help="Output as JSON")
+parser.add_argument("--model", type=str, default="auto", choices=["auto", "xgboost", "hybrid"],
+                    help="Inference path: auto (detect), xgboost (CPU-only tabular, <1s), hybrid (CodeBERT + XGBoost)")
 args = parser.parse_args()
 
 
@@ -73,7 +75,15 @@ def _require(paths, producer):
 
 
 # LOAD MODELS
-use_hybrid = _codebert_available()
+if args.model == "auto":
+    use_hybrid = _codebert_available()
+elif args.model == "hybrid":
+    if not _codebert_available():
+        print("ERROR: --model hybrid requested but the CodeBERT checkpoint or torch/transformers is unavailable.", file=sys.stderr)
+        sys.exit(2)
+    use_hybrid = True
+else:  # xgboost: always the lite tabular path, even when the hybrid stack is installed
+    use_hybrid = False
 print(f"\n📂 Loading models ({'hybrid CodeBERT + XGBoost' if use_hybrid else 'XGBoost tabular'})...")
 
 codebert_score = None
