@@ -16,6 +16,14 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Final Runtime Image
 FROM python:3.11-slim AS runtime
 
+# Git SHA of the commit the image was built from. Render passes this
+# automatically on every deploy; locally, docker-compose.yml sets it from
+# `git rev-parse --short HEAD` or it stays "unknown" (dev containers have no
+# meaningful commit identity). Surfaced in /health so "which code is the
+# deployed bot running" is answerable with one curl instead of a dashboard.
+ARG GIT_SHA=unknown
+ENV CONFTEST_GIT_SHA=${GIT_SHA}
+
 WORKDIR /app
 
 # nginx is the front proxy exposing the platform port; gettext-base provides

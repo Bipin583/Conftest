@@ -26,6 +26,14 @@ class HealthResponse(BaseModel):
     service: str = Field(..., examples=["ConfTest API"], description="Service name")
     version: str = Field(..., examples=["0.1.0"], description="Semantic application version")
     environment: str = Field(..., examples=["development"], description="Runtime environment")
+    git_sha: str = Field(
+        ...,
+        examples=["8f0d6b1", "unknown"],
+        description=(
+            "Git commit this process was built from, read from CONFTEST_GIT_SHA "
+            "(set by the Docker build; 'unknown' when unset, e.g. bare dev runs)."
+        ),
+    )
     database: str = Field(..., examples=["connected"], description="Database connectivity status")
     uptime_seconds: float = Field(..., examples=[42.5], description="Process uptime in seconds")
 
@@ -54,6 +62,7 @@ def check_health(db: Session = Depends(get_db)) -> HealthResponse:
         service=settings.app_name,
         version=settings.version,
         environment=settings.env,
+        git_sha=settings.git_sha,
         database=db_status,
         uptime_seconds=round(time.time() - START_TIME, 2),
     )
