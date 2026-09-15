@@ -21,7 +21,8 @@ figure earlier drafts of this report carried. Tightening the threshold to reach 
 drops held-out failure recall to $87.69\%$ with $15$ escaped commits, missing the $95\%$ recall floor this
 project pre-registered, with an $8.33$ percentage-point gap between the validation and held-out splits.
 
-The binding constraint is the accuracy of the underlying ranker --- PR-AUC $0.1393$ against a $3.71\%$
+The binding constraint is the accuracy of the underlying ranker --- held-out PR-AUC $0.2016$ (after the
+2026-09-15 re-tune; $0.1393$ before it) against a $3.71\%$
 positive rate, roughly four times a no-skill baseline but far from sufficient --- and not the
 selective-prediction machinery built around it. Three specific weaknesses are documented rather than
 omitted: $13$ of the $32$ canonical features are constant in training (including all $12$ diff-churn

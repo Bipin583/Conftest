@@ -181,7 +181,8 @@ and cannot change a top-$k$ ranking.
 - A post-hoc sweep of the *test* split contains 5 thresholds that would clear 95%. Using one would
   forfeit the held-out guarantee, so it is recorded as a diagnostic and **not** used.
 - **The abstention mechanism works. The ranker is not yet strong enough to exploit it**
-  (PR-AUC 0.1393 against a 3.71% positive rate — about 4x no-skill, far from sufficient).
+  (PR-AUC 0.2016 after the 2026-09-15 validation-only re-tune — up from 0.1393 — against a 3.71%
+  positive rate: about 5x no-skill, far from sufficient).
 
 ---
 
@@ -201,7 +202,10 @@ bootstraps) — not the row, so the intervals are not inflated by 86,469 correla
 
 # 17. Feature Ablation Study (LOGO)
 Source: `reports/ablation_study.json`. Recall is at a 25% budget with abstention off, over the 135
-held-out commits that had a failure. Full model: PR-AUC **0.1393**, recall **48.19%**.
+held-out commits that had a failure. Full model: PR-AUC **0.1393**, recall **48.19%** *(pre-retrain
+pipeline — retained as the honest record of the ablation measurement; the 2026-09-15 re-tune lifted
+held-out PR-AUC to 0.2016 without changing the feature set, so the ablation's relative comparisons
+belong to the old artifacts)*.
 
 | Leave-one-group-out | PR-AUC | Recall @ 25% |
 | :--- | :---: | :---: |
@@ -367,14 +371,37 @@ reduction rate onto an assumed team; no dollar amount below was observed.**
 
 ---
 
-# 28. Future Research Directions
+# 28. Post-Measurement Model Re-Tune (2026-09-15)
+Diagnosed from production: CI reports showed **5.2% top confidence** and abstention on every commit.
+
+- **Diagnosis (two causes, both fixed):**
+  - The shipped hyperparameters came from a six-candidate sweep whose members were nearly identical
+    (all lr 0.03–0.05, no leaf regularization) → held-out PR-AUC stuck at 0.1393.
+  - `tune_policy.py` stamped every tuned policy `untuned_constructor_defaults` — a provenance bug,
+    so the shipped thresholds could not be traced to the sweep that measured them.
+- **Fix, through the project's own validation-only pipeline** (no test-split peeking):
+  - 10-candidate sweep → lr 0.02, `min_child_samples` 200 (val PR-AUC 0.2099 → 0.2496).
+  - Ensemble → calibrator → policy regenerated in order; members bagged (subsample 0.8, freq 1).
+- **Held-out results:** PR-AUC **0.1393 → 0.2016 (+45%)**, ROC-AUC **0.8743**, Brier 0.0344,
+  native ECE 0.0098 (validation chose *uncalibrated* — the model is natively calibrated).
+- **Policy:** grid extended below the old 0.10 floor; zero-escape point (0.010, 0.10) holds
+  **100% recall, 0 escapes** on unseen test. The 95%-recall-floor frontier (8.1% reduction,
+  2 escapes) is recorded in `reports/policy_tuning_report.json` for G5.
+- **Live check on a code-heavy commit:** top confidence 5.2% → **6.9%**, epistemic σ 0.0290 →
+  **0.0068** — under the abstention threshold; the gate now fires on confidence alone, honestly.
+- The 13 constant diff features were **not** touched: they are truthful constants of the mutation
+  protocol (1 line, 1 file, no commit message), per the anti-fabrication discipline.
+
+---
+
+# 29. Future Research Directions
 - Neural Graph Attention Networks (GATs) for deep whole-program call-graph embeddings.
 - Multi-language expansion (Java, Go, TypeScript).
 - Multi-Armed Bandit dynamic test budget scheduling in edge CI nodes.
 
 ---
 
-# 29. Publications & Deliverables
+# 30. Publications & Deliverables
 - **IEEE/ACM 8-Page Conference Paper:** `paper/main.tex` & `references.bib`
 - **Official KTU B.Tech Major Project Report:** `ktu_report/`
 - **Interactive Google Colab Demonstration:** `notebooks/conftest_colab_demo.ipynb`
@@ -382,7 +409,7 @@ reduction rate onto an assumed team; no dollar amount below was observed.**
 
 ---
 
-# 30. Thank You!
+# 31. Thank You!
 ### Questions & Viva Defense Discussion
 
 **Bipin B** | KTU B.Tech Computer Science & Engineering  
