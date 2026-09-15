@@ -3,23 +3,24 @@
   "selection_split": "validation",
   "held_out_test_used_for_selection": false,
   "random_seed": 42,
-  "candidate_count": 6,
-  "selected_candidate_index": 5,
+  "candidate_count": 10,
+  "selected_candidate_index": 9,
   "selected_config": {
-    "n_estimators": 300,
-    "learning_rate": 0.05,
+    "n_estimators": 2000,
+    "learning_rate": 0.02,
     "max_depth": 6,
     "num_leaves": 31,
+    "min_child_samples": 200,
     "subsample": 0.8,
     "subsample_freq": 1,
     "colsample_bytree": 0.8,
-    "early_stopping_rounds": 25,
+    "early_stopping_rounds": 100,
     "use_class_weight": false
   },
   "selected_validation_metrics": {
-    "pr_auc": 0.20992790905438335,
-    "roc_auc": 0.8496121653460015,
-    "brier_score": 0.049337781965732574
+    "pr_auc": 0.24961890908961612,
+    "roc_auc": 0.8764943377063701,
+    "brier_score": 0.049772415310144424
   },
   "candidates": [
     {
@@ -242,6 +243,166 @@
         "actual_num_trees": 19,
         "early_stopping_used": true,
         "early_stopping_rounds": 25,
+        "eval_metric": "average_precision",
+        "use_class_weight": false,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 1.0,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "effective_row_fraction_per_tree": 0.8,
+        "bagging_active": true
+      }
+    },
+    {
+      "candidate_index": 6,
+      "config": {
+        "n_estimators": 2000,
+        "learning_rate": 0.01,
+        "max_depth": 6,
+        "num_leaves": 31,
+        "min_child_samples": 100,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "early_stopping_rounds": 100,
+        "use_class_weight": false
+      },
+      "validation_metrics": {
+        "pr_auc": 0.24787011757176605,
+        "roc_auc": 0.873333655616408,
+        "brier_score": 0.04992219805717468
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 2000,
+        "best_iteration": 32,
+        "actual_num_trees": 32,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 100,
+        "eval_metric": "average_precision",
+        "use_class_weight": false,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 1.0,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "effective_row_fraction_per_tree": 0.8,
+        "bagging_active": true
+      }
+    },
+    {
+      "candidate_index": 7,
+      "config": {
+        "n_estimators": 2000,
+        "learning_rate": 0.01,
+        "max_depth": 6,
+        "num_leaves": 31,
+        "min_child_samples": 200,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "early_stopping_rounds": 100,
+        "use_class_weight": false
+      },
+      "validation_metrics": {
+        "pr_auc": 0.2429432771470829,
+        "roc_auc": 0.8665875022846162,
+        "brier_score": 0.05020170658826828
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 2000,
+        "best_iteration": 30,
+        "actual_num_trees": 30,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 100,
+        "eval_metric": "average_precision",
+        "use_class_weight": false,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 1.0,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "effective_row_fraction_per_tree": 0.8,
+        "bagging_active": true
+      }
+    },
+    {
+      "candidate_index": 8,
+      "config": {
+        "n_estimators": 2000,
+        "learning_rate": 0.01,
+        "max_depth": 6,
+        "num_leaves": 31,
+        "min_child_samples": 100,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "early_stopping_rounds": 100,
+        "use_class_weight": true
+      },
+      "validation_metrics": {
+        "pr_auc": 0.17790220190553827,
+        "roc_auc": 0.7944931719349005,
+        "brier_score": 0.050970934331417084
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 2000,
+        "best_iteration": 4,
+        "actual_num_trees": 4,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 100,
+        "eval_metric": "average_precision",
+        "use_class_weight": true,
+        "measured_scale_pos_weight": 18.932088717061756,
+        "scale_pos_weight": 18.932088717061756,
+        "n_features": 32,
+        "n_informative_features": 19,
+        "n_constant_features": 13,
+        "n_train_samples": 391825,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "effective_row_fraction_per_tree": 0.8,
+        "bagging_active": true
+      }
+    },
+    {
+      "candidate_index": 9,
+      "config": {
+        "n_estimators": 2000,
+        "learning_rate": 0.02,
+        "max_depth": 6,
+        "num_leaves": 31,
+        "min_child_samples": 200,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "early_stopping_rounds": 100,
+        "use_class_weight": false
+      },
+      "validation_metrics": {
+        "pr_auc": 0.24961890908961612,
+        "roc_auc": 0.8764943377063701,
+        "brier_score": 0.049772415310144424
+      },
+      "training_diagnostics": {
+        "model_version": "lgbm_v1.0.0",
+        "configured_n_estimators": 2000,
+        "best_iteration": 18,
+        "actual_num_trees": 18,
+        "early_stopping_used": true,
+        "early_stopping_rounds": 100,
         "eval_metric": "average_precision",
         "use_class_weight": false,
         "measured_scale_pos_weight": 18.932088717061756,

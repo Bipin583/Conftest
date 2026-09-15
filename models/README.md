@@ -3,31 +3,33 @@
 This directory stores serialized models and calibration artifacts:
 - `baselines/`: Serialized models for the 8 budget-matched baselines.
 - `ensembles/`: 5-seed LightGBM (`LGBMClassifier`) ensemble member checkpoints.
-  `ensemble_metadata.json` records `n_estimators: 150`, which is the configured
-  ceiling, not what was kept: early stopping on the validation split fires within
-  the first handful of rounds, and the shipped boosters hold **7, 5, 5, 5 and 6
-  trees** respectively (verify with `booster_.num_trees()`). Read "150 trees" as
-  a budget the fit never spent. It is the most likely reason the ranker is weak
-  (held-out PR-AUC 0.1393 against a 3.71% positive rate) and it is the first thing
-  to change before concluding that these features cannot rank tests.
-- The shipped `ensembles/5_seed_lgbm/ensemble_metadata.json` also predates two
-  fixes: it stores absolute member paths (the loader ignores them and resolves
-  beside the metadata) and it has no `subsample_freq` key, so its members were
-  trained without row bagging. `load_ensemble` warns about that on every load.
-  Every published epistemic-uncertainty number therefore comes from members that
-  differ only by seed-dependent tie-breaking, which understates the spread.
-- `calibrated/`: Post-hoc calibrator mappings. Temperature scaling is the shipped method;
-  isotonic regression was fitted and rejected (lower mean ECE, worst-bin error nearly doubled).
+  The 2026-09-15 re-tune (validation-only, via `scripts/tune_model.py` with
+  `reports/tuning_candidates_20260915.json`) selected lr=0.02 with
+  `min_child_samples=200` over a 10-candidate sweep; members early-stop at
+  **18, 21, 14, 17 and 15 trees**. Early stopping this early is a real signal
+  ceiling for this feature set, not a misconfiguration: the low-LR +
+  leaf-regularized candidates improved held-out PR-AUC substantially, and the
+  remaining gap is the features, not the booster capacity.
+- Held-out test metrics for the shipped ensemble (`reports/ensemble_training_report.json`):
+  **PR-AUC 0.2016** (was 0.1393 pre-re-tune, +45%), ROC-AUC 0.8743,
+  Brier 0.0344, mean epistemic std 0.0021.
+- `calibrated/`: Post-hoc calibrator mappings. On the retrained ensemble,
+  validation selected **uncalibrated** (native ECE 0.0098) over isotonic and
+  temperature scaling; an explicit identity artifact is shipped for
+  reproducibility. `reports/calibration_report.json` records the comparison.
 - `calibrator.joblib`: The fitted calibrator every consumer loads by default, written by
   `scripts/calibrate_model.py`. Tracked since the reusable CI workflow needs it on a
   fresh checkout -- without it the engine runs uncalibrated and abstains on every
-  commit, silently degrading to a full-suite run. `reports/calibration_report.json`
-  still records which method won, on which split, and by how much.
+  commit, silently degrading to a full-suite run.
 - `ensembles/5_seed_lgbm/`: Tracked for the same reason as the calibrator: CI
   (`.github/workflows/conftest-rts-reusable.yml`) checks out this repo to run test
   selection against other repositories, and a checkout without the ensemble falls
   back to the heuristic, which abstains on every commit. Other ensembles stay
   ignored as local build products.
 - `policy_config.json`: The shipped abstention thresholds, written by
-  `scripts/tune_policy.py`. Tracked, because it is a decision rather than a build product,
-  and `reports/policy_tuning_report.json` carries the sweep it was chosen from.
+  `scripts/tune_policy.py` and stamped with the `source` path of the sweep that
+  chose them (zero-escape objective: `tau_abstain=0.010`, `tau_conf=0.10`,
+  100% failure recall, 0 escaped commits on the unseen test split).
+  `reports/policy_tuning_report.json` carries the full sweep, including the
+  recall-floor frontier (8.1% reduction at 98.4% recall, 2 escaped commits)
+  that gate G5 is stated against.

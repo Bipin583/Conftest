@@ -1,8 +1,8 @@
 {
-  "tau_abstain": 0.005,
+  "tau_abstain": 0.01,
   "tau_conf": 0.1,
   "budget_ratio": 0.25,
   "ood_file_limit": 15,
   "ood_churn_limit": 500,
-  "source": "untuned_constructor_defaults"
+  "source": "C:\\Users\\bbipi\\Downloads\\project phase 1\\final year project\\reports\\policy_tuning_report.json"
 }

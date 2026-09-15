@@ -30,6 +30,7 @@ class LightGBMTestPredictor:
         learning_rate: float = 0.05,
         max_depth: int = 6,
         num_leaves: int = 31,
+        min_child_samples: int = 20,
         subsample: float = 0.8,
         subsample_freq: int = 1,
         colsample_bytree: float = 0.8,
@@ -44,6 +45,12 @@ class LightGBMTestPredictor:
             learning_rate: Boosting shrinkage parameter.
             max_depth: Maximum tree depth.
             num_leaves: Maximum tree leaves.
+            min_child_samples: Minimum samples per leaf. LightGBM's own default
+                (20) proved too permissive on the mutation corpus: with 392k
+                training rows the booster reached its best validation iteration
+                within the first ~20 rounds and then only overfit. 100-200 keeps
+                trees honest at this scale and was the single largest validation
+                PR-AUC gain in the re-tune.
             subsample: Row subsampling (bagging) fraction.
             subsample_freq: Bag every k iterations. LightGBM ignores `subsample`
                 entirely while this is 0, which is its own default -- so passing
@@ -58,6 +65,7 @@ class LightGBMTestPredictor:
         self.learning_rate = learning_rate
         self.max_depth = max_depth
         self.num_leaves = num_leaves
+        self.min_child_samples = min_child_samples
         self.subsample = subsample
         self.subsample_freq = subsample_freq
         self.colsample_bytree = colsample_bytree
@@ -104,6 +112,7 @@ class LightGBMTestPredictor:
             learning_rate=self.learning_rate,
             max_depth=self.max_depth,
             num_leaves=self.num_leaves,
+            min_child_samples=self.min_child_samples,
             subsample=self.subsample,
             # Required for `subsample` to do anything at all: LightGBM's
             # bagging_freq defaults to 0, which disables row bagging and makes

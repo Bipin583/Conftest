@@ -389,6 +389,11 @@ def main():
         tau_abstain=best_tau_a,
         tau_conf=best_tau_c,
         budget_ratio=args.budget,
+        # Point at the report that measured this operating point, so a loaded
+        # policy can say where its thresholds came from. The constructor default
+        # labels every tuned run "untuned_constructor_defaults" -- which is how
+        # the shipped config came to disclaim the sweep it was chosen from.
+        source=str(Path(args.output_report).resolve()),
     )
     policy.save(args.output_config)
 
