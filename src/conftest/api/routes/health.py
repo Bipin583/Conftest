@@ -2,6 +2,7 @@
 Health Check and System Diagnostics Endpoint.
 """
 
+import os
 import time
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
@@ -18,6 +19,20 @@ router = APIRouter(tags=["System & Diagnostics"])
 
 # Record application boot timestamp
 START_TIME = time.time()
+
+
+def _deployed_commit() -> str:
+    """
+    The commit this process was built from, or "unknown".
+
+    Precedence: CONFTEST_GIT_SHA (set by the Docker build arg, used by
+    docker-compose and any builder that passes it), then RENDER_GIT_COMMIT
+    (injected automatically by Render for every git-backed deploy -- the
+    blueprint spec supports no variable interpolation, so this runtime
+    injection is the only reliable source there), then "unknown", which is
+    the honest value for a bare dev run.
+    """
+    return settings.git_sha or os.environ.get("RENDER_GIT_COMMIT") or "unknown"
 
 
 class HealthResponse(BaseModel):
@@ -62,7 +77,7 @@ def check_health(db: Session = Depends(get_db)) -> HealthResponse:
         service=settings.app_name,
         version=settings.version,
         environment=settings.env,
-        git_sha=settings.git_sha,
+        git_sha=_deployed_commit(),
         database=db_status,
         uptime_seconds=round(time.time() - START_TIME, 2),
     )

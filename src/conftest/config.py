@@ -39,11 +39,12 @@ class Settings(BaseSettings):
     app_name: str = Field(default="ConfTest", description="Application name")
     version: str = Field(default="0.1.0", description="Application version")
     env: str = Field(default="development", description="Runtime environment")
-    # Set by the Docker build (ARG GIT_SHA) so /health can report the commit
-    # the deployed image was built from. "unknown" is the honest value for a
-    # process that was not built from a container, e.g. a bare dev run.
+    # Set by the Docker build (ARG GIT_SHA); Render instead injects
+    # RENDER_GIT_COMMIT at runtime, which /health falls back to. Empty by
+    # default so that fallback actually fires -- a truthy default like
+    # "unknown" here would shadow it.
     git_sha: str = Field(
-        default="unknown",
+        default="",
         description="Git commit SHA baked into the container image at build time.",
     )
     debug: bool = Field(default=False, description="Debug mode flag")
