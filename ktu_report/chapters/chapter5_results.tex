@@ -123,11 +123,27 @@ either and the abstention gate cannot be trusted on an unseen project. Zero-shot
 transfer does not work; a new repository must be treated as out-of-distribution until it accumulates its
 own execution history.
 
-\section{Threat to Validity: Stale Artifacts}
-The committed ensemble was trained with LightGBM's \texttt{subsample} parameter set but
-\texttt{subsample\_freq} left at its default of $0$, which silently disables row bagging. The five seeds
-therefore differed only in column sampling and tie-breaking, making the reported epistemic $\sigma$ an
-underestimate of true ensemble diversity. The training code has been corrected, but no artifact in
-\texttt{reports/} or \texttt{models/} has been regenerated. Since $\sigma$ is precisely the quantity the
-abstention gate thresholds, the operating points in this chapter may shift once the ensemble is
-retrained, and every figure here should be read as belonging to the pre-fix ensemble.
+\section{Threat to Validity: Stale Artifacts --- Resolved by Retraining}
+The originally committed ensemble had two defects: LightGBM's \texttt{subsample} parameter was set but
+\texttt{subsample\_freq} left at its default of $0$, silently disabling row bagging, and the shipped
+hyperparameters came from a six-candidate sweep whose members were nearly identical (all learning rates
+$0.03$--$0.05$, no leaf regularization). On 2026-09-15 both were corrected and every artifact was
+regenerated: model selection re-run through the validation-only pipeline over a ten-candidate sweep
+(\texttt{reports/tuning\_candidates\_20260915.json}) selected learning rate $0.02$ with
+\texttt{min\_child\_samples} $= 200$, and the ensemble, calibrator and policy were rebuilt in order.
+Held-out PR-AUC rose from $0.1393$ to $\mathbf{0.2016}$ ($+45\%$) and ROC-AUC from $0.8236$ to
+$0.8743$, while Brier score improved to $0.0344$ with native ECE $0.0098$ (validation consequently
+selected the uncalibrated model over isotonic and temperature scaling). Mean epistemic $\sigma$ is
+$0.0021$ with a maximum of $0.0264$ under genuine row bagging. The re-tuned policy, selected on a grid
+extended below the previous $0.10$ confidence floor, ships the zero-escape operating point
+$(\tau_{\text{abstain}} = 0.010, \tau_{\text{conf}} = 0.10)$: $100.0\%$ failure recall with $0$ escaped
+commits on the unseen test split at a $2.33\%$ test reduction and $98.36\%$ abstention.
+
+The tables and headline figures in this chapter were produced by the \emph{pre-retrain} pipeline
+(baseline comparison, ablation, flakiness robustness, cross-project generalization, and the statistical
+tests over them). They are retained as the honest record of what was measured then; the retrained
+artifacts change the model's ranking quality, so the selection-dependent numbers (recall at budget,
+escape counts under alternative thresholds) would need to be re-measured before being quoted alongside
+the new PR-AUC. The direction of every qualitative finding --- dependency features carrying the signal,
+history telemetry not helping the ranking, the recall floor being unreachable at a useful reduction ---
+is unchanged by the re-tune, since it improved ranking quality without altering the feature set.

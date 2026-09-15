@@ -68,6 +68,7 @@ The API initializes the SQLite schema at startup. Production mode rejects the pu
 CONFTEST_ENV=development
 CONFTEST_DEBUG=true
 CONFTEST_LOG_LEVEL=INFO
+CONFTEST_GIT_SHA=
 CONFTEST_API_HOST=127.0.0.1
 CONFTEST_API_PORT=8000
 CONFTEST_API_WORKERS=1

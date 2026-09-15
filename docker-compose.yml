@@ -3,6 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Surfaced in /health as git_sha; compose can't interpolate a command
+        # output, so shell exports or an .env override set it. Defaults to
+        # "unknown" in the Dockerfile, which is honest for a local build.
+        GIT_SHA: ${GIT_SHA:-unknown}
     container_name: conftest-api
     restart: unless-stopped
     ports:
@@ -30,6 +35,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     container_name: conftest-dashboard
     restart: unless-stopped
     ports:

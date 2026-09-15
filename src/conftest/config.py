@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     app_name: str = Field(default="ConfTest", description="Application name")
     version: str = Field(default="0.1.0", description="Application version")
     env: str = Field(default="development", description="Runtime environment")
+    # Set by the Docker build (ARG GIT_SHA) so /health can report the commit
+    # the deployed image was built from. "unknown" is the honest value for a
+    # process that was not built from a container, e.g. a bare dev run.
+    git_sha: str = Field(
+        default="unknown",
+        description="Git commit SHA baked into the container image at build time.",
+    )
     debug: bool = Field(default=False, description="Debug mode flag")
     log_level: str = Field(default="INFO", description="Logging level")
 

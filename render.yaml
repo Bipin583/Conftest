@@ -15,6 +15,10 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    # Passes the deploy's commit SHA into the image (surfaced in /health as
+    # git_sha), so "which code is live" is one curl away.
+    dockerBuildArgs:
+      GIT_SHA: {{commit.sha}}
     # Routed by nginx to the FastAPI /health endpoint.
     healthCheckPath: /health
     # Free plan: no persistent disk, so the SQLite database is recreated empty
