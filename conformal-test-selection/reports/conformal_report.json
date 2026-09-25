@@ -1,0 +1,90 @@
+{
+  "calibration_split": "val",
+  "selector": {
+    "threshold": 0.9618546515453597,
+    "probability_floor": 0.03814534845464035,
+    "guarantee": "pac",
+    "coverage": 0.95,
+    "confidence": 0.9,
+    "rank": 4369,
+    "n_calibration": 4578,
+    "certified_coverage": 0.9501368491059918,
+    "class_conditional": true,
+    "metadata": {
+      "score_min": 0.1685203096123825,
+      "score_max": 0.9976084476586745
+    }
+  },
+  "variants": {
+    "marginal": {
+      "rank": 4351,
+      "threshold": 0.9608406416042644,
+      "certified_coverage": null,
+      "note": "coverage holds on average over calibration draws"
+    },
+    "pac": {
+      "rank": 4369,
+      "threshold": 0.9618546515453597,
+      "certified_coverage": 0.9501368491059918,
+      "note": "holds with probability 90% over the calibration draw"
+    }
+  },
+  "test_metrics": {
+    "n_rows": 86469,
+    "n_failures": 3208,
+    "n_selected": 21830,
+    "failures_caught": 3055,
+    "failures_missed": 153,
+    "empirical_coverage": 0.9523067331670823,
+    "selection_rate": 0.2524604193410355,
+    "cost_reduction": 0.7475395806589644,
+    "precision": 0.13994502977553824,
+    "n_commits": 183,
+    "n_failing_commits": 135,
+    "commits_fully_caught": 88,
+    "commit_full_catch_rate": 0.6518518518518519,
+    "commit_any_catch_rate": 0.9555555555555556,
+    "mean_tests_selected_per_commit": 119.2896174863388,
+    "mean_tests_available_per_commit": 472.5081967213115
+  },
+  "test_metrics_with_budget": {
+    "n_rows": 86469,
+    "n_failures": 3208,
+    "n_selected": 21982,
+    "failures_caught": 3055,
+    "failures_missed": 153,
+    "empirical_coverage": 0.9523067331670823,
+    "selection_rate": 0.25421827475742753,
+    "cost_reduction": 0.7457817252425725,
+    "precision": 0.1389773451005368,
+    "n_commits": 183,
+    "n_failing_commits": 135,
+    "commits_fully_caught": 88,
+    "commit_full_catch_rate": 0.6518518518518519,
+    "commit_any_catch_rate": 0.9555555555555556,
+    "mean_tests_selected_per_commit": 120.12021857923497,
+    "mean_tests_available_per_commit": 472.5081967213115
+  },
+  "budget": {
+    "min_tests": 10,
+    "max_tests": 1000
+  },
+  "calibration_metrics": {
+    "n_rows": 83417,
+    "n_failures": 4578,
+    "n_selected": 26472,
+    "failures_caught": 4369,
+    "failures_missed": 209,
+    "empirical_coverage": 0.954346876365225,
+    "selection_rate": 0.31734538523322586,
+    "cost_reduction": 0.6826546147667741,
+    "precision": 0.16504230885463886
+  },
+  "selected_threshold": {
+    "guarantee": "pac",
+    "probability_floor": 0.03814534845464035,
+    "empirical_coverage_test": 0.9523067331670823,
+    "selection_rate_test": 0.2524604193410355,
+    "cost_reduction_test": 0.7475395806589644
+  }
+}

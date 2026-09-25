@@ -1,0 +1,94 @@
+# ---------------------------------------------------------------------------
+# Conformal Test Selection - central configuration
+#
+# Every module reads this file through common.load_config(). Nothing in the
+# source tree hard-codes a hyper-parameter that appears here.
+# ---------------------------------------------------------------------------
+
+project:
+  name: conformal-test-selection
+  random_seed: 42
+
+# --- Gradient-boosted decision tree (layer 1) -------------------------------
+model:
+  n_estimators: 500
+  max_depth: 8
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  eval_metric: logloss
+  # Class imbalance: the corpus is ~5% failing rows. Set to "auto" to derive
+  # scale_pos_weight = n_negative / n_positive from the training split, or a
+  # float to fix it, or null to disable.
+  scale_pos_weight: auto
+  early_stopping_rounds: 50
+  n_jobs: -1
+
+# --- Probability calibration (layer 2) --------------------------------------
+calibration:
+  method: platt          # platt -> sigmoid, isotonic -> isotonic
+  cv_folds: 5
+  ece_bins: 15
+  ece_threshold: 0.08    # acceptance gate: ECE must be <= this after calibration
+
+# --- Conformal prediction (layer 3) -----------------------------------------
+conformal:
+  coverage: 0.95         # 1 - alpha : fraction of FAILING tests to retain
+  confidence: 0.90       # 1 - delta : confidence the coverage holds (PAC mode)
+  method: split
+  # marginal -> coverage holds in expectation over calibration draws
+  # pac      -> coverage holds with probability >= `confidence` (Vovk 2012)
+  guarantee: pac
+
+# --- Test-selection policy --------------------------------------------------
+selection:
+  threshold: 0.7         # fallback score cut-off when no conformal model is loaded
+  min_tests: 10          # never hand CI fewer than this many tests
+  max_tests: 1000        # hard ceiling on a selected subset
+  # A request that supplies fewer than this fraction of the modelled features
+  # is answered but flagged degraded: the rest are median-imputed, so the
+  # prediction describes an average test rather than the one that was asked about.
+  min_feature_completeness: 0.30
+
+# --- Data paths -------------------------------------------------------------
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  # Reuse of the mined ConfTest corpus (561,711 commit-test rows, strict
+  # chronological 70/15/15 split). `data/splits` is a link to the ConfTest
+  # corpus, not a copy -- see README "Data reuse" for how to recreate it.
+  # Set to null to use data/raw harvested by data/collect.py instead.
+  external_splits_dir: data/splits
+  label_column: label_failed
+  group_column: commit_sha
+  split_ratios: [0.70, 0.15, 0.15]
+
+# --- Data collection (GitHub Actions harvest) -------------------------------
+collection:
+  repos_file: data/repos.txt
+  max_repos: 55
+  max_runs_per_repo: 200
+  request_delay_seconds: 1.0
+  rate_limit_buffer: 100
+
+# --- Artefact paths ---------------------------------------------------------
+artifacts:
+  model_path: models/gbdt_model.pkl
+  calibrator_path: models/calibrator.pkl
+  conformal_path: models/conformal_threshold.pkl
+  preprocessor_path: models/preprocessor.pkl
+  reports_dir: reports
+
+# --- Acceptance gates (targets, NOT measurements) ---------------------------
+# `cli.py evaluate` writes the measured column of the README results table from
+# reports/evaluation.json and marks each gate pass/fail against these.
+targets:
+  recall: 0.92
+  selection_rate: 0.40
+  ece: 0.08
+  coverage: 0.95
+  cost_reduction: 0.60
+
+logging:
+  level: INFO
+  format: "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"

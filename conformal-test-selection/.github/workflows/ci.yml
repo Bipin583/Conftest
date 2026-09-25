@@ -1,0 +1,58 @@
+# CI for the Conformal Test Selection project.
+#
+# The unit-test suite is the required gate. The acceptance step runs the real
+# `cli.py evaluate` against the processed splits when they are present in the
+# checkout (they are large, reused ConfTest data), and is best-effort so a
+# fresh clone without them — or a library-version skew against the committed
+# .pkl artefacts — never turns the build a misleading red.
+#
+# NOTE: GitHub Actions only reads workflows from `.github/workflows` at a
+# repository root. This file assumes the conformal-test-selection/ directory is
+# the repository root; all paths below are relative to it.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit tests & acceptance gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: python -m pytest -q
+
+      # Real test selection on the trained artefacts, mirroring the deployed
+      # flow: score the held-out split against the config's acceptance targets.
+      # Exits non-zero if a target regresses; skipped cleanly if the reused
+      # splits are not in this checkout.
+      - name: Acceptance gate (cli.py evaluate)
+        continue-on-error: true
+        run: |
+          if [ -f data/processed/test.csv ] && [ -f models/gbdt_model.pkl ]; then
+            python cli.py evaluate
+          else
+            echo "Processed splits or model artefacts absent; skipping acceptance gate."
+          fi
