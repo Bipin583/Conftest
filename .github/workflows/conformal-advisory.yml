@@ -1,0 +1,74 @@
+# Conformal Test Selection — ADVISORY (non-gating).
+#
+# On every PR this runs the conformal-test-selection pipeline on the *shipped*
+# fitted artefacts and reports what it WOULD select, plus the PAC coverage
+# guarantee. It skips no real tests and never fails the build: it exists to
+# connect the conformal selector to CI as a shadow/advisory signal, so the
+# guarantee can be watched on real automation before anyone trusts it to gate.
+#
+# Why this can run on a bare checkout: models/*.pkl and reports/*.json are
+# committed (~1 MB). The 300 MB reused corpus is NOT, so `cli.py evaluate`
+# cannot re-measure here — instead we surface the committed held-out metrics
+# and run a live `predict` on examples/sample_candidates.json to prove the
+# serving path loads and scores in CI.
+name: Conformal Test Selection (advisory)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  conformal-advisory:
+    name: 🔮 Conformal selection (advisory, skips nothing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: conformal-test-selection/requirements.txt
+
+      - name: 📦 Install conformal-test-selection dependencies
+        working-directory: conformal-test-selection
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🔮 Run conformal advisory selection
+        working-directory: conformal-test-selection
+        env:
+          COMMENT_PATH: ${{ github.workspace }}/conformal_advisory_comment.md
+        run: python examples/advisory_report.py
+
+      - name: 💬 Post advisory summary to the pull request
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            const path = `${process.env.GITHUB_WORKSPACE}/conformal_advisory_comment.md`;
+            if (!fs.existsSync(path)) {
+              core.info('No advisory comment produced; skipping.');
+              return;
+            }
+            const body = fs.readFileSync(path, 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
