@@ -279,6 +279,18 @@ class SelectionPipeline:
             "probability_floor": round(float(selector.probability_floor), 6),
             "class_conditional": selector.class_conditional,
             "calibration_size": selector.n_calibration,
+            # The guarantee is marginal over the failing *class*: it bounds the
+            # fraction of failing tests selected, not the fraction of commits
+            # whose every failing test is caught (that per-commit number is
+            # lower). And it is a conformal guarantee, so it rests on the
+            # calibration and future rows being exchangeable -- an assumption a
+            # temporal or cross-project shift can weaken. Monitor realized
+            # coverage in deployment rather than treating it as unconditional.
+            "scope": "per failing test (marginal over the failing class), not per commit",
+            "assumptions": (
+                "Valid under exchangeability of the calibration and deployment rows; "
+                "temporal or cross-project distribution shift can weaken it."
+            ),
         }
         if selector.guarantee == "pac":
             statement["claim"] = (
