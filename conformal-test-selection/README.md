@@ -2,9 +2,10 @@
 
 A machine-learning system that predicts which regression tests a code change is
 likely to fail, runs only those, and does so with a **distribution-free
-mathematical guarantee** on how many real failures it will still catch. On the
-held-out test split it retains **95.2% of failing tests while running only
-25.3% of the suite**, cutting CI cost by **74.7%**.
+coverage guarantee** — valid under the standard conformal assumption that the
+calibration and future commits are *exchangeable* — on how many real failures it
+will still catch. On the held-out test split it retains **95.2% of failing tests
+while running only 25.3% of the suite**, cutting CI cost by **74.7%**.
 
 > Final Year B.Tech CSE Major Project. The novelty is the third layer: to our
 > knowledge this is the first application of **split conformal prediction** to
@@ -35,7 +36,13 @@ lets real failures through, and you only find out in production.
    converts calibrated probabilities into a selection threshold with a
    **PAC guarantee**: with ≥90% confidence over the calibration draw, at least
    95% of failing tests are selected. This is the layer that makes skipping
-   tests safe rather than merely cheap.
+   tests safe rather than merely cheap. Two caveats keep the claim honest: it is
+   a guarantee about *individual failing tests* (marginal over the failing
+   class), not about catching *every* failing test in a commit — that per-commit
+   figure is lower (see below); and like any conformal guarantee it assumes the
+   calibration and future rows are *exchangeable*, an assumption a temporal or
+   cross-project shift can weaken, so realized coverage should be monitored in
+   deployment.
 
 ## Results
 
@@ -75,6 +82,20 @@ prediction adds.
 The table above is regenerated in place (between the `RESULTS` markers) by
 `python cli.py evaluate --update-readme`, so it never drifts from the numbers in
 `reports/evaluation.json`.
+
+### Scope of the guarantee
+
+The 95% figure is *per failing test*: of the tests that were going to fail, at
+least 95% are selected. It is **not** a promise that every failing test in a
+commit is caught. At the commit level the rule fully catches **65.2%** of
+failing pushes and catches *at least one* failing test in **95.6%**
+(`reports/conformal_report.json`). The coverage guarantee is also conditional on
+*exchangeability* between the calibration split and future commits; because the
+split is deliberately temporal, distribution drift can erode it, and the 95.23%
+measured on the held-out test split is evidence it held on this corpus rather
+than a proof it holds everywhere. The guarantee is additionally voided if the
+`max_tests` cap drops a selected test — the serving response reports this by
+setting `holds: false`.
 
 ## Repository layout
 
