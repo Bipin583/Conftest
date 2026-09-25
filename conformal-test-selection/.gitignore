@@ -1,0 +1,33 @@
+# ---------------------------------------------------------------------------
+# Conformal Test Selection - ignore rules
+#
+# The fitted artefacts under models/ ARE tracked: they are small (1 MB total)
+# and a fresh clone must be able to run `cli.py predict` without first
+# retraining on 561k rows. The data they were fitted on is not tracked, because
+# it is 300 MB and belongs to the ConfTest corpus upstream.
+# ---------------------------------------------------------------------------
+
+# --- Reused corpus ---------------------------------------------------------
+# A link to ../data/splits, recreated by the command in README "Data reuse".
+data/splits
+
+# --- Derived data ----------------------------------------------------------
+# Rebuilt by `python cli.py preprocess` in ~2 minutes; 300 MB if committed.
+data/processed/*.csv
+data/raw/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/processed/split_summary.json
+
+# --- Run logs --------------------------------------------------------------
+reports/_*.log
+
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/

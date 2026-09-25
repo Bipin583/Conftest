@@ -1,0 +1,548 @@
+{
+  "method": "platt",
+  "cv_folds": 5,
+  "fitted_on": "val",
+  "n_calibration_rows": 83417,
+  "ece_threshold": 0.08,
+  "val": {
+    "before": {
+      "ece": 0.013076972671174164,
+      "mce": 0.3253856712782925,
+      "n_bins": 15,
+      "bins": [
+        {
+          "lower": 0.0,
+          "upper": 0.0667,
+          "count": 66417,
+          "mean_predicted": 0.009648,
+          "observed": 0.0159,
+          "gap": 0.006251
+        },
+        {
+          "lower": 0.0667,
+          "upper": 0.1333,
+          "count": 7648,
+          "mean_predicted": 0.094217,
+          "observed": 0.087474,
+          "gap": 0.006743
+        },
+        {
+          "lower": 0.1333,
+          "upper": 0.2,
+          "count": 2808,
+          "mean_predicted": 0.161392,
+          "observed": 0.128561,
+          "gap": 0.03283
+        },
+        {
+          "lower": 0.2,
+          "upper": 0.2667,
+          "count": 1352,
+          "mean_predicted": 0.231346,
+          "observed": 0.188609,
+          "gap": 0.042737
+        },
+        {
+          "lower": 0.2667,
+          "upper": 0.3333,
+          "count": 979,
+          "mean_predicted": 0.299361,
+          "observed": 0.256384,
+          "gap": 0.042977
+        },
+        {
+          "lower": 0.3333,
+          "upper": 0.4,
+          "count": 872,
+          "mean_predicted": 0.367097,
+          "observed": 0.332569,
+          "gap": 0.034529
+        },
+        {
+          "lower": 0.4,
+          "upper": 0.4667,
+          "count": 801,
+          "mean_predicted": 0.432407,
+          "observed": 0.44819,
+          "gap": 0.015783
+        },
+        {
+          "lower": 0.4667,
+          "upper": 0.5333,
+          "count": 677,
+          "mean_predicted": 0.497671,
+          "observed": 0.573117,
+          "gap": 0.075446
+        },
+        {
+          "lower": 0.5333,
+          "upper": 0.6,
+          "count": 492,
+          "mean_predicted": 0.564301,
+          "observed": 0.538618,
+          "gap": 0.025683
+        },
+        {
+          "lower": 0.6,
+          "upper": 0.6667,
+          "count": 333,
+          "mean_predicted": 0.628145,
+          "observed": 0.537538,
+          "gap": 0.090608
+        },
+        {
+          "lower": 0.6667,
+          "upper": 0.7333,
+          "count": 333,
+          "mean_predicted": 0.700451,
+          "observed": 0.453453,
+          "gap": 0.246998
+        },
+        {
+          "lower": 0.7333,
+          "upper": 0.8,
+          "count": 352,
+          "mean_predicted": 0.765727,
+          "observed": 0.440341,
+          "gap": 0.325386
+        },
+        {
+          "lower": 0.8,
+          "upper": 0.8667,
+          "count": 293,
+          "mean_predicted": 0.834144,
+          "observed": 0.532423,
+          "gap": 0.301721
+        },
+        {
+          "lower": 0.8667,
+          "upper": 0.9333,
+          "count": 60,
+          "mean_predicted": 0.886869,
+          "observed": 0.716667,
+          "gap": 0.170202
+        },
+        {
+          "lower": 0.9333,
+          "upper": 1.0,
+          "count": 0,
+          "mean_predicted": null,
+          "observed": null,
+          "gap": null
+        }
+      ]
+    },
+    "after": {
+      "ece": 0.00932982775631089,
+      "mce": 0.224021572040022,
+      "n_bins": 15,
+      "bins": [
+        {
+          "lower": 0.0,
+          "upper": 0.0667,
+          "count": 64396,
+          "mean_predicted": 0.011258,
+          "observed": 0.014007,
+          "gap": 0.002749
+        },
+        {
+          "lower": 0.0667,
+          "upper": 0.1333,
+          "count": 9648,
+          "mean_predicted": 0.093981,
+          "observed": 0.084888,
+          "gap": 0.009093
+        },
+        {
+          "lower": 0.1333,
+          "upper": 0.2,
+          "count": 3221,
+          "mean_predicted": 0.160941,
+          "observed": 0.132878,
+          "gap": 0.028064
+        },
+        {
+          "lower": 0.2,
+          "upper": 0.2667,
+          "count": 1487,
+          "mean_predicted": 0.231207,
+          "observed": 0.224613,
+          "gap": 0.006593
+        },
+        {
+          "lower": 0.2667,
+          "upper": 0.3333,
+          "count": 1169,
+          "mean_predicted": 0.298734,
+          "observed": 0.301112,
+          "gap": 0.002378
+        },
+        {
+          "lower": 0.3333,
+          "upper": 0.4,
+          "count": 1045,
+          "mean_predicted": 0.365543,
+          "observed": 0.44689,
+          "gap": 0.081347
+        },
+        {
+          "lower": 0.4,
+          "upper": 0.4667,
+          "count": 773,
+          "mean_predicted": 0.430862,
+          "observed": 0.548512,
+          "gap": 0.11765
+        },
+        {
+          "lower": 0.4667,
+          "upper": 0.5333,
+          "count": 511,
+          "mean_predicted": 0.496981,
+          "observed": 0.563601,
+          "gap": 0.06662
+        },
+        {
+          "lower": 0.5333,
+          "upper": 0.6,
+          "count": 328,
+          "mean_predicted": 0.569186,
+          "observed": 0.463415,
+          "gap": 0.105771
+        },
+        {
+          "lower": 0.6,
+          "upper": 0.6667,
+          "count": 354,
+          "mean_predicted": 0.634323,
+          "observed": 0.429379,
+          "gap": 0.204944
+        },
+        {
+          "lower": 0.6667,
+          "upper": 0.7333,
+          "count": 258,
+          "mean_predicted": 0.69689,
+          "observed": 0.472868,
+          "gap": 0.224022
+        },
+        {
+          "lower": 0.7333,
+          "upper": 0.8,
+          "count": 196,
+          "mean_predicted": 0.756568,
+          "observed": 0.607143,
+          "gap": 0.149425
+        },
+        {
+          "lower": 0.8,
+          "upper": 0.8667,
+          "count": 31,
+          "mean_predicted": 0.81307,
+          "observed": 0.612903,
+          "gap": 0.200166
+        },
+        {
+          "lower": 0.8667,
+          "upper": 0.9333,
+          "count": 0,
+          "mean_predicted": null,
+          "observed": null,
+          "gap": null
+        },
+        {
+          "lower": 0.9333,
+          "upper": 1.0,
+          "count": 0,
+          "mean_predicted": null,
+          "observed": null,
+          "gap": null
+        }
+      ]
+    }
+  },
+  "test": {
+    "before": {
+      "ece": 0.004979547892977966,
+      "mce": 0.5049599553308179,
+      "n_bins": 15,
+      "bins": [
+        {
+          "lower": 0.0,
+          "upper": 0.0667,
+          "count": 71355,
+          "mean_predicted": 0.007177,
+          "observed": 0.007442,
+          "gap": 0.000265
+        },
+        {
+          "lower": 0.0667,
+          "upper": 0.1333,
+          "count": 6913,
+          "mean_predicted": 0.094349,
+          "observed": 0.090409,
+          "gap": 0.003939
+        },
+        {
+          "lower": 0.1333,
+          "upper": 0.2,
+          "count": 3103,
+          "mean_predicted": 0.16231,
+          "observed": 0.137609,
+          "gap": 0.024701
+        },
+        {
+          "lower": 0.2,
+          "upper": 0.2667,
+          "count": 1655,
+          "mean_predicted": 0.231351,
+          "observed": 0.216314,
+          "gap": 0.015037
+        },
+        {
+          "lower": 0.2667,
+          "upper": 0.3333,
+          "count": 1047,
+          "mean_predicted": 0.297468,
+          "observed": 0.267431,
+          "gap": 0.030037
+        },
+        {
+          "lower": 0.3333,
+          "upper": 0.4,
+          "count": 690,
+          "mean_predicted": 0.365498,
+          "observed": 0.326087,
+          "gap": 0.039412
+        },
+        {
+          "lower": 0.4,
+          "upper": 0.4667,
+          "count": 409,
+          "mean_predicted": 0.431275,
+          "observed": 0.415648,
+          "gap": 0.015627
+        },
+        {
+          "lower": 0.4667,
+          "upper": 0.5333,
+          "count": 369,
+          "mean_predicted": 0.498278,
+          "observed": 0.468835,
+          "gap": 0.029443
+        },
+        {
+          "lower": 0.5333,
+          "upper": 0.6,
+          "count": 304,
+          "mean_predicted": 0.564701,
+          "observed": 0.5,
+          "gap": 0.064701
+        },
+        {
+          "lower": 0.6,
+          "upper": 0.6667,
+          "count": 200,
+          "mean_predicted": 0.628092,
+          "observed": 0.41,
+          "gap": 0.218092
+        },
+        {
+          "lower": 0.6667,
+          "upper": 0.7333,
+          "count": 137,
+          "mean_predicted": 0.696907,
+          "observed": 0.467153,
+          "gap": 0.229753
+        },
+        {
+          "lower": 0.7333,
+          "upper": 0.8,
+          "count": 130,
+          "mean_predicted": 0.771722,
+          "observed": 0.461538,
+          "gap": 0.310183
+        },
+        {
+          "lower": 0.8,
+          "upper": 0.8667,
+          "count": 124,
+          "mean_predicted": 0.835605,
+          "observed": 0.330645,
+          "gap": 0.50496
+        },
+        {
+          "lower": 0.8667,
+          "upper": 0.9333,
+          "count": 33,
+          "mean_predicted": 0.888005,
+          "observed": 0.606061,
+          "gap": 0.281944
+        },
+        {
+          "lower": 0.9333,
+          "upper": 1.0,
+          "count": 0,
+          "mean_predicted": null,
+          "observed": null,
+          "gap": null
+        }
+      ]
+    },
+    "after": {
+      "ece": 0.005795282116674595,
+      "mce": 0.45664295892555945,
+      "n_bins": 15,
+      "bins": [
+        {
+          "lower": 0.0,
+          "upper": 0.0667,
+          "count": 69820,
+          "mean_predicted": 0.008784,
+          "observed": 0.006044,
+          "gap": 0.002739
+        },
+        {
+          "lower": 0.0667,
+          "upper": 0.1333,
+          "count": 8417,
+          "mean_predicted": 0.094832,
+          "observed": 0.086729,
+          "gap": 0.008103
+        },
+        {
+          "lower": 0.1333,
+          "upper": 0.2,
+          "count": 3604,
+          "mean_predicted": 0.161837,
+          "observed": 0.144839,
+          "gap": 0.016998
+        },
+        {
+          "lower": 0.2,
+          "upper": 0.2667,
+          "count": 1799,
+          "mean_predicted": 0.230585,
+          "observed": 0.233463,
+          "gap": 0.002878
+        },
+        {
+          "lower": 0.2667,
+          "upper": 0.3333,
+          "count": 1028,
+          "mean_predicted": 0.297418,
+          "observed": 0.296693,
+          "gap": 0.000725
+        },
+        {
+          "lower": 0.3333,
+          "upper": 0.4,
+          "count": 547,
+          "mean_predicted": 0.363773,
+          "observed": 0.422303,
+          "gap": 0.05853
+        },
+        {
+          "lower": 0.4,
+          "upper": 0.4667,
+          "count": 433,
+          "mean_predicted": 0.43088,
+          "observed": 0.47806,
+          "gap": 0.04718
+        },
+        {
+          "lower": 0.4667,
+          "upper": 0.5333,
+          "count": 314,
+          "mean_predicted": 0.49624,
+          "observed": 0.506369,
+          "gap": 0.010129
+        },
+        {
+          "lower": 0.5333,
+          "upper": 0.6,
+          "count": 181,
+          "mean_predicted": 0.566561,
+          "observed": 0.414365,
+          "gap": 0.152196
+        },
+        {
+          "lower": 0.6,
+          "upper": 0.6667,
+          "count": 94,
+          "mean_predicted": 0.632132,
+          "observed": 0.425532,
+          "gap": 0.2066
+        },
+        {
+          "lower": 0.6667,
+          "upper": 0.7333,
+          "count": 134,
+          "mean_predicted": 0.695687,
+          "observed": 0.447761,
+          "gap": 0.247925
+        },
+        {
+          "lower": 0.7333,
+          "upper": 0.8,
+          "count": 79,
+          "mean_predicted": 0.76044,
+          "observed": 0.303797,
+          "gap": 0.456643
+        },
+        {
+          "lower": 0.8,
+          "upper": 0.8667,
+          "count": 19,
+          "mean_predicted": 0.819332,
+          "observed": 0.684211,
+          "gap": 0.135122
+        },
+        {
+          "lower": 0.8667,
+          "upper": 0.9333,
+          "count": 0,
+          "mean_predicted": null,
+          "observed": null,
+          "gap": null
+        },
+        {
+          "lower": 0.9333,
+          "upper": 1.0,
+          "count": 0,
+          "mean_predicted": null,
+          "observed": null,
+          "gap": null
+        }
+      ]
+    }
+  },
+  "test_metrics": {
+    "before": {
+      "accuracy": 0.9619632469439915,
+      "precision": 0.46314831665150136,
+      "recall": 0.15866583541147133,
+      "f1": 0.23635941490596704,
+      "positive_rate": 0.012709757254044803,
+      "base_rate": 0.037100001156483826,
+      "roc_auc": 0.9289040380816135,
+      "pr_auc": 0.31315378764798396,
+      "log_loss": 0.10264080762863159,
+      "brier": 0.029665159061551094
+    },
+    "after": {
+      "accuracy": 0.9618591633995999,
+      "precision": 0.42990654205607476,
+      "recall": 0.08603491271820449,
+      "f1": 0.14337662337662338,
+      "positive_rate": 0.0074246261666030605,
+      "base_rate": 0.037100001156483826,
+      "roc_auc": 0.9289040380816135,
+      "pr_auc": 0.31315378764798396,
+      "log_loss": 0.10252929253336246,
+      "brier": 0.029277584287347422
+    }
+  },
+  "ece_before": 0.004979547892977966,
+  "ece_after": 0.005795282116674595,
+  "ece_gate_passed": true
+}

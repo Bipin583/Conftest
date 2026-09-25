@@ -1,0 +1,140 @@
+{
+  "seed": 42,
+  "fit_seconds": 4.54,
+  "best_iteration": 165,
+  "n_features": 62,
+  "scale_pos_weight": 18.932088717061756,
+  "params": {
+    "objective": "binary:logistic",
+    "colsample_bytree": 0.8,
+    "early_stopping_rounds": 50,
+    "enable_categorical": false,
+    "eval_metric": "logloss",
+    "learning_rate": 0.05,
+    "max_depth": 8,
+    "n_estimators": 500,
+    "n_jobs": -1,
+    "random_state": 42,
+    "scale_pos_weight": 18.932088717061756,
+    "subsample": 0.8,
+    "tree_method": "hist"
+  },
+  "train": {
+    "accuracy": 0.9381841383270593,
+    "precision": 0.4466128466128466,
+    "recall": 0.9709024315800183,
+    "f1": 0.6117994005737823,
+    "positive_rate": 0.10906654756587762,
+    "base_rate": 0.05017035666432719,
+    "roc_auc": 0.9908035177069514,
+    "pr_auc": 0.871084742548131,
+    "log_loss": 0.1573653519153595,
+    "brier": 0.04773306846618652
+  },
+  "val": {
+    "accuracy": 0.9461980171907405,
+    "precision": 0.5207373271889401,
+    "recall": 0.24683267802533856,
+    "f1": 0.33491404860699464,
+    "positive_rate": 0.02601388206240934,
+    "base_rate": 0.05488089957682487,
+    "roc_auc": 0.9103875578097342,
+    "pr_auc": 0.3764401345484906,
+    "log_loss": 0.14071570336818695,
+    "brier": 0.04114598035812378
+  },
+  "test": {
+    "accuracy": 0.9619632469439915,
+    "precision": 0.46314831665150136,
+    "recall": 0.15866583541147133,
+    "f1": 0.23635941490596704,
+    "positive_rate": 0.012709757254044803,
+    "base_rate": 0.037100001156483826,
+    "roc_auc": 0.9289040380816135,
+    "pr_auc": 0.31315378764798396,
+    "log_loss": 0.10264080762863159,
+    "brier": 0.029665159061551094
+  },
+  "feature_importance": [
+    {
+      "feature": "dep_is_reachable",
+      "importance": 0.181461
+    },
+    {
+      "feature": "dependency_distance",
+      "importance": 0.094313
+    },
+    {
+      "feature": "co_change_frequency",
+      "importance": 0.085887
+    },
+    {
+      "feature": "file_test_similarity",
+      "importance": 0.033296
+    },
+    {
+      "feature": "mutant_operator_bool_and_to_or",
+      "importance": 0.032429
+    },
+    {
+      "feature": "mutant_operator_cmp_==_to_!=",
+      "importance": 0.028104
+    },
+    {
+      "feature": "repo_pyjwt",
+      "importance": 0.026355
+    },
+    {
+      "feature": "mutant_operator_const_str_empty",
+      "importance": 0.025662
+    },
+    {
+      "feature": "dep_name_heuristic_coupled",
+      "importance": 0.024535
+    },
+    {
+      "feature": "mutant_operator_bool_drop_not",
+      "importance": 0.024217
+    },
+    {
+      "feature": "mutant_operator_bool_or_to_and",
+      "importance": 0.023917
+    },
+    {
+      "feature": "mutant_operator_cmp_lt_=_to_gt_=",
+      "importance": 0.019796
+    },
+    {
+      "feature": "repo_tabulate",
+      "importance": 0.018831
+    },
+    {
+      "feature": "hist_changed_files_prior_mod_count",
+      "importance": 0.018748
+    },
+    {
+      "feature": "mutant_operator_arith_+_to_-",
+      "importance": 0.01805
+    },
+    {
+      "feature": "ast_test_file_classes_count",
+      "importance": 0.017957
+    },
+    {
+      "feature": "mutant_operator_return_to_None",
+      "importance": 0.017954
+    },
+    {
+      "feature": "execution_count",
+      "importance": 0.017757
+    },
+    {
+      "feature": "repo_sqlparse",
+      "importance": 0.017104
+    },
+    {
+      "feature": "mutant_operator_const_int_increment",
+      "importance": 0.016941
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "split": "test",
+  "n_rows": 86469,
+  "n_failures": 3208,
+  "guarantee": {
+    "type": "pac",
+    "target_coverage": 0.95,
+    "confidence": 0.9,
+    "certified_coverage": 0.9501368491059918,
+    "probability_floor": 0.03814534845464035,
+    "calibration_size": 4578
+  },
+  "metrics": {
+    "n_rows": 86469,
+    "n_failures": 3208,
+    "n_selected": 21830,
+    "failures_caught": 3055,
+    "failures_missed": 153,
+    "empirical_coverage": 0.9523067331670823,
+    "selection_rate": 0.2524604193410355,
+    "cost_reduction": 0.7475395806589644,
+    "precision": 0.13994502977553824,
+    "n_commits": 183,
+    "n_failing_commits": 135,
+    "commits_fully_caught": 88,
+    "commit_full_catch_rate": 0.6518518518518519,
+    "commit_any_catch_rate": 0.9555555555555556,
+    "mean_tests_selected_per_commit": 119.2896174863388,
+    "mean_tests_available_per_commit": 472.5081967213115,
+    "ece": 0.005795282116674595
+  },
+  "acceptance": [
+    {
+      "metric": "Recall (failures caught)",
+      "target": 0.92,
+      "measured": 0.9523067331670823,
+      "direction": "ge",
+      "passed": true
+    },
+    {
+      "metric": "Selection rate",
+      "target": 0.4,
+      "measured": 0.2524604193410355,
+      "direction": "le",
+      "passed": true
+    },
+    {
+      "metric": "Calibration error (ECE)",
+      "target": 0.08,
+      "measured": 0.005795282116674595,
+      "direction": "le",
+      "passed": true
+    },
+    {
+      "metric": "Conformal coverage",
+      "target": 0.95,
+      "measured": 0.9523067331670823,
+      "direction": "ge",
+      "passed": true
+    },
+    {
+      "metric": "Cost reduction",
+      "target": 0.6,
+      "measured": 0.7475395806589644,
+      "direction": "ge",
+      "passed": true
+    }
+  ],
+  "all_targets_passed": true,
+  "baselines": {
+    "run_all": {
+      "recall": 1.0,
+      "selection_rate": 1.0,
+      "cost_reduction": 0.0,
+      "precision": 0.037100001156483826,
+      "failures_missed": 0
+    },
+    "fixed_threshold_0.5": {
+      "recall": 0.08603491271820449,
+      "selection_rate": 0.0074246261666030605,
+      "cost_reduction": 0.9925753738333969,
+      "precision": 0.42990654205607476,
+      "failures_missed": 2932
+    },
+    "cost_matched_topk": {
+      "recall": 0.9523067331670823,
+      "selection_rate": 0.2524604193410355,
+      "cost_reduction": 0.7475395806589644,
+      "precision": 0.13994502977553824,
+      "failures_missed": 153
+    },
+    "val_tuned_threshold": {
+      "recall": 0.9498129675810474,
+      "selection_rate": 0.25072569360117497,
+      "cost_reduction": 0.749274306398825,
+      "precision": 0.14054428044280443,
+      "failures_missed": 161,
+      "threshold": 0.039188,
+      "promised_recall_on_val": 0.95,
+      "recall_shortfall": 0.000187
+    }
+  }
+}
