@@ -1,9 +1,11 @@
 """Advisory conformal-selection report for CI (non-gating).
 
 Run from the ``conformal-test-selection/`` directory. Loads the shipped fitted
-artefacts, runs a live ``predict`` on a small committed sample to prove the
-serving path works in CI, and surfaces the committed held-out metrics and the
-PAC coverage guarantee. Writes a Markdown comment to ``$COMMENT_PATH`` (and to
+artefacts and runs ``predict`` on the *real PR* (features extracted live from the
+diff by :mod:`data.live_extract`), falling back to a committed sample when no PR
+diff/tests are available. It surfaces the committed held-out metrics and the PAC
+coverage guarantee, and flags that live predictions on this repo are
+out-of-distribution. Writes a Markdown comment to ``$COMMENT_PATH`` (and to
 ``$GITHUB_STEP_SUMMARY`` when present).
 
 It **never** raises out to the caller: an advisory step must not turn a build
@@ -35,36 +37,83 @@ def _load_json(path: Path):
         return json.load(handle)
 
 
+def _candidates() -> tuple:
+    """Return ``(records, source_label, changed_files, is_live)`` for scoring.
+
+    Prefers features extracted from the *real* PR (env ``BASE_SHA``/``HEAD_SHA``/
+    ``REPO_NAME``/``GITHUB_WORKSPACE``). Falls back to the committed sample when
+    there is no diff, no changed source, or no discoverable test — so the job
+    runs identically in a ``workflow_dispatch`` or a bare checkout. Extraction is
+    already crash-proof, but the import and env plumbing are guarded here too:
+    the advisory step must never go red.
+    """
+    try:
+        from data.live_extract import build_live_candidates
+
+        repo_root = os.environ.get("GITHUB_WORKSPACE") or str(ROOT.parent)
+        base_sha = os.environ.get("BASE_SHA") or None
+        head_sha = os.environ.get("HEAD_SHA") or None
+        repo_name = os.environ.get("REPO_NAME") or "final-year-project"
+        records = build_live_candidates(repo_root, base_sha, head_sha, repo_name, max_tests=500)
+        if records:
+            changed = sorted({r.get("changed_file_path", "") for r in records if r.get("changed_file_path")})
+            return records, "live", changed, True
+    except Exception:  # noqa: BLE001 - fall back to the sample rather than fail
+        pass
+    return _load_json(SAMPLE), "sample", [], False
+
+
 def build_comment() -> str:
     """Compose the advisory Markdown, or an honest note if artefacts are absent."""
     lines = ["## 🔮 Conformal Test Selection — advisory (no tests were skipped)", ""]
 
-    # Live selection on the shipped artefacts ------------------------------
+    # Selection on the shipped artefacts, over the real PR when one is present.
     try:
         from models.pipeline import SelectionPipeline
 
-        records = _load_json(SAMPLE)
+        records, source, changed_files, is_live = _candidates()
         pipeline = SelectionPipeline.load()
         # min_tests=1 shows the pure conformal rule rather than the smoke-set floor.
         result = pipeline.predict(records, min_tests=1)
         summary = result["summary"]
         guarantee = result["guarantee"]
 
+        if is_live:
+            header = (
+                f"**Live on this PR** — features extracted from the real diff "
+                f"({len(records)} discovered test{'s' if len(records) != 1 else ''} scored "
+                f"against {len(changed_files)} changed source file"
+                f"{'s' if len(changed_files) != 1 else ''}):"
+            )
+        else:
+            header = (
+                "**Demo** on `examples/sample_candidates.json` — no PR diff/tests found, so this "
+                "shows the committed sample (the serving path, on the committed `.pkl` artefacts):"
+            )
         lines += [
-            f"**Live demo** on `examples/sample_candidates.json` "
-            f"(the serving path, running here on the committed `.pkl` artefacts):",
+            header,
             "",
             f"- Selected **{summary['n_selected']} / {summary['n_candidates']}** "
             f"candidate tests — projected cost saving **{_pct(summary['cost_reduction'])}**.",
-            f"- Feature completeness {_pct(summary['feature_completeness'])} "
+            f"- Mechanical feature completeness {_pct(summary['feature_completeness'])} "
             f"(`degraded={summary['degraded']}`). Guarantee holds: `{guarantee['holds']}`.",
+        ]
+        if is_live and changed_files:
+            shown = ", ".join(f"`{p}`" for p in changed_files[:8])
+            more = f" (+{len(changed_files) - 8} more)" if len(changed_files) > 8 else ""
+            lines.append(f"- Changed source files: {shown}{more}.")
+        lines += [
             "",
             "| Selected | P(fail) | Test |",
             "|:--:|--:|---|",
         ]
-        for pred in sorted(result["predictions"], key=lambda p: -p["failure_probability"]):
+        ranked = sorted(result["predictions"], key=lambda p: -p["failure_probability"])
+        TOP = 20
+        for pred in ranked[:TOP]:
             mark = "✅ run" if pred["selected"] else "⏭️ skip"
             lines.append(f"| {mark} | {pred['failure_probability']:.4f} | `{pred['test_id']}` |")
+        if len(ranked) > TOP:
+            lines.append(f"| … | | _+{len(ranked) - TOP} more, ranked below the top {TOP}_ |")
         lines.append("")
         lines.append(
             f"> Selection rule: run a test when P(fail) ≥ "
@@ -72,6 +121,16 @@ def build_comment() -> str:
             f"({guarantee['type'].upper()} threshold)."
         )
         lines.append("")
+        if is_live:
+            lines += [
+                "> ⚠️ **Out-of-distribution — read as a *relative* ranking, not calibrated risk.** "
+                "The model was trained on the ConfTest synthetic-mutation corpus. On this repo the "
+                "`repo` category is unseen (all-zero one-hot), there is no `mutant_operator`, and the "
+                "8 historical features are median-imputed — so the absolute `P(fail)` values and the "
+                "PAC coverage guarantee below **do not transfer** to this repository. The ranking of "
+                "which tests relate to the change is still informative; this job skips no tests.",
+                "",
+            ]
     except Exception as exc:  # noqa: BLE001 - advisory must never crash the build
         lines += [f"> ⚠️ Live demo unavailable in this checkout: `{exc}`", ""]
 
