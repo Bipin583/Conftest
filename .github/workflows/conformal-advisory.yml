@@ -9,8 +9,8 @@
 # Why this can run on a bare checkout: models/*.pkl and reports/*.json are
 # committed (~1 MB). The 300 MB reused corpus is NOT, so `cli.py evaluate`
 # cannot re-measure here — instead we surface the committed held-out metrics
-# and run a live `predict` on examples/sample_candidates.json to prove the
-# serving path loads and scores in CI.
+# and run a live `predict` on features extracted from the real PR diff (falling
+# back to examples/sample_candidates.json when there is no diff/test to score).
 name: Conformal Test Selection (advisory)
 
 on:
@@ -32,7 +32,10 @@ jobs:
       - name: 📥 Checkout
         uses: actions/checkout@v5
         with:
-          fetch-depth: 1
+          # Full history: build_live_candidates diffs base...head and reads
+          # `git log` for prior-modification counts, so both PR endpoints and
+          # the merge-base must be reachable.
+          fetch-depth: 0
 
       - name: 🐍 Set up Python 3.11
         uses: actions/setup-python@v6
@@ -56,6 +59,13 @@ jobs:
         working-directory: conformal-test-selection
         env:
           COMMENT_PATH: ${{ github.workspace }}/conformal_advisory_comment.md
+          # Feed the real PR to the live feature extractor. On workflow_dispatch
+          # these PR fields are empty → build_live_candidates returns [] → the
+          # report falls back to the committed sample.
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
         run: python examples/advisory_report.py
 
       - name: 💬 Post advisory summary to the pull request
