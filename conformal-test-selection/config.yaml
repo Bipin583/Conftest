@@ -85,6 +85,13 @@ artifacts:
   conformal_path: models/conformal_threshold.pkl
   preprocessor_path: models/preprocessor.pkl
   reports_dir: reports
+  # Reproducible-evaluation outputs. The reliability diagram (PNG) and the
+  # calibration table (CSV) are written here by `cli.py calibrate`; the run
+  # manifest (git hash, package versions, seed, guarantee) by `cli.py manifest`.
+  # These live under reports/ (tracked) rather than artifacts/ (ignored) so the
+  # diagram is visible in the repository beside calibration_report.json.
+  evaluation_dir: reports
+  manifest_path: models/manifest.json
 
 # --- Acceptance gates (targets, NOT measurements) ---------------------------
 # `cli.py evaluate` writes the measured column of the README results table from

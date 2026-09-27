@@ -17,6 +17,11 @@ scipy==1.10.1
 # --- Serving ---
 flask==2.3.0
 
+# --- Reporting / reproducible evaluation ---
+# Only used to render reports/reliability_diagram.png; models/calibrate.py
+# imports it lazily and skips the plot (still writing the CSV + JSON) if absent.
+matplotlib==3.7.1
+
 # --- Data collection ---
 pygithub==1.59.0
 

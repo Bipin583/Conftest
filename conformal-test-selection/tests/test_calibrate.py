@@ -12,7 +12,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from models.calibrate import ScoreCalibrator, _safe_logit, expected_calibration_error
+from models.calibrate import (
+    ScoreCalibrator,
+    _safe_logit,
+    expected_calibration_error,
+    write_calibration_table,
+    write_reliability_diagram,
+)
 from tests.conftest import make_scores
 
 
@@ -127,3 +133,56 @@ def test_unknown_calibration_method_is_rejected():
     """A typo in ``calibration.method`` must fail loudly at fit time."""
     with pytest.raises(Exception):
         ScoreCalibrator("magic").fit(*reversed(make_scores(n=500, seed=8)))
+
+
+# --------------------------------------------------------------------------
+# Reproducible-evaluation artefacts
+# --------------------------------------------------------------------------
+
+
+def _synthetic_report(n_bins: int = 10) -> dict:
+    """A minimal calibration report, enough to exercise the writers."""
+    probabilities, labels = make_scores(n=4000, seed=11)
+    calibrated = ScoreCalibrator("platt").fit(probabilities, labels).transform(probabilities)
+    bins = lambda p: expected_calibration_error(labels, p, n_bins)  # noqa: E731
+    return {
+        "val": {"before": bins(probabilities), "after": bins(calibrated)},
+        "test": {"before": bins(probabilities), "after": bins(calibrated)},
+    }
+
+
+def test_calibration_table_has_a_row_per_split_stage_bin(tmp_path):
+    """The CSV must let anyone reproduce the diagram without rerunning the model."""
+    report = _synthetic_report(n_bins=10)
+    path = write_calibration_table(report, tmp_path / "calibration_table.csv")
+    lines = path.read_text(encoding="utf-8").strip().splitlines()
+
+    assert lines[0] == "split,stage,lower,upper,count,mean_predicted,observed,gap"
+    # 2 splits x 2 stages x 10 bins, plus the header.
+    assert len(lines) == 1 + 2 * 2 * 10
+    assert lines[1].startswith("val,before,")
+
+
+def test_calibration_table_leaves_empty_bins_blank_not_zero(tmp_path):
+    """An empty bin has no mean prediction; writing 0 there would be a lie."""
+    # A report whose bins are all empty except by construction: force one empty
+    # bin by scoring a single mid-range point.
+    report = {
+        "val": {"before": expected_calibration_error([1, 0], [0.6, 0.4], 10)} ,
+    }
+    report["val"]["after"] = report["val"]["before"]
+    report["test"] = report["val"]
+    path = write_calibration_table(report, tmp_path / "t.csv")
+    body = path.read_text(encoding="utf-8")
+    # An empty bin renders as trailing commas (blank numeric fields), never ",0".
+    assert ",,," in body
+
+
+def test_reliability_diagram_is_written_when_matplotlib_is_present(tmp_path):
+    """When matplotlib imports, a PNG is produced; when not, the call is a no-op."""
+    pytest.importorskip("matplotlib")
+    report = _synthetic_report(n_bins=10)
+    path = write_reliability_diagram(report, tmp_path / "reliability_diagram.png")
+    assert path is not None and path.exists()
+    assert path.stat().st_size > 0
+
