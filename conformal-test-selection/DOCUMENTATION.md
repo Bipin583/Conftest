@@ -7,6 +7,9 @@ This document complements the two others in the repository:
 
 - **`README.md`** — project overview, headline results, quick start.
 - **`CONFORMAL_IMPLEMENTATION_AUDIT.md`** — validity audit of the conformal claim.
+- **`CONFORMAL_CODE_AUDIT.md`** — line-by-line code audit: every headline number
+  re-verified against the committed report JSONs and re-derived by hand (no P0
+  defect; P1/P2 write-up precision caveats).
 - **`DOCUMENTATION.md`** (this file) — end-to-end technical reference: architecture,
   data flow, every CLI command, the full configuration schema, the serving contract,
   the HTTP API, the advisory CI integration, and a module-by-module API summary.
