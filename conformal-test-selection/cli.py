@@ -215,9 +215,15 @@ def cmd_predict(args: argparse.Namespace) -> int:
         LOGGER.info("Wrote %s", target)
     else:
         summary = result["summary"]
+        decision = result["decision"]
         print(f"\nSelected {summary['n_selected']} of {summary['n_candidates']} tests "
               f"({summary['selection_rate']:.1%}), saving {summary['cost_reduction']:.1%} of CI cost.")
         print(f"Guarantee: {result['guarantee']['claim']}")
+        if decision["action"] == "run_full_suite":
+            print(f"DECISION: abstain and run the FULL suite ({', '.join(decision['reason_codes'])}). "
+                  f"{decision['explanation']}")
+        else:
+            print("DECISION: run the selected subset (guarantee holds).")
         if summary["degraded"]:
             print(f"WARNING: only {summary['feature_completeness']:.0%} of features supplied; "
                   "the rest were imputed.")

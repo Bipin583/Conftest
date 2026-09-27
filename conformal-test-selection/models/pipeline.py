@@ -40,6 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from common import ArtifactError, get_logger, load_artifact, load_config  # noqa: E402
 from data.preprocess import _sanitize_feature_names  # noqa: E402
 from models.conformal import ConformalSelector  # noqa: E402
+from models.decision import build_decision  # noqa: E402
 
 LOGGER = get_logger(__name__)
 
@@ -195,7 +196,9 @@ class SelectionPipeline:
                 ``selection.max_tests``.
 
         Returns:
-            A dictionary with ``predictions``, ``summary`` and ``guarantee``.
+            A dictionary with ``predictions``, ``summary``, ``guarantee`` and
+            ``decision`` (whether to trust the subset or abstain to the full
+            suite).
 
         Raises:
             PipelineError: If scoring fails.
@@ -255,10 +258,29 @@ class SelectionPipeline:
                 100 * completeness, 100 * minimum_completeness,
             )
 
+        guarantee = self.guarantee_statement(capped=capped)
+
+        # The conformal layer always returns a subset; the decision layer says
+        # whether that subset is safe to trust or whether to abstain and run the
+        # full suite. Abstaining only ever adds tests, so it never lowers
+        # coverage -- it is the safe fallback exactly when the guarantee is in
+        # doubt (imputed features, a budget that voided it, or a subset so large
+        # the saving is negligible).
+        decision = build_decision(
+            n_candidates=int(n),
+            n_selected=int(selected.sum()),
+            selection_rate=summary["selection_rate"],
+            degraded=summary["degraded"],
+            budget_capped=capped,
+            guarantee_holds=bool(guarantee["holds"]),
+            selection_cfg=selection_cfg,
+        )
+
         return {
             "predictions": predictions,
             "summary": summary,
-            "guarantee": self.guarantee_statement(capped=capped),
+            "guarantee": guarantee,
+            "decision": decision,
         }
 
     def guarantee_statement(self, capped: bool = False) -> Dict[str, Any]:

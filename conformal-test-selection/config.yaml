@@ -49,6 +49,13 @@ selection:
   # is answered but flagged degraded: the rest are median-imputed, so the
   # prediction describes an average test rather than the one that was asked about.
   min_feature_completeness: 0.30
+  # SELECT / ABSTAIN policy (models/decision.py). Abstaining runs the full
+  # suite, which covers 100% of failing tests by construction, so it is always a
+  # safe fallback -- it trades some CI cost for safety when the guarantee is in
+  # doubt.
+  abstain_on_degraded: true          # abstain when features were mostly imputed
+  abstain_on_voided_guarantee: true  # abstain when max_tests voided the guarantee
+  full_suite_fallback_rate: 0.90     # at/above this selected fraction, just run everything
 
 # --- Data paths -------------------------------------------------------------
 data:
