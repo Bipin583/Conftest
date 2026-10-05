@@ -211,6 +211,96 @@ def expected_calibration_error(
     return {"ece": float(ece), "mce": float(mce), "n_bins": int(n_bins), "bins": bins}
 
 
+def write_calibration_table(report: Dict[str, Any], destination: Any) -> Path:
+    """Write the per-bin reliability data as a flat CSV.
+
+    One row per (split, stage, bin), so the reliability diagram can be
+    reproduced by anyone from a plain-text artefact, without re-running the
+    model. Empty bins are written with blank numeric fields rather than dropped,
+    so the bin grid is visible.
+
+    Args:
+        report: A calibration report from :func:`calibrate`.
+        destination: Output CSV path.
+
+    Returns:
+        The resolved path written.
+    """
+    target = resolve_path(destination)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    rows = ["split,stage,lower,upper,count,mean_predicted,observed,gap"]
+    for split in ("val", "test"):
+        for stage in ("before", "after"):
+            for b in report[split][stage]["bins"]:
+                rows.append(
+                    "{split},{stage},{lower},{upper},{count},{mp},{obs},{gap}".format(
+                        split=split,
+                        stage=stage,
+                        lower=b["lower"],
+                        upper=b["upper"],
+                        count=b["count"],
+                        mp="" if b["mean_predicted"] is None else b["mean_predicted"],
+                        obs="" if b["observed"] is None else b["observed"],
+                        gap="" if b["gap"] is None else b["gap"],
+                    )
+                )
+    target.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return target
+
+
+def write_reliability_diagram(report: Dict[str, Any], destination: Any) -> Optional[Path]:
+    """Plot the held-out reliability diagram (before vs after calibration).
+
+    matplotlib is imported lazily and the plot is skipped -- not fatal -- when it
+    is not installed, so calibration on a headless or minimal environment still
+    produces the CSV and the JSON report. The diagram shows the test-split bins:
+    a perfectly calibrated map sits on the diagonal.
+
+    Args:
+        report: A calibration report from :func:`calibrate`.
+        destination: Output PNG path.
+
+    Returns:
+        The path written, or ``None`` if matplotlib was unavailable.
+    """
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")  # headless: never require a display
+        import matplotlib.pyplot as plt
+    except Exception as exc:  # noqa: BLE001 - a missing plotting lib must not fail calibration
+        LOGGER.warning("matplotlib unavailable (%s); skipping reliability_diagram.png.", exc)
+        return None
+
+    def _xy(stage: str) -> Tuple[List[float], List[float]]:
+        xs, ys = [], []
+        for b in report["test"][stage]["bins"]:
+            if b["mean_predicted"] is not None and b["observed"] is not None:
+                xs.append(b["mean_predicted"])
+                ys.append(b["observed"])
+        return xs, ys
+
+    target = resolve_path(destination)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.plot([0, 1], [0, 1], linestyle="--", color="grey", label="perfect calibration")
+    bx, by = _xy("before")
+    ax.plot(bx, by, marker="o", label=f"before (ECE {report['test']['before']['ece']:.3f})")
+    ax_, ay = _xy("after")
+    ax.plot(ax_, ay, marker="s", label=f"after (ECE {report['test']['after']['ece']:.3f})")
+    ax.set_xlabel("mean predicted P(fail)")
+    ax.set_ylabel("observed failure frequency")
+    ax.set_title("Reliability diagram (held-out test split)")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.legend(loc="upper left", fontsize="small")
+    fig.tight_layout()
+    fig.savefig(target, dpi=120)
+    plt.close(fig)
+    return target
+
+
 def _fit_cv_calibrator(
     base_model: Any,
     features: Any,
@@ -362,6 +452,15 @@ def calibrate(
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(report, indent=2), encoding="utf-8")
     LOGGER.info("Wrote %s", target)
+
+    # Reproducible-evaluation artefacts: a flat CSV of the reliability bins
+    # (always) and the reliability diagram (when matplotlib is installed).
+    evaluation_dir = Path(cfg["artifacts"].get("evaluation_dir", cfg["artifacts"]["reports_dir"]))
+    csv_path = write_calibration_table(report, evaluation_dir / "calibration_table.csv")
+    LOGGER.info("Wrote %s", csv_path)
+    png_path = write_reliability_diagram(report, evaluation_dir / "reliability_diagram.png")
+    if png_path is not None:
+        LOGGER.info("Wrote %s", png_path)
     return report
 
 

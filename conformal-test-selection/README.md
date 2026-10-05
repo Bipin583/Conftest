@@ -44,6 +44,25 @@ lets real failures through, and you only find out in production.
    cross-project shift can weaken, so realized coverage should be monitored in
    deployment.
 
+On top of these three layers sits a **SELECT / ABSTAIN decision**
+(`models/decision.py`). The conformal rule always returns *a* subset, but a
+subset is only worth trusting when its guarantee actually holds. When the request
+was scored on mostly-imputed features, when a `max_tests` budget dropped a
+selected test (voiding the guarantee), when there are no candidates, or when the
+selection is so large that running everything is barely more expensive, the
+decision **abstains and recommends the full suite**. Abstaining can only *add*
+tests, so it never lowers coverage — the full suite covers 100% of failing tests
+by construction. Every prediction therefore carries a `decision` block with a
+closed set of `reason_codes`, so a CI consumer can branch on *why* a selection
+was or was not trusted rather than parsing free text.
+
+Test discovery is framework-neutral behind an adapter interface
+(`adapters/`): a versioned `NormalizedTestRecord` schema and a registry that
+today holds exactly one adapter — **pytest**. Detection returns `None` (the
+signal to abstain) rather than guessing when no supported framework is found.
+The multi-ecosystem framing is the *design seam*, not a present capability: the
+system is Python/pytest-only today.
+
 ## Results
 
 <!-- RESULTS:START -->
@@ -95,15 +114,20 @@ split is deliberately temporal, distribution drift can erode it, and the 95.23%
 measured on the held-out test split is evidence it held on this corpus rather
 than a proof it holds everywhere. The guarantee is additionally voided if the
 `max_tests` cap drops a selected test — the serving response reports this by
-setting `holds: false`.
+setting `holds: false`, and the decision layer then abstains to the full suite
+(`reason_codes: ["GUARANTEE_VOIDED_BY_BUDGET"]`).
 
 ## Repository layout
 
 ```
 conformal-test-selection/
-├── cli.py                 # collect · features · preprocess · train · calibrate · conformal · predict · evaluate
+├── cli.py                 # collect · features · preprocess · train · calibrate · conformal · manifest · predict · evaluate
 ├── common.py              # config loading, logging, path resolution
 ├── config.yaml            # single source of truth for every hyper-parameter and target
+├── adapters/              # framework-neutral test discovery (pytest only today)
+│   ├── schema.py          # versioned NormalizedTestRecord + normalize_test_id
+│   ├── base.py            # adapter contract + registry (detect returns None -> abstain)
+│   └── pytest_adapter.py  # the one shipped adapter
 ├── data/
 │   ├── splits/            # -> symlink to ../../data/splits (mined ConfTest corpus, 561,711 rows)
 │   ├── collect.py         # optional GitHub Actions history harvester (PyGitHub)
@@ -112,12 +136,16 @@ conformal-test-selection/
 │   └── processed/         # train.csv · val.csv · test.csv (generated)
 ├── models/
 │   ├── train.py           # XGBoost fit + metrics
-│   ├── calibrate.py       # Platt scaling + ECE report
+│   ├── calibrate.py       # Platt scaling + ECE report + reliability diagram / table
 │   ├── conformal.py       # split-conformal threshold (PAC)
+│   ├── decision.py        # SELECT / ABSTAIN / full-suite fallback (reason codes)
+│   ├── manifest.py        # reproducibility manifest (git, versions, seed, guarantee)
 │   ├── pipeline.py        # SelectionPipeline: load all three layers and predict
+│   ├── manifest.json      # generated run manifest
 │   └── *.pkl              # trained artefacts
 ├── api/server.py          # Flask serving: /predict · /predict/batch · /health · /metrics
 ├── reports/               # training / calibration / conformal / evaluation JSON
+│                          #   + reliability_diagram.png · calibration_table.csv
 └── tests/                 # pytest suite
 ```
 
@@ -155,8 +183,16 @@ python cli.py preprocess          # impute, scale, encode, chronological split -
 python cli.py train               # fit XGBoost              -> models/gbdt_model.pkl, reports/training_report.json
 python cli.py calibrate           # Platt scaling + ECE gate -> models/calibrator.pkl, reports/calibration_report.json
 python cli.py conformal           # PAC threshold            -> models/conformal_threshold.pkl, reports/conformal_report.json
+python cli.py manifest            # reproducibility manifest -> models/manifest.json
 python cli.py evaluate            # score against targets    -> reports/evaluation.json (exit 1 if any gate fails)
 ```
+
+`calibrate` also writes `reports/reliability_diagram.png` (predicted vs observed
+failure frequency, before/after calibration) and `reports/calibration_table.csv`
+(the per-bin data behind it); the diagram is skipped without a hard failure if
+matplotlib is not installed. `manifest` records the git revision, package
+versions, seed, calibration method and the conformal guarantee behind a run, so
+a result can be tied to exactly what produced it.
 
 Select tests for a change. `predict` takes a JSON or CSV of candidate test
 records (the feature columns `features.py` produces), not a raw commit — the
@@ -167,9 +203,14 @@ python cli.py predict candidates.csv --output selection.json
 # stdout:
 #   Selected 45 of 120 tests (37.5%), saving 62.5% of CI cost.
 #   Guarantee: at least 95% of failing tests selected, 90% confidence (PAC)
+#   DECISION: run the selected subset (guarantee holds).
 #     [RUN ] p=0.8123  repoX::tests/test_auth.py::test_login
 #     [skip] p=0.0041  repoX::tests/test_docs.py::test_readme
 ```
+
+The JSON result adds a `decision` block alongside `predictions`, `summary` and
+`guarantee`; when the guarantee is in doubt the action becomes
+`run_full_suite` with the reason codes explaining why.
 
 Serve it:
 

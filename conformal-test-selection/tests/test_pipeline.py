@@ -105,9 +105,42 @@ def test_scoring_an_empty_request_is_refused(pipeline):
 def test_prediction_reports_predictions_summary_and_guarantee(pipeline, candidate_tests):
     """The response shape the API and the CLI both serialise."""
     result = pipeline.predict(candidate_tests)
-    assert set(result) == {"predictions", "summary", "guarantee"}
+    assert set(result) == {"predictions", "summary", "guarantee", "decision"}
     assert len(result["predictions"]) == len(candidate_tests)
     assert {"test_id", "failure_probability", "selected", "margin"} == set(result["predictions"][0])
+
+
+def test_a_trustworthy_selection_runs_the_selected_subset(pipeline, candidate_tests):
+    """A rich, uncapped request should trust the conformal subset, not abstain."""
+    record = {column: 1.0 for column in pipeline.modelled_columns}
+    record["test_id"] = "tests/test_full.py::test_case"
+    decision = pipeline.predict([record], min_tests=0, max_tests=None)["decision"]
+    if decision["reason_codes"] == ["SELECTION_EXCEEDS_FALLBACK_FRACTION"]:
+        pytest.skip("single-record selection rate is at the fallback rate")
+    assert decision["action"] == "run_selected"
+    assert decision["reason_codes"] == ["WITHIN_GUARANTEE"]
+    assert decision["safe_fallback"] is False
+
+
+def test_a_capped_guarantee_abstains_to_the_full_suite(pipeline, candidate_tests):
+    """When a budget voids the guarantee, the decision must abstain and run all."""
+    unconstrained = pipeline.predict(candidate_tests)
+    if unconstrained["summary"]["n_selected"] < 2:
+        pytest.skip("rule selected too few tests for a cap to bind")
+
+    decision = pipeline.predict(candidate_tests, max_tests=1)["decision"]
+    assert decision["action"] == "run_full_suite"
+    assert "GUARANTEE_VOIDED_BY_BUDGET" in decision["reason_codes"]
+    assert decision["safe_fallback"] is True
+    assert decision["tests_to_run"] == len(candidate_tests)
+
+
+def test_a_degraded_request_abstains_to_the_full_suite(pipeline):
+    """A sparse request is scored on imputed features, so the subset is not trusted."""
+    decision = pipeline.predict([{"test_id": "tests/test_thin.py::test_case"}])["decision"]
+    assert decision["action"] == "run_full_suite"
+    assert "DEGRADED_FEATURE_COMPLETENESS" in decision["reason_codes"]
+    assert decision["safe_fallback"] is True
 
 
 def test_every_test_above_the_threshold_is_selected(pipeline, candidate_tests):

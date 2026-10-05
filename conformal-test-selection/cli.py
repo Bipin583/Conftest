@@ -171,6 +171,23 @@ def cmd_conformal(args: argparse.Namespace) -> int:
     return conformal_main(forwarded)
 
 
+def cmd_manifest(args: argparse.Namespace) -> int:
+    """Write the reproducibility manifest for the trained pipeline.
+
+    Args:
+        args: Parsed arguments.
+
+    Returns:
+        Process exit code.
+    """
+    from models.manifest import main as manifest_main
+
+    forwarded: List[str] = []
+    if args.path:
+        forwarded += ["--path", args.path]
+    return manifest_main(forwarded)
+
+
 def cmd_predict(args: argparse.Namespace) -> int:
     """Select tests for a change described in a JSON or CSV file.
 
@@ -215,9 +232,15 @@ def cmd_predict(args: argparse.Namespace) -> int:
         LOGGER.info("Wrote %s", target)
     else:
         summary = result["summary"]
+        decision = result["decision"]
         print(f"\nSelected {summary['n_selected']} of {summary['n_candidates']} tests "
               f"({summary['selection_rate']:.1%}), saving {summary['cost_reduction']:.1%} of CI cost.")
         print(f"Guarantee: {result['guarantee']['claim']}")
+        if decision["action"] == "run_full_suite":
+            print(f"DECISION: abstain and run the FULL suite ({', '.join(decision['reason_codes'])}). "
+                  f"{decision['explanation']}")
+        else:
+            print("DECISION: run the selected subset (guarantee holds).")
         if summary["degraded"]:
             print(f"WARNING: only {summary['feature_completeness']:.0%} of features supplied; "
                   "the rest were imputed.")
@@ -593,6 +616,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--processed-dir", default=None, help="Directory of split CSVs.")
     p.add_argument("--calibration-split", default=None, choices=["val", "test"], help="Split for the quantile.")
     p.set_defaults(func=cmd_conformal)
+
+    p = sub.add_parser("manifest", help="Write the reproducibility manifest (git, versions, guarantee).")
+    p.add_argument("--path", default=None, help="Destination manifest path.")
+    p.set_defaults(func=cmd_manifest)
 
     p = sub.add_parser("predict", help="Select tests for a change.")
     p.add_argument("input", help="JSON or CSV describing the candidate tests.")
