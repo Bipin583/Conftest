@@ -1,0 +1,29 @@
+name: Bug Report
+description: File a reproducible defect, feature extraction issue, or test runner failure
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for filing a report. Please provide exact steps and error logs.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of the unexpected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Exact CLI command, commit SHA, or API payload needed to reproduce.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Python version, LightGBM version, OS, and stack trace.
+    validations:
+      required: true

@@ -1,0 +1,22 @@
+name: Feature Request
+description: Propose an enhancement, new model adapter, or evaluation metric
+title: "[FEATURE]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Describe the proposed enhancement and its impact on calibration and failure recall.
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation & Problem Statement
+      description: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution & Evaluation Plan
+      description: Detail how this feature will be integrated, calibrated, and evaluated against held-out baselines.
+    validations:
+      required: true
