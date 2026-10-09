@@ -1,6 +1,13 @@
 # ConfTest
 
-Confidence-calibrated, uncertainty-aware regression test selection for Python CI pipelines.
+> Confidence-calibrated, uncertainty-aware regression test selection for Python CI pipelines.
+
+[![Python 3.11](https://img.shields.io/badge/Python-3.11+-blue?logo=python)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![LightGBM](https://img.shields.io/badge/LightGBM-4.7-brightgreen)](https://lightgbm.readthedocs.io/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.37-FF4B4B?logo=streamlit)](https://streamlit.io/)
+[![Pytest Suite](https://img.shields.io/badge/Pytest-800%2B%20Tests-yellow?logo=pytest)](https://pytest.org/)
+
 
 ConfTest ranks tests by calibrated failure risk when its ensemble is sufficiently certain. Otherwise, it abstains from subset selection and recommends or executes the full suite. The maintained implementation is under `src/conftest/`; the project also includes a FastAPI service, Streamlit dashboard, SQLite persistence, GitHub integration, and an evidence-producing evaluation pipeline.
 
@@ -137,3 +144,4 @@ ConfTest is a research-grade Python RTS prototype, not a universal or formally v
 ## License
 
 MIT licensed.
+
