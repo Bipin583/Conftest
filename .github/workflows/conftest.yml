@@ -14,6 +14,13 @@ jobs:
       contents: read
       pull-requests: write
 
+    # Optional: when this secret is set to a deployed ConfTest URL, the PR's
+    # decision is also POSTed there so it persists to that instance's DB and
+    # shows on the Analytics dashboard. Unset (the default) => the step below is
+    # skipped and CI stays fully self-contained (no public URL needed).
+    env:
+      CONFTEST_API_URL: ${{ secrets.CONFTEST_API_URL }}
+
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v5
@@ -62,6 +69,46 @@ jobs:
             --budget 0.25 \
             --timeout 600 \
             --execute
+
+      # Optional dashboard reporting: only runs when CONFTEST_API_URL is set.
+      # Sends the PR's changed files to the deployed /api/v1/select so the
+      # decision persists to that instance's DB and appears on the Analytics
+      # page. continue-on-error keeps a flaky/unreachable dashboard from ever
+      # failing the PR check.
+      - name: 📡 Persist decision to ConfTest dashboard (optional)
+        if: ${{ github.event_name == 'pull_request' && env.CONFTEST_API_URL != '' }}
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          REPO: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, urllib.request
+          base, head = os.environ["BASE_SHA"], os.environ["HEAD_SHA"]
+          diff = subprocess.run(
+              ["git", "diff", "--name-only", base, head],
+              capture_output=True, text=True,
+          ).stdout.split()
+          payload = {
+              "repository_name": os.environ["REPO"],
+              "commit_sha": head,
+              "commit_message": os.environ.get("PR_TITLE") or "Pull Request",
+              "changed_files": [{"file_path": f, "change_type": "modified"} for f in diff],
+              "budget_ratio": 0.25,
+          }
+          url = os.environ["CONFTEST_API_URL"].rstrip("/") + "/api/v1/select"
+          req = urllib.request.Request(
+              url, data=json.dumps(payload).encode(),
+              headers={"Content-Type": "application/json"}, method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  print(f"ConfTest dashboard persisted the decision (HTTP {r.status}).")
+          except Exception as exc:
+              print(f"Dashboard report skipped ({exc}); the PR comment above is unaffected.")
+          PY
 
       - name: 💬 Post ConfTest Summary to Pull Request
         if: github.event_name == 'pull_request'
