@@ -70,32 +70,39 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            if (fs.existsSync('reports/conftest_selection_report.json')) {
-              const data = JSON.parse(fs.readFileSync('reports/conftest_selection_report.json', 'utf8'));
-              const mode = data.decision_mode || 'FAST_SELECTED';
-              // test_reduction_pct is 1 - selected/total: a fraction of the
-              // test *count*. Calling it a time reduction asserts that every
-              // test costs the same, which is false for any real suite, and
-              // `|| 0` additionally turned a missing value into a reported 0%.
-              const reduction = data.test_reduction_pct;
-              const reductionLabel =
-                (reduction === null || reduction === undefined)
-                  ? 'reduction not reported'
-                  : `${reduction}% fewer tests`;
-              const selected = data.selected_count || 0;
-              const total = data.total_count || 0;
-              
-              const body = `## 🛡️ ConfTest CI Test Selection Report\n\n` +
-                `- **Execution Mode:** \`${mode}\`\n` +
-                `- **Tests Selected:** **${selected} / ${total}** (${reductionLabel})\n` +
-                `- **Model Confidence:** \`${(data.top_confidence * 100).toFixed(1)}%\`\n` +
-                `- **Epistemic Uncertainty:** \`${data.epistemic_uncertainty.toFixed(4)}\`\n\n` +
-                `*Executed via ConfTest GitHub Action.*`;
-                
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: body
-              });
+            if (!fs.existsSync('reports/conftest_selection_report.json')) return;
+            const data = JSON.parse(fs.readFileSync('reports/conftest_selection_report.json', 'utf8'));
+            const mode = data.decision_mode || 'FAST_SELECTED';
+            // test_reduction_pct is 1 - selected/total: a fraction of the test
+            // *count*. Calling it a time reduction asserts that every test costs
+            // the same, which is false for any real suite, and `|| 0` additionally
+            // turned a missing value into a reported 0%.
+            const reduction = data.test_reduction_pct;
+            const reductionLabel =
+              (reduction === null || reduction === undefined)
+                ? 'reduction not reported'
+                : `${reduction}% fewer tests`;
+            const selected = data.selected_count || 0;
+            const total = data.total_count || 0;
+
+            // Hidden marker so repeated pushes update one comment instead of
+            // posting a new one each run (same pattern as ai-failure-analysis.yml).
+            const marker = '<!-- conftest-rts-selection -->';
+            const body = `${marker}\n## 🛡️ ConfTest CI Test Selection Report\n\n` +
+              `- **Execution Mode:** \`${mode}\`\n` +
+              `- **Tests Selected:** **${selected} / ${total}** (${reductionLabel})\n` +
+              `- **Model Confidence:** \`${(data.top_confidence * 100).toFixed(1)}%\`\n` +
+              `- **Epistemic Uncertainty:** \`${data.epistemic_uncertainty.toFixed(4)}\`\n\n` +
+              `*Executed via ConfTest GitHub Action — commit \`${(data.commit_sha || '').slice(0, 8)}\`.*`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number,
+            });
+            const existing = comments.find(c => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
