@@ -315,10 +315,19 @@ class SafeTestExecutor:
         env.pop("PYTEST_ADDOPTS", None)
         if sanitized_targets:
             if len(sanitized_targets) <= 20:
+                # "--" ends option parsing: everything after it is a positional
+                # file/node argument, never a flag. validate_test_node_id already
+                # rejects a leading '-', so this is defence in depth -- it keeps
+                # the guarantee even if a future caller reaches run_tests without
+                # going through that validator. Only the argv path gets it: a
+                # leading "--" inside PYTEST_ADDOPTS would make pytest treat its
+                # own --junitxml/-o flags as positional too.
+                cmd.append("--")
                 cmd.extend(sanitized_targets)
             else:
                 env["PYTEST_ADDOPTS"] = " ".join(sanitized_targets)
         elif test_dir:
+            cmd.append("--")
             cmd.append(test_dir)
 
         start_time = time.time()

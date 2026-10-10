@@ -25,6 +25,16 @@ def validate_test_node_id(node_id: str) -> bool:
     """Validate that a test node ID contains only safe characters."""
     if not node_id or len(node_id) > 1024:
         return False
+    # A leading '-' is the one character class member that is still unsafe once
+    # it reaches the pytest argv. The executor passes targets as separate
+    # argument-vector entries (no shell), so there is no shell-injection risk --
+    # but pytest itself parses a token that starts with '-' as an *option*, not a
+    # path. A node id of "-p" / "--pdb" / "-pmy_plugin" would therefore be
+    # interpreted as a flag (or a plugin to import), which is exactly the
+    # argument-injection this validator exists to stop. A real node id is always
+    # a path, optionally "::"-qualified, so it never begins with '-'.
+    if node_id[0] == "-":
+        return False
     return bool(NODE_ID_PATTERN.match(node_id))
 
 
