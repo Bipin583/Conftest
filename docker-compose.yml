@@ -1,5 +1,12 @@
 services:
-  conftest-api:
+  # Single-service full stack, mirroring the Render deployment: nginx serves the
+  # built React dashboard SPA at / and proxies /api, /health, /docs to the
+  # FastAPI backend on a loopback port inside the container.
+  #
+  # For frontend development with hot reload, run the API alone
+  # (`uvicorn conftest.api.main:app --port 8000`) and `npm run dev` in frontend/
+  # (Vite proxies /api to :8000) instead of this container.
+  conftest:
     build:
       context: .
       dockerfile: Dockerfile
@@ -8,47 +15,24 @@ services:
         # output, so shell exports or an .env override set it. Defaults to
         # "unknown" in the Dockerfile, which is honest for a local build.
         GIT_SHA: ${GIT_SHA:-unknown}
-    container_name: conftest-api
+    container_name: conftest
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "10000:10000"
     environment:
-      CONFTEST_ENV: production
       CONFTEST_LOG_LEVEL: INFO
       CONFTEST_DATABASE_URL: sqlite:////app/data/conftest.db
-      CONFTEST_API_HOST: 0.0.0.0
-      CONFTEST_API_PORT: "8000"
-      CONFTEST_CORS_ALLOW_ORIGINS: '${CONFTEST_CORS_ALLOW_ORIGINS:-["http://localhost:8501","http://127.0.0.1:8501"]}'
-      CONFTEST_GITHUB_WEBHOOK_SECRET: "${CONFTEST_GITHUB_WEBHOOK_SECRET:?Set CONFTEST_GITHUB_WEBHOOK_SECRET before starting the production stack}"
+      # Same-origin: the SPA calls the API through nginx, so no CORS origins.
+      CONFTEST_CORS_ALLOW_ORIGINS: '${CONFTEST_CORS_ALLOW_ORIGINS:-[]}'
     volumes:
       - conftest-data:/app/data
       - ./models:/app/models:ro
       - ./reports:/app/reports:ro
-    command: ["uvicorn", "conftest.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:10000/health"]
       interval: 15s
       timeout: 5s
       retries: 3
-
-  conftest-dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        GIT_SHA: ${GIT_SHA:-unknown}
-    container_name: conftest-dashboard
-    restart: unless-stopped
-    ports:
-      - "8501:8501"
-    environment:
-      CONFTEST_DATABASE_URL: sqlite:////app/data/conftest.db
-    volumes:
-      - conftest-data:/app/data
-      - ./reports:/app/reports
-    depends_on:
-      - conftest-api
-    command: ["streamlit", "run", "dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
 
 volumes:
   conftest-data:

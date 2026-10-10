@@ -25,6 +25,10 @@ python -m uvicorn conftest.api.main:app --host 127.0.0.1 --port 8000
 | `GET` | `/api/v1/analytics` | 200 | Aggregate persisted telemetry. |
 | `POST` | `/api/v1/flakiness/predict` | 200 | Predict whether a test touched by a commit is flaky. |
 | `POST` | `/api/v1/github/webhook` | 200/202 | Process signed GitHub events or recommend full-suite fallback. |
+| `GET` | `/api/v1/headline` | 200/503 | Front-page KPI row and label provenance for the dashboard. |
+| `GET` | `/api/v1/baseline` | 200/503 | RTS baseline-comparison table as parsed JSON rows. |
+| `GET` | `/api/v1/uncertainty` | 200/503 | Ensemble disagreement analysis, abstention policy, and ensemble metadata. |
+| `GET` | `/api/v1/explanations` | 200/503 | Global SHAP attribution report. |
 
 Pydantic returns 422 for structurally invalid request/query data.
 

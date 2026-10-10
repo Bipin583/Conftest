@@ -22,6 +22,7 @@ from conftest.api.routes.repositories import router as repositories_router
 from conftest.api.routes.analytics import router as analytics_router
 from conftest.api.routes.github_webhook import router as github_router
 from conftest.api.routes.flakiness import router as flakiness_router
+from conftest.api.routes.portal import router as portal_router
 
 logger = get_logger(__name__)
 
@@ -86,6 +87,7 @@ app.include_router(repositories_router, prefix="/api/v1", tags=["Repositories"])
 app.include_router(analytics_router, prefix="/api/v1", tags=["Analytics & Telemetry"])
 app.include_router(github_router, prefix="/api/v1", tags=["GitHub Integration"])
 app.include_router(flakiness_router, prefix="/api/v1", tags=["Flaky Test Detection"])
+app.include_router(portal_router, prefix="/api/v1", tags=["Dashboard Data"])
 
 
 @app.get(
