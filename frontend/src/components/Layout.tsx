@@ -7,6 +7,7 @@ const NAV = [
   { to: "/uncertainty", label: "Uncertainty Drilldown", icon: "🔮" },
   { to: "/baseline", label: "Baseline Comparison", icon: "📊" },
   { to: "/shap", label: "SHAP Explainability", icon: "🔍" },
+  { to: "/analytics", label: "Analytics & Telemetry", icon: "📈" },
 ];
 
 export default function Layout() {

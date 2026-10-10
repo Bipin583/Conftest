@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type {
+  AnalyticsResponse,
   BaselineResponse,
   CalibrationResponse,
   ExplanationsResponse,
@@ -69,6 +70,15 @@ export const useUncertainty = () =>
 
 export const useExplanations = () =>
   useQuery({ queryKey: ["explanations"], queryFn: () => getJson<ExplanationsResponse>("/api/v1/explanations") });
+
+// Persisted telemetry: every /select decision (API or GitHub webhook) is stored
+// and aggregated here. Short staleTime so the page reflects new runs quickly.
+export const useAnalytics = () =>
+  useQuery({
+    queryKey: ["analytics"],
+    queryFn: () => getJson<AnalyticsResponse>("/api/v1/analytics"),
+    staleTime: 5_000,
+  });
 
 export const useSelectMutation = () =>
   useMutation({

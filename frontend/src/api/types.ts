@@ -108,3 +108,29 @@ export interface SelectRequest {
   changed_files: { file_path: string; change_type: string }[];
   budget_ratio: number;
 }
+
+export interface RecentDecision {
+  commit_sha: string;
+  mode: string;
+  abstained: boolean;
+  selected_count: number;
+  total_count: number;
+  test_reduction_pct: number;
+  uncertainty: number;
+  created_at: string;
+}
+
+export interface AnalyticsResponse {
+  total_repositories: number;
+  total_commits_evaluated: number;
+  total_decisions: number;
+  total_selective_fast_mode: number;
+  total_safe_abstentions: number;
+  average_test_reduction_pct: number;
+  total_failures_detected: number;
+  total_missed_failures: number | null;
+  verified_outcomes: number;
+  unverified_outcomes: number;
+  average_uncertainty: number;
+  recent_decisions: RecentDecision[];
+}
