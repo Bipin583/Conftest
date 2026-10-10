@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(98, 80, 214, 0.12), transparent 60%),
+    radial-gradient(1000px 500px at 0% 0%, rgba(57, 135, 229, 0.1), transparent 55%),
+    #0d0d0d;
+  color: #f0efec;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer components {
+  /* Glassmorphic card, carried over from the Streamlit theme. */
+  .glass {
+    @apply rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur;
+    box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.5);
+  }
+
+  .gradient-title {
+    background: linear-gradient(90deg, #3987e5, #9085e9);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}

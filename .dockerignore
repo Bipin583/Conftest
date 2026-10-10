@@ -9,8 +9,14 @@
 !reports
 !tests/sample_suite
 !deploy
+!frontend
 !pyproject.toml
 !requirements.txt
+
+# Frontend build inputs only -- node_modules and the local dist are rebuilt
+# inside the image's node stage, never uploaded in the build context.
+frontend/node_modules
+frontend/dist
 
 # Junk inside the included directories.
 __pycache__

@@ -2,7 +2,8 @@
 # Docs: https://render.com/docs/blueprint-spec
 #
 # One web service runs the whole stack behind nginx: the FastAPI API at
-# /api/v1/* (/health, /docs, /redoc) and the Streamlit dashboard on /.
+# /api/v1/* (/health, /docs, /redoc) and the React dashboard SPA (built from
+# frontend/) served as static files on /.
 # See deploy/entrypoint.sh and deploy/nginx.conf.template.
 #
 # After the first deploy, note the service URL and (optionally) set

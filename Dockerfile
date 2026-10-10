@@ -13,6 +13,15 @@ COPY pyproject.toml requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
+# Build the React/TypeScript dashboard SPA to static files. Served by nginx at
+# the platform root in the runtime image; replaces the old Streamlit dashboard.
+FROM node:20-slim AS frontend
+WORKDIR /build/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 # Final Runtime Image
 FROM python:3.11-slim AS runtime
 
@@ -51,6 +60,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY src/ ./src/
 COPY dashboard/ ./dashboard/
+# The built React dashboard SPA (static files nginx serves at /).
+COPY --from=frontend /build/frontend/dist ./frontend/dist
 COPY scripts/ ./scripts/
 # Runtime artifacts the API and dashboard serve from -- docker-compose mounts
 # these from the host for local development, but a platform build (Render)
